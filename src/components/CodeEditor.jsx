@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import CodeMirror from '@uiw/react-codemirror';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import CodeMirror from '@uiw/react-codemirror'; // eslint-disable-line no-unused-vars
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
 import { html } from '@codemirror/lang-html';
@@ -10,7 +10,7 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView, showPanel, ViewPlugin } from '@codemirror/view';
 import { unifiedMergeView, getChunks } from '@codemirror/merge';
 import { showMinimap } from '@replit/codemirror-minimap';
-import { X, Save, Download, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Save, Download, Maximize2, Minimize2 } from 'lucide-react'; // eslint-disable-line no-unused-vars
 import { api } from '../utils/api';
 import { useTranslation } from 'react-i18next';
 
@@ -586,6 +586,7 @@ function CodeEditor({ file, onClose, projectPath, isSidebar = false, isExpanded 
 
           <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
             <button
+              type="button"
               onClick={handleDownload}
               className="p-2 md:p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
               title={t('actions.download')}
@@ -594,6 +595,7 @@ function CodeEditor({ file, onClose, projectPath, isSidebar = false, isExpanded 
             </button>
 
             <button
+              type="button"
               onClick={handleSave}
               disabled={saving}
               className={`px-3 py-2 text-white rounded-md disabled:opacity-50 flex items-center gap-2 transition-colors min-h-[44px] md:min-h-0 ${
@@ -619,6 +621,7 @@ function CodeEditor({ file, onClose, projectPath, isSidebar = false, isExpanded 
 
             {!isSidebar && (
               <button
+                type="button"
                 onClick={toggleFullscreen}
                 className="hidden md:flex p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 items-center justify-center"
                 title={isFullscreen ? t('actions.exitFullscreen') : t('actions.fullscreen')}
@@ -628,6 +631,7 @@ function CodeEditor({ file, onClose, projectPath, isSidebar = false, isExpanded 
             )}
 
             <button
+              type="button"
               onClick={onClose}
               className="p-2 md:p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
               title={t('actions.close')}

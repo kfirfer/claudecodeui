@@ -47,11 +47,11 @@ import { safeJsonParse } from '../lib/utils.js';
 function decodeHtmlEntities(text) {
   if (!text) return text;
   return text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&');
+    .replaceAll(/&lt;/g, '<')
+    .replaceAll(/&gt;/g, '>')
+    .replaceAll(/&quot;/g, '"')
+    .replaceAll(/&#39;/g, "'")
+    .replaceAll(/&amp;/g, '&');
 }
 
 // Normalize markdown text where providers mistakenly wrap short inline code with single-line triple fences.
@@ -60,7 +60,7 @@ function normalizeInlineCodeFences(text) {
   if (!text || typeof text !== 'string') return text;
   try {
     // ```code```  -> `code`
-    return text.replace(/```\s*([^\n\r]+?)\s*```/g, '`$1`');
+    return text.replaceAll(/```\s*([^\n\r]+?)\s*```/g, '`$1`');
   } catch {
     return text;
   }
@@ -75,16 +75,16 @@ function unescapeWithMathProtection(text) {
   const PLACEHOLDER_SUFFIX = '__';
 
   // Extract and protect math formulas
-  let processedText = text.replace(/\$\$([\s\S]*?)\$\$|\$([^\$\n]+?)\$/g, (match) => {
+  let processedText = text.replaceAll(/\$\$([\s\S]*?)\$\$|\$([^$\n]+?)\$/g, (match) => {
     const index = mathBlocks.length;
     mathBlocks.push(match);
     return `${PLACEHOLDER_PREFIX}${index}${PLACEHOLDER_SUFFIX}`;
   });
 
   // Process escape sequences on non-math content
-  processedText = processedText.replace(/\\n/g, '\n')
-                               .replace(/\\t/g, '\t')
-                               .replace(/\\r/g, '\r');
+  processedText = processedText.replaceAll(/\\n/g, '\n')
+                               .replaceAll(/\\t/g, '\t')
+                               .replaceAll(/\\r/g, '\r');
 
   // Restore math formulas
   processedText = processedText.replace(
@@ -98,7 +98,7 @@ function unescapeWithMathProtection(text) {
 }
 
 function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // Small wrapper to keep markdown behavior consistent in one place
@@ -124,10 +124,11 @@ const Markdown = ({ children, className }) => {
 function formatUsageLimitText(text) {
   try {
     if (typeof text !== 'string') return text;
-    return text.replace(/Claude AI usage limit reached\|(\d{10,13})/g, (match, ts) => {
+    return text.replaceAll(/Claude AI usage limit reached\|(\d{10,13})/g, (match, ts) => {
       let timestampMs = parseInt(ts, 10);
       if (!Number.isFinite(timestampMs)) return match;
-      if (timestampMs < 1e12) timestampMs *= 1000; // seconds → ms
+      // seconds -> ms
+      if (timestampMs < 1e12) timestampMs *= 1000;
       const reset = new Date(timestampMs);
 
       // Time HH:mm in local time
@@ -147,9 +148,9 @@ function formatUsageLimitText(text) {
       const tzId = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
       const cityRaw = tzId.split('/').pop() || '';
       const city = cityRaw
-        .replace(/_/g, ' ')
+        .replaceAll(/_/g, ' ')
         .toLowerCase()
-        .replace(/\b\w/g, c => c.toUpperCase());
+        .replaceAll(/\b\w/g, c => c.toUpperCase());
       const tzHuman = city ? `${gmt} (${city})` : gmt;
 
       // Readable date like "8 Jun 2025"

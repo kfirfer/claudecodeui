@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
-import { Server, Plus, Edit3, Trash2, Terminal, Globe, Zap, X } from 'lucide-react';
+import { Server, Plus, Edit3, Trash2, Terminal, Globe, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const getTransportIcon = (type) => {
@@ -20,11 +18,11 @@ function ClaudeMcpServers({
   onAdd,
   onEdit,
   onDelete,
-  onTest,
-  onDiscoverTools,
+  _onTest,
+  _onDiscoverTools,
   testResults,
   serverTools,
-  toolsLoading,
+  _toolsLoading,
 }) {
   const { t } = useTranslation('settings');
   return (

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
@@ -105,13 +105,17 @@ function Shell({ selectedProject, selectedSession, initialCommand, isPlainShell 
             let output = data.data;
 
             if (isPlainShellRef.current && onProcessCompleteRef.current) {
-              const cleanOutput = output.replace(/\x1b\[[0-9;]*m/g, '');
+              // eslint-disable-next-line no-control-regex
+              const cleanOutput = output.replaceAll(/\x1b\[[0-9;]*m/g, '');
               if (cleanOutput.includes('Process exited with code 0')) {
                 onProcessCompleteRef.current(0);
-              } else if (cleanOutput.match(/Process exited with code (\d+)/)) {
-                const exitCode = parseInt(cleanOutput.match(/Process exited with code (\d+)/)[1]);
-                if (exitCode !== 0) {
-                  onProcessCompleteRef.current(exitCode);
+              } else {
+                const exitCodeMatch = cleanOutput.match(/Process exited with code (\d+)/);
+                if (exitCodeMatch) {
+                  const exitCode = parseInt(exitCodeMatch[1], 10);
+                  if (exitCode !== 0) {
+                    onProcessCompleteRef.current(exitCode);
+                  }
                 }
               }
             }
@@ -127,7 +131,7 @@ function Shell({ selectedProject, selectedSession, initialCommand, isPlainShell 
         }
       };
 
-      ws.current.onclose = (event) => {
+      ws.current.onclose = (_event) => {
         setIsConnected(false);
         setIsConnecting(false);
 
@@ -137,11 +141,11 @@ function Shell({ selectedProject, selectedSession, initialCommand, isPlainShell 
         }
       };
 
-      ws.current.onerror = (error) => {
+      ws.current.onerror = (_error) => {
         setIsConnected(false);
         setIsConnecting(false);
       };
-    } catch (error) {
+    } catch {
       setIsConnected(false);
       setIsConnecting(false);
     }
@@ -277,7 +281,7 @@ function Shell({ selectedProject, selectedSession, initialCommand, isPlainShell 
 
     try {
       terminal.current.loadAddon(webglAddon);
-    } catch (error) {
+    } catch {
       console.warn('[Shell] WebGL renderer unavailable, using Canvas fallback');
     }
 
@@ -297,6 +301,7 @@ function Shell({ selectedProject, selectedSession, initialCommand, isPlainShell 
               data: text
             }));
           }
+          return undefined;
         }).catch(() => {});
         return false;
       }
@@ -414,6 +419,7 @@ function Shell({ selectedProject, selectedSession, initialCommand, isPlainShell 
           <div className="flex items-center space-x-3">
             {isConnected && (
               <button
+                type="button"
                 onClick={disconnectFromShell}
                 className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 flex items-center space-x-1"
                 title={t('shell.actions.disconnectTitle')}
@@ -426,6 +432,7 @@ function Shell({ selectedProject, selectedSession, initialCommand, isPlainShell 
             )}
 
             <button
+              type="button"
               onClick={restartShell}
               disabled={isRestarting || isConnected}
               className="text-xs text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
@@ -453,6 +460,7 @@ function Shell({ selectedProject, selectedSession, initialCommand, isPlainShell 
           <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-90 p-4">
             <div className="text-center max-w-sm w-full">
               <button
+                type="button"
                 onClick={connectToShell}
                 className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2 text-base font-medium w-full sm:w-auto"
                 title={t('shell.actions.connectTitle')}

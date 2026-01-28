@@ -1,5 +1,5 @@
-import { X } from 'lucide-react';
-import StandaloneShell from './StandaloneShell';
+import { X } from 'lucide-react'; // eslint-disable-line no-unused-vars
+import StandaloneShell from './StandaloneShell'; // eslint-disable-line no-unused-vars
 
 /**
  * Reusable login modal component for Claude, Cursor, and Codex CLI authentication
@@ -71,6 +71,7 @@ function LoginModal({
             {getTitle()}
           </h3>
           <button
+            type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
             aria-label="Close login modal"

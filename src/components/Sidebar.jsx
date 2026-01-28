@@ -1044,7 +1044,7 @@ function Sidebar({
                                 })()}
                                 {project.fullPath !== project.displayName && (
                                   <span className="ml-1 opacity-60" title={project.fullPath}>
-                                    • {project.fullPath.length > 25 ? '...' + project.fullPath.slice(-22) : project.fullPath}
+                                    • {project.fullPath.length > 25 ? `...${project.fullPath.slice(-22)}` : project.fullPath}
                                   </span>
                                 )}
                               </div>

@@ -52,6 +52,7 @@ export default function AgentListItem({ agentId, authStatus, isSelected, onClick
   if (isMobile) {
     return (
       <button
+        type="button"
         onClick={onClick}
         className={`flex-1 text-center py-3 px-2 border-b-2 transition-colors ${
           isSelected
@@ -73,6 +74,7 @@ export default function AgentListItem({ agentId, authStatus, isSelected, onClick
   // Desktop: vertical layout with left border
   return (
     <button
+      type="button"
       onClick={onClick}
       className={`w-full text-left p-3 border-l-4 transition-colors ${
         isSelected

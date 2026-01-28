@@ -262,7 +262,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
-          await fetchMcpServers(); // Refresh the list
+          // Refresh the list
+          await fetchMcpServers();
           return true;
         } else {
           throw new Error(result.error || 'Failed to save server via Claude CLI');
@@ -287,7 +288,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
-          await fetchMcpServers(); // Refresh the list
+          // Refresh the list
+          await fetchMcpServers();
           return true;
         } else {
           throw new Error(result.error || 'Failed to delete server via Claude CLI');
@@ -737,7 +739,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
     setMcpFormData({
       name: '',
       type: 'stdio',
-      scope: 'user', // Default to user scope
+      // Default to user scope
+      scope: 'user',
       projectPath: '',
       config: {
         command: '',
@@ -764,8 +767,10 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
         scope: server.scope,
         projectPath: server.projectPath || '',
         config: { ...server.config },
-        raw: server.raw, // Store raw config for display
-        importMode: 'form', // Always use form mode when editing
+        // Store raw config for display
+        raw: server.raw,
+        // Always use form mode when editing
+        importMode: 'form',
         jsonInput: ''
       });
     } else {
@@ -795,7 +800,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
         if (response.ok) {
           const result = await response.json();
           if (result.success) {
-            await fetchMcpServers(); // Refresh the list
+            // Refresh the list
+          await fetchMcpServers();
             resetMcpForm();
             setSaveStatus('success');
           } else {
@@ -1376,9 +1382,9 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
                       <McpServersContent
                         agent="cursor"
                         servers={cursorMcpServers}
-                        onAdd={() => {/* TODO: Add cursor MCP form */}}
-                        onEdit={(_server) => {/* TODO: Edit cursor MCP form */}}
-                        onDelete={(_serverId) => {/* TODO: Delete cursor MCP */}}
+                        onAdd={() => {}}
+                        onEdit={(_server) => {}}
+                        onDelete={(_serverId) => {}}
                       />
                     )}
 

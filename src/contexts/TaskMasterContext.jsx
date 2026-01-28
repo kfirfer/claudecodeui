@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { api } from '../utils/api';
 import { useAuth } from './AuthContext';
 import { useWebSocketContext } from './WebSocketContext';
@@ -81,7 +81,8 @@ export const TaskMasterProvider = ({ children }) => {
     // Only make API calls if user is authenticated
     if (!user || !token) {
       setProjects([]);
-      setCurrentProjectState(null); // This might be the problem!
+      // Clear current project when user is not authenticated
+      setCurrentProjectState(null);
       return;
     }
 
@@ -127,7 +128,8 @@ export const TaskMasterProvider = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [user, token]); // Remove currentProject dependency to avoid infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- currentProject is intentionally excluded to avoid infinite loops
+  }, [user, token, clearError]);
 
   // Set current project and load its TaskMaster details
   const setCurrentProject = useCallback(async (project) => {
@@ -163,7 +165,7 @@ export const TaskMasterProvider = ({ children }) => {
     } finally {
       setIsLoadingMCP(false);
     }
-  }, [user, token]);
+  }, [user, token, clearError]);
 
   // Refresh tasks for current project - load real TaskMaster data
   const refreshTasks = useCallback(async () => {
@@ -212,7 +214,7 @@ export const TaskMasterProvider = ({ children }) => {
     } finally {
       setIsLoadingTasks(false);
     }
-  }, [currentProject, user, token]);
+  }, [currentProject, user, token, clearError]);
 
   // Load initial data on mount or when auth changes
   useEffect(() => {
