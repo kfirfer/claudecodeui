@@ -79,7 +79,7 @@ const TaskMasterSetupWizard = ({
             mcpConfigured: mcpStatus.hasMCPServer && mcpStatus.isConfigured
           }));
           setCurrentStep(3);
-        } catch (err) {
+        } catch {
           setError('Failed to check MCP server status. You can continue but some features may not work.');
           setCurrentStep(3);
         }
@@ -297,6 +297,7 @@ const TaskMasterSetupWizard = ({
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-mono text-gray-600 dark:text-gray-400">.mcp.json</span>
                       <button
+                        type="button"
                         onClick={copyMCPConfig}
                         className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                       >
@@ -498,6 +499,7 @@ Describe your project or feature...
           </div>
           
           <button
+            type="button"
             onClick={onClose}
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
             title="Close"
@@ -565,6 +567,7 @@ Describe your project or feature...
         {/* Footer */}
         <div className="flex items-center justify-between p-4 md:p-6 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
           <button
+            type="button"
             onClick={handlePrevious}
             disabled={currentStep === 1}
             className="flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -578,6 +581,7 @@ Describe your project or feature...
           </div>
           
           <button
+            type="button"
             onClick={handleNext}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"

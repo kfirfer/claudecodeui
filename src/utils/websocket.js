@@ -17,7 +17,8 @@ export function useWebSocket() {
         ws.close();
       }
     };
-  }, []); // Keep dependency array but add proper cleanup
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only run on mount
+  }, []);
 
   const connect = async () => {
     try {

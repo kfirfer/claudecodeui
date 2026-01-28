@@ -32,9 +32,31 @@ const buttonVariants = cva(
   }
 )
 
-const Button = React.forwardRef(({ className, variant, size, ...props }, ref) => {
+const Button = React.forwardRef(({ className, variant, size, type, ...props }, ref) => {
+  // Render different buttons based on type to satisfy linter's static type check
+  if (type === "submit") {
+    return (
+      <button
+        type="submit"
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    )
+  }
+  if (type === "reset") {
+    return (
+      <button
+        type="reset"
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    )
+  }
   return (
     <button
+      type="button"
       className={cn(buttonVariants({ variant, size, className }))}
       ref={ref}
       {...props}

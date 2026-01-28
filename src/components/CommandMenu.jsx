@@ -19,21 +19,23 @@ const CommandMenu = ({ commands = [], selectedIndex = -1, onSelect, onClose, pos
   const getMenuPosition = () => {
     const isMobile = window.innerWidth < 640;
     const viewportHeight = window.innerHeight;
-    const menuHeight = 300; // Max height of menu
 
     if (isMobile) {
       // On mobile, calculate bottom position dynamically to appear above the input
       // Use the bottom value which is calculated as: window.innerHeight - textarea.top + spacing
-      const inputBottom = position.bottom || 90; // Use provided bottom or default
+      // Use provided bottom or default
+      const inputBottom = position.bottom || 90;
 
+      // Position above the input with spacing already included
+      // Limit to smaller of 50vh or 300px
       return {
         position: 'fixed',
-        bottom: `${inputBottom}px`, // Position above the input with spacing already included
+        bottom: `${inputBottom}px`,
         left: '16px',
         right: '16px',
         width: 'auto',
         maxWidth: 'calc(100vw - 32px)',
-        maxHeight: 'min(50vh, 300px)' // Limit to smaller of 50vh or 300px
+        maxHeight: 'min(50vh, 300px)'
       };
     }
 
@@ -211,7 +213,8 @@ const CommandMenu = ({ commands = [], selectedIndex = -1, onSelect, onClose, pos
                   transition: 'background-color 100ms ease-in-out',
                   marginBottom: '2px'
                 }}
-                onMouseDown={(e) => e.preventDefault()} // Prevent textarea blur
+                // Prevent textarea blur
+                onMouseDown={(e) => e.preventDefault()}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div

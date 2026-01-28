@@ -47,11 +47,11 @@ import { safeJsonParse } from '../lib/utils.js';
 function decodeHtmlEntities(text) {
   if (!text) return text;
   return text
-    .replaceAll(/&lt;/g, '<')
-    .replaceAll(/&gt;/g, '>')
-    .replaceAll(/&quot;/g, '"')
-    .replaceAll(/&#39;/g, "'")
-    .replaceAll(/&amp;/g, '&');
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&amp;', '&');
 }
 
 // Normalize markdown text where providers mistakenly wrap short inline code with single-line triple fences.
@@ -82,9 +82,9 @@ function unescapeWithMathProtection(text) {
   });
 
   // Process escape sequences on non-math content
-  processedText = processedText.replaceAll(/\\n/g, '\n')
-                               .replaceAll(/\\t/g, '\t')
-                               .replaceAll(/\\r/g, '\r');
+  processedText = processedText.replaceAll('\\n', '\n')
+                               .replaceAll('\\t', '\t')
+                               .replaceAll('\\r', '\r');
 
   // Restore math formulas
   processedText = processedText.replace(
@@ -148,7 +148,7 @@ function formatUsageLimitText(text) {
       const tzId = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
       const cityRaw = tzId.split('/').pop() || '';
       const city = cityRaw
-        .replaceAll(/_/g, ' ')
+        .replaceAll('_', ' ')
         .toLowerCase()
         .replaceAll(/\b\w/g, c => c.toUpperCase());
       const tzHuman = city ? `${gmt} (${city})` : gmt;

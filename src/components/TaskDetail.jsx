@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { X, Flag, User, ArrowRight, CheckCircle, Circle, AlertCircle, Pause, Edit, Save, Copy, ChevronDown, ChevronRight, Clock } from 'lucide-react';
+import { X, Flag, ArrowRight, CheckCircle, Circle, AlertCircle, Pause, Edit, Save, Copy, ChevronDown, ChevronRight, Clock } from 'lucide-react';
 import { cn } from '../lib/utils';
-import TaskIndicator from './TaskIndicator';
 import { api } from '../utils/api';
 import { useTaskMaster } from '../contexts/TaskMasterContext';
 
@@ -58,7 +57,7 @@ const TaskDetail = ({
     }
   };
 
-  const handleStatusChange = async (newStatus) => {
+  const _handleStatusChange = async (newStatus) => {
     if (!currentProject) return;
     
     try {
@@ -135,6 +134,7 @@ const TaskDetail = ({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <button
+                  type="button"
                   onClick={copyTaskId}
                   className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                   title="Click to copy task ID"
@@ -168,6 +168,7 @@ const TaskDetail = ({
             {editMode ? (
               <>
                 <button
+                  type="button"
                   onClick={handleSave}
                   disabled={isSaving}
                   className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -176,6 +177,7 @@ const TaskDetail = ({
                   <Save className={cn("w-5 h-5", isSaving && "animate-spin")} />
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setEditMode(false);
                     setEditedTask(task);
@@ -189,6 +191,7 @@ const TaskDetail = ({
               </>
             ) : (
               <button
+                type="button"
                 onClick={() => setEditMode(true)}
                 className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                 title="Edit task"
@@ -198,6 +201,7 @@ const TaskDetail = ({
             )}
             
             <button
+              type="button"
               onClick={onClose}
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
               title="Close"
@@ -246,8 +250,9 @@ const TaskDetail = ({
               {task.dependencies && task.dependencies.length > 0 ? (
                 <div className="flex flex-wrap gap-1">
                   {task.dependencies.map(depId => (
-                    <button 
-                      key={depId} 
+                    <button
+                      type="button"
+                      key={depId}
                       onClick={() => onTaskClick && onTaskClick({ id: depId })}
                       className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded text-sm hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors cursor-pointer disabled:cursor-default disabled:opacity-50"
                       disabled={!onTaskClick}
@@ -286,6 +291,7 @@ const TaskDetail = ({
           {task.details && (
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
               <button
+                type="button"
                 onClick={() => setShowDetails(!showDetails)}
                 className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
@@ -324,6 +330,7 @@ const TaskDetail = ({
           {task.testStrategy && (
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
               <button
+                type="button"
                 onClick={() => setShowTestStrategy(!showTestStrategy)}
                 className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
@@ -391,6 +398,7 @@ const TaskDetail = ({
           
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={onClose}
               className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors"
             >

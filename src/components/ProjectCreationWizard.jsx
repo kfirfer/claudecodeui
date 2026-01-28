@@ -7,15 +7,17 @@ import { useTranslation } from 'react-i18next';
 
 const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
   const { t } = useTranslation();
-  // Wizard state
-  const [step, setStep] = useState(1); // 1: Choose type, 2: Configure, 3: Confirm
-  const [workspaceType, setWorkspaceType] = useState('existing'); // 'existing' or 'new' - default to 'existing'
+  // Wizard state: 1 = Choose type, 2 = Configure, 3 = Confirm
+  const [step, setStep] = useState(1);
+  // Workspace type: 'existing' or 'new' - default to 'existing'
+  const [workspaceType, setWorkspaceType] = useState('existing');
 
   // Form state
   const [workspacePath, setWorkspacePath] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
   const [selectedGithubToken, setSelectedGithubToken] = useState('');
-  const [tokenMode, setTokenMode] = useState('stored'); // 'stored' | 'new' | 'none'
+  // Token mode: 'stored' | 'new' | 'none'
+  const [tokenMode, setTokenMode] = useState('stored');
   const [newGithubToken, setNewGithubToken] = useState('');
 
   // UI state
@@ -76,7 +78,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
     try {
       // Extract the directory to browse (parent of input)
       const lastSlash = inputPath.lastIndexOf('/');
-      const dirPath = lastSlash > 0 ? inputPath.substring(0, lastSlash) : '~';
+      const dirPath = lastSlash > 0 ? inputPath.slice(0, lastSlash) : '~';
 
       const response = await api.browseFilesystem(dirPath);
       const data = await response.json();
@@ -272,6 +274,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
             </h3>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
             disabled={isCreating}
@@ -335,6 +338,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Existing Workspace */}
                   <button
+                    type="button"
                     onClick={() => setWorkspaceType('existing')}
                     className={`p-4 border-2 rounded-lg text-left transition-all ${
                       workspaceType === 'existing'
@@ -359,6 +363,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
 
                   {/* New Workspace */}
                   <button
+                    type="button"
                     onClick={() => setWorkspaceType('new')}
                     className={`p-4 border-2 rounded-lg text-left transition-all ${
                       workspaceType === 'new'
@@ -406,6 +411,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
                       <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                         {pathSuggestions.map((suggestion, index) => (
                           <button
+                            type="button"
                             key={index}
                             onClick={() => selectPathSuggestion(suggestion)}
                             className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
@@ -478,6 +484,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
                           {/* Token Selection Tabs */}
                           <div className="grid grid-cols-3 gap-2 mb-4">
                             <button
+                              type="button"
                               onClick={() => setTokenMode('stored')}
                               className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                                 tokenMode === 'stored'
@@ -488,6 +495,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
                               {t('projectWizard.step2.storedToken')}
                             </button>
                             <button
+                              type="button"
                               onClick={() => setTokenMode('new')}
                               className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                                 tokenMode === 'new'
@@ -498,6 +506,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
                               {t('projectWizard.step2.newToken')}
                             </button>
                             <button
+                              type="button"
                               onClick={() => {
                                 setTokenMode('none');
                                 setSelectedGithubToken('');
@@ -705,6 +714,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
               </div>
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={() => setShowHiddenFolders(!showHiddenFolders)}
                   className={`p-2 rounded-md transition-colors ${
                     showHiddenFolders
@@ -716,6 +726,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
                   {showHiddenFolders ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
                 </button>
                 <button
+                  type="button"
                   onClick={() => setShowNewFolderInput(!showNewFolderInput)}
                   className={`p-2 rounded-md transition-colors ${
                     showNewFolderInput
@@ -727,6 +738,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
                   <Plus className="w-5 h-5" />
                 </button>
                 <button
+                  type="button"
                   onClick={() => setShowFolderBrowser(false)}
                   className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
@@ -786,15 +798,16 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
                   {/* Parent Directory - check for Windows root (e.g., C:\) and Unix root */}
                   {browserCurrentPath !== '~' && browserCurrentPath !== '/' && !/^[A-Za-z]:\\?$/.test(browserCurrentPath) && (
                     <button
+                      type="button"
                       onClick={() => {
                         const lastSlash = Math.max(browserCurrentPath.lastIndexOf('/'), browserCurrentPath.lastIndexOf('\\'));
                         let parentPath;
                         if (lastSlash <= 0) {
                           parentPath = '/';
                         } else if (lastSlash === 2 && /^[A-Za-z]:/.test(browserCurrentPath)) {
-                          parentPath = browserCurrentPath.substring(0, 3);
+                          parentPath = browserCurrentPath.slice(0, 3);
                         } else {
-                          parentPath = browserCurrentPath.substring(0, lastSlash);
+                          parentPath = browserCurrentPath.slice(0, lastSlash);
                         }
                         navigateToFolder(parentPath);
                       }}
@@ -817,6 +830,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
                       .map((folder, index) => (
                       <div key={index} className="flex items-center gap-2">
                         <button
+                          type="button"
                           onClick={() => navigateToFolder(folder.path)}
                           className="flex-1 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex items-center gap-3"
                         >

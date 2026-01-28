@@ -105,6 +105,7 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
                 {t('thinkingMode.selector.title')}
               </h3>
               <button
+                type="button"
                 onClick={() => {
                   setIsOpen(false);
                   if (onClose) onClose();
@@ -126,6 +127,7 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
               
               return (
                 <button
+                  type="button"
                   key={mode.id}
                   onClick={() => {
                     onModeChange(mode.id);

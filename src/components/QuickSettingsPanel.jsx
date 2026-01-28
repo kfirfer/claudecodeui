@@ -55,16 +55,20 @@ const QuickSettingsPanel = ({
         return 50;
       }
     }
-    return 50; // Default to 50% (middle of screen)
+    // Default to 50% (middle of screen)
+    return 50;
   });
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartY, setDragStartY] = useState(0);
   const [dragStartPosition, setDragStartPosition] = useState(0);
-  const [hasMoved, setHasMoved] = useState(false); // Track if user has moved during drag
+  // Track if user has moved during drag
+  const [hasMoved, setHasMoved] = useState(false);
   const handleRef = useRef(null);
-  const constraintsRef = useRef({ min: 10, max: 90 }); // Percentage constraints
-  const dragThreshold = 5; // Pixels to move before it's considered a drag
+  // Percentage constraints
+  const constraintsRef = useRef({ min: 10, max: 90 });
+  // Pixels to move before it's considered a drag
+  const dragThreshold = 5;
 
   useEffect(() => {
     setLocalIsOpen(isOpen);
@@ -96,12 +100,14 @@ const QuickSettingsPanel = ({
     setDragStartY(clientY);
     setDragStartPosition(handlePosition);
     setHasMoved(false);
-    setIsDragging(false); // Don't set dragging until threshold is passed
+    // Don't set dragging until threshold is passed
+    setIsDragging(false);
   }, [handlePosition]);
 
   // Handle mouse/touch move
   const handleDragMove = useCallback((e) => {
-    if (dragStartY === 0) return; // Not in a potential drag
+    // Not in a potential drag
+    if (dragStartY === 0) return;
 
     const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
     const deltaY = Math.abs(clientY - dragStartY);
@@ -215,6 +221,7 @@ const QuickSettingsPanel = ({
     <>
       {/* Pull Tab - Combined drag handle and toggle button */}
       <button
+        type="button"
         ref={handleRef}
         onClick={handleToggle}
         onMouseDown={(e) => {

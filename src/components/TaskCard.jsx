@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, CheckCircle, Circle, AlertCircle, Pause, X, ArrowRight, ChevronUp, Minus, Flag } from 'lucide-react';
+import { Clock, CheckCircle, Circle, AlertCircle, Pause, X, ArrowRight, ChevronUp, Minus } from 'lucide-react';
 import { cn } from '../lib/utils';
 import Tooltip from './Tooltip';
 
@@ -61,7 +61,6 @@ const TaskCard = ({
           statusText: 'Cancelled'
         };
       
-      case 'pending':
       default:
         return {
           icon: Circle,
@@ -75,7 +74,7 @@ const TaskCard = ({
   };
 
   const config = getStatusConfig(task.status);
-  const Icon = config.icon;
+  const _Icon = config.icon;
 
   const getPriorityIcon = (priority) => {
     switch (priority) {

@@ -3,7 +3,8 @@ import { Mic, Loader2, Brain } from 'lucide-react';
 import { transcribeWithWhisper } from '../utils/whisper';
 
 export function MicButton({ onTranscript, className = '' }) {
-  const [state, setState] = useState('idle'); // idle, recording, transcribing, processing
+  // State can be: idle, recording, transcribing, processing
+  const [state, setState] = useState('idle');
   const [error, setError] = useState(null);
   const [isSupported, setIsSupported] = useState(true);
   
@@ -82,7 +83,8 @@ export function MicButton({ onTranscript, className = '' }) {
         if (isEnhancementMode) {
           processingTimer = setTimeout(() => {
             setState('processing');
-          }, 2000); // Switch to processing after 2 seconds
+          // Switch to processing after 2 seconds
+          }, 2000);
         }
         
         try {
@@ -213,7 +215,8 @@ export function MicButton({ onTranscript, className = '' }) {
           className: 'bg-purple-500 hover:bg-purple-600',
           disabled: true
         };
-      default: // idle
+      // idle state
+      default:
         return {
           icon: <Mic className="w-5 h-5" />,
           className: 'bg-gray-700 hover:bg-gray-600',
@@ -222,7 +225,7 @@ export function MicButton({ onTranscript, className = '' }) {
     }
   };
 
-  const { icon, className: buttonClass, disabled } = getButtonAppearance();
+  const { icon, className: _buttonClass, disabled } = getButtonAppearance();
 
   return (
     <div className="relative">
