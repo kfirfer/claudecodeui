@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test';
+import fs from 'fs/promises';
+import path from 'path';
+import os from 'os';
 
 /**
  * E2E Test: Project Workflow Tests
@@ -37,6 +40,26 @@ async function performLogin(page) {
   // Wait for successful login by checking for New Project button
   const newProjectButton = page.locator('button:has-text("New Project")').first();
   await expect(newProjectButton).toBeVisible({ timeout: 30000 });
+}
+
+/**
+ * Helper function to create a test directory
+ * @param {string} dirPath - Path to create
+ */
+async function createTestDirectory(dirPath) {
+  await fs.mkdir(dirPath, { recursive: true });
+}
+
+/**
+ * Helper function to remove a test directory
+ * @param {string} dirPath - Path to remove
+ */
+async function removeTestDirectory(dirPath) {
+  try {
+    await fs.rm(dirPath, { recursive: true, force: true });
+  } catch {
+    // Ignore errors if directory doesn't exist
+  }
 }
 
 /**
@@ -89,17 +112,17 @@ async function createProject(page, projectPath) {
 }
 
 /**
- * Helper function to delete a project with error handling
+ * Helper function to delete a project via the UI with error handling
  * @param {import('@playwright/test').Page} page
  * @param {string} projectName
  */
-async function deleteProject(page, projectName) {
+async function deleteProjectViaUI(page, projectName) {
   // Find the project in sidebar - wait for it to be visible first
   const projectLocator = page.getByText(projectName).first();
   const isProjectVisible = await projectLocator.isVisible().catch(() => false);
 
   if (!isProjectVisible) {
-    // Project doesn't exist, nothing to delete
+    // Project doesn't exist in UI, nothing to delete
     return;
   }
 
@@ -211,9 +234,10 @@ test.describe('Project Operations - Individual Tests', () => {
 
       await visibleButton.click();
 
-      // Verify settings modal opens
-      const settingsModal = page.getByRole('dialog');
-      await expect(settingsModal).toBeVisible();
+      // Verify settings modal opens - look for Settings heading inside the modal
+      // The modal doesn't use role="dialog", so we check for the Settings h2 heading
+      const settingsHeading = page.getByRole('heading', { name: 'Settings', level: 2 });
+      await expect(settingsHeading).toBeVisible();
     }
     // If no button visible (mobile/collapsed view), we've already verified it exists in DOM
   });
@@ -227,9 +251,21 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
   );
 
   // Use unique identifiers for this test run
-  const testProjectPath = '/tmp';
-  const renamedProjectName = `E2E-Test-${Date.now()}`;
+  // Create test directory in user's home to avoid forbidden paths
+  const testId = Date.now();
+  const testProjectPath = path.join(os.homedir(), `e2e-test-project-${testId}`);
+  const renamedProjectName = `E2E-Test-Renamed-${testId}`;
   let createdProjectName = '';
+
+  test.beforeAll(async () => {
+    // Create the test directory before running tests
+    await createTestDirectory(testProjectPath);
+  });
+
+  test.afterAll(async () => {
+    // Clean up the test directory after all tests
+    await removeTestDirectory(testProjectPath);
+  });
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
@@ -238,11 +274,19 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
   });
 
   test.afterEach(async ({ page }) => {
-    // Cleanup: Delete the test project if it exists
+    // Cleanup: Delete the test project from the UI if it exists
     // Try to delete by renamed name first, then by original name
-    await deleteProject(page, renamedProjectName).catch(() => {});
+    try {
+      await deleteProjectViaUI(page, renamedProjectName);
+    } catch {
+      // Ignore errors
+    }
     if (createdProjectName && createdProjectName !== renamedProjectName) {
-      await deleteProject(page, createdProjectName).catch(() => {});
+      try {
+        await deleteProjectViaUI(page, createdProjectName);
+      } catch {
+        // Ignore errors
+      }
     }
   });
 
@@ -354,7 +398,7 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
     // ==========================================
     // Step 6: Delete the project
     // ==========================================
-    await deleteProject(page, renamedProjectName);
+    await deleteProjectViaUI(page, renamedProjectName);
 
     // Verify the project is no longer visible
     await expect(page.getByText(renamedProjectName)).not.toBeVisible();
