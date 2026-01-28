@@ -1,273 +1,137 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * E2E Test: Complete Project Workflow
+ * E2E Test: Project Workflow Tests
  *
- * Tests the full lifecycle of a project:
- * 1. Create a new project
- * 2. Rename the project
- * 3. Create a session
- * 4. Send a hello prompt to Claude
- * 5. Delete the session
- * 6. Delete the project
+ * Tests project operations including:
+ * - Project creation wizard visibility
+ * - Project list display
+ * - Settings accessibility
+ * - Complete project lifecycle (create, rename, session, delete)
  */
 
-test.describe('Project Workflow', () => {
-  // Skip if no test credentials are provided
-  test.skip(
-    !process.env.TEST_USERNAME || !process.env.TEST_PASSWORD,
-    'Skipping tests - set TEST_USERNAME and TEST_PASSWORD env vars'
-  );
+// Test configuration
+const TEST_TIMEOUT = 60000;
 
-  // Set longer timeout for workflow tests (2 minutes)
-  test.setTimeout(120000);
+/**
+ * Helper function to perform login and wait for app to be ready
+ * @param {import('@playwright/test').Page} page
+ */
+async function performLogin(page) {
+  const username = process.env.TEST_USERNAME;
+  const password = process.env.TEST_PASSWORD;
 
-  // Unique identifiers for this test run - use /tmp which always exists
-  const testProjectPath = '/tmp';
-  const renamedProjectName = `E2E-Test-${Date.now()}`;
+  // Wait for login form to be ready
+  const usernameInput = page.locator('input[type="text"], input[name="username"]').first();
+  await expect(usernameInput).toBeVisible();
+  await usernameInput.fill(username);
 
-  test.beforeEach(async ({ page }) => {
-    // Navigate to the app and login
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+  const passwordInput = page.locator('input[type="password"]');
+  await expect(passwordInput).toBeVisible();
+  await passwordInput.fill(password);
 
-    // Login with test credentials
-    const username = process.env.TEST_USERNAME;
-    const password = process.env.TEST_PASSWORD;
+  const submitButton = page.locator('button[type="submit"]');
+  await expect(submitButton).toBeVisible();
+  await submitButton.click();
 
-    await page.locator('input[type="text"], input[name="username"]').first().fill(username);
-    await page.locator('input[type="password"]').fill(password);
-    await page.locator('button[type="submit"]').click();
+  // Wait for successful login by checking for New Project button
+  const newProjectButton = page.locator('button:has-text("New Project")').first();
+  await expect(newProjectButton).toBeVisible({ timeout: 30000 });
+}
 
-    // Wait for login to complete and sidebar to load
-    await page.waitForTimeout(3000);
-    await expect(page.locator('button:has-text("New Project")').first()).toBeVisible({ timeout: 30000 });
-  });
+/**
+ * Helper function to create a project via the wizard
+ * @param {import('@playwright/test').Page} page
+ * @param {string} projectPath
+ * @returns {Promise<string>} The project name derived from the path
+ */
+async function createProject(page, projectPath) {
+  // Click "New Project" button in sidebar
+  const newProjectButton = page.locator('button:has-text("New Project")').first();
+  await expect(newProjectButton).toBeVisible();
+  await newProjectButton.click();
 
-  test('complete project lifecycle: create, rename, session, chat, delete', async ({ page }) => {
-    // ==========================================
-    // Step 1: Create a new project
-    // ==========================================
-    console.log('Step 1: Creating new project...');
+  // Wait for Project Creation Wizard modal to appear
+  const wizardHeading = page.getByRole('heading', { name: 'Create New Project' });
+  await expect(wizardHeading).toBeVisible();
 
-    // Click "New Project" button in sidebar
-    const newProjectButton = page.locator('button:has-text("New Project")').first();
-    await expect(newProjectButton).toBeVisible({ timeout: 10000 });
-    await newProjectButton.click();
+  // Step 1 of wizard: Select "Existing Workspace" option if visible
+  const existingWorkspaceButton = page.locator('button:has-text("Existing Workspace")').first();
+  const isExistingWorkspaceVisible = await existingWorkspaceButton.isVisible();
+  if (isExistingWorkspaceVisible) {
+    await existingWorkspaceButton.click();
+  }
 
-    // Wait for Project Creation Wizard modal to appear
-    await expect(page.getByRole('heading', { name: 'Create New Project' })).toBeVisible({ timeout: 10000 });
+  // Click "Next" to proceed to step 2
+  const nextButton = page.locator('button:has-text("Next")');
+  await expect(nextButton).toBeVisible();
+  await nextButton.click();
 
-    // Step 1 of wizard: Select "Existing Workspace" option (should be default)
-    const existingWorkspaceOption = page.locator('button:has-text("Existing Workspace"), button:has-text("existing")').first();
-    if (await existingWorkspaceOption.isVisible()) {
-      await existingWorkspaceOption.click();
-    }
+  // Step 2: Enter workspace path - wait for the path input to be visible
+  const pathInput = page.locator('input[placeholder*="/path"]').first();
+  await expect(pathInput).toBeVisible();
+  await pathInput.fill(projectPath);
 
-    // Click "Next" to proceed to step 2
-    await page.locator('button:has-text("Next")').click();
-    await page.waitForTimeout(500);
+  // Click "Next" to proceed to step 3 (confirmation)
+  await expect(nextButton).toBeVisible();
+  await nextButton.click();
 
-    // Step 2: Enter workspace path
-    const pathInput = page.locator('input[placeholder*="/path"]').first();
-    await expect(pathInput).toBeVisible({ timeout: 5000 });
-    await pathInput.fill(testProjectPath);
+  // Step 3: Wait for Create Project button and click
+  const createButton = page.getByRole('button', { name: /Create Project/i });
+  await expect(createButton).toBeVisible();
+  await createButton.click();
 
-    // Click "Next" to proceed to step 3 (confirmation)
-    await page.locator('button:has-text("Next")').click();
-    await page.waitForTimeout(500);
+  // Wait for wizard to close (indicates success)
+  await expect(wizardHeading).not.toBeVisible({ timeout: 15000 });
 
-    // Step 3: Confirm and create
-    const createButton = page.getByRole('button', { name: /Create Project/i });
-    await expect(createButton).toBeVisible({ timeout: 5000 });
-    await createButton.click();
+  // Return the project name derived from the path
+  return projectPath.split('/').pop();
+}
 
-    // Wait for project creation to complete and modal to close
-    await page.waitForTimeout(3000);
+/**
+ * Helper function to delete a project with error handling
+ * @param {import('@playwright/test').Page} page
+ * @param {string} projectName
+ */
+async function deleteProject(page, projectName) {
+  // Find the project in sidebar - wait for it to be visible first
+  const projectLocator = page.getByText(projectName).first();
+  const isProjectVisible = await projectLocator.isVisible().catch(() => false);
 
-    // The modal should close after successful creation
-    await expect(page.getByRole('heading', { name: 'Create New Project' })).not.toBeVisible({ timeout: 15000 });
+  if (!isProjectVisible) {
+    // Project doesn't exist, nothing to delete
+    return;
+  }
 
-    // Verify project appears in sidebar (it will show the folder name from the path)
-    const projectName = testProjectPath.split('/').pop(); // "tmp"
-    await expect(page.getByText(projectName, { exact: false }).first()).toBeVisible({ timeout: 15000 });
-    console.log('Project created successfully');
+  // Hover to reveal action buttons
+  await projectLocator.hover();
 
-    // ==========================================
-    // Step 2: Rename the project
-    // ==========================================
-    console.log('Step 2: Renaming project...');
+  // Wait for and click the delete button
+  const deleteButton = page.locator('[title*="Delete project" i]').first();
+  const isDeleteVisible = await deleteButton.isVisible().catch(() => false);
 
-    // Find the project row in sidebar - look for the one with our project name
-    const projectRow = page.locator(`button:has-text("${projectName}")`).first();
-    await expect(projectRow).toBeVisible({ timeout: 10000 });
-
-    // Hover over the project row to reveal action buttons
-    await projectRow.hover();
-    await page.waitForTimeout(500);
-
-    // Click the edit/rename button - look for the title attribute or the Edit3 icon
-    const editButton = page.locator('[title*="Rename" i], [title*="rename" i]').first();
-    const isEditButtonVisible = await editButton.isVisible().catch(() => false);
-
-    if (isEditButtonVisible) {
-      await editButton.click();
-    } else {
-      // Try clicking the edit icon directly (look for any element with Edit3 icon that's visible)
-      const editIcon = page.locator('svg.lucide-edit-3, svg[class*="edit"]').first();
-      if (await editIcon.isVisible().catch(() => false)) {
-        await editIcon.click();
-      } else {
-        // As a last resort, look for the parent container of the project and find the edit button
-        const editContainer = projectRow.locator('..').locator('[class*="edit"], [class*="Edit"]').first();
-        await editContainer.click();
-      }
-    }
-
-    // Wait for edit input to appear
-    await page.waitForTimeout(500);
-
-    // Find the input field for renaming - it should now be visible
-    const renameInput = page.locator('input[type="text"]').filter({ hasNot: page.locator('[disabled]') }).first();
-    await expect(renameInput).toBeVisible({ timeout: 5000 });
-
-    // Clear and type the new name
-    await renameInput.fill(renamedProjectName);
-
-    // Save the rename by pressing Enter
-    await renameInput.press('Enter');
-    await page.waitForTimeout(2000);
-
-    // Verify the project was renamed - look for the new name in the sidebar
-    await expect(page.getByText(renamedProjectName).first()).toBeVisible({ timeout: 10000 });
-    console.log('Project renamed successfully');
-
-    // ==========================================
-    // Step 3: Create a new session
-    // ==========================================
-    console.log('Step 3: Creating new session...');
-
-    // Click on the project to expand it and show sessions
-    const renamedProjectItem = page.getByText(renamedProjectName).first();
-    await renamedProjectItem.click();
-    await page.waitForTimeout(1000);
-
-    // Click "New Session" button within the project's expanded section
-    const newSessionButton = page.locator('button:has-text("New Session")').first();
-    await expect(newSessionButton).toBeVisible({ timeout: 10000 });
-    await newSessionButton.click();
-
-    // Wait for the session to be created and chat interface to load
-    await page.waitForTimeout(3000);
-
-    // Verify chat interface is visible (textarea for input)
-    const chatTextarea = page.locator('textarea').first();
-    await expect(chatTextarea).toBeVisible({ timeout: 15000 });
-    console.log('Session created successfully');
-
-    // ==========================================
-    // Step 4: Send a hello prompt to Claude
-    // ==========================================
-    console.log('Step 4: Sending hello prompt...');
-
-    // Type a hello message in the chat input
-    await chatTextarea.fill('Hello! This is a test message from the E2E test suite.');
-
-    // Submit the message using the send button or keyboard
-    const sendButton = page.locator('button:has(svg.lucide-arrow-up), button:has(svg.lucide-send)').first();
-    if (await sendButton.isVisible().catch(() => false)) {
-      await sendButton.click();
-    } else {
-      // Try keyboard submission (Ctrl+Enter)
-      await chatTextarea.press('Control+Enter');
-    }
-
-    // Wait for the message to be sent
-    await page.waitForTimeout(3000);
-
-    // Verify the user message appears in the chat (it should show in the messages area)
-    await expect(page.getByText('Hello! This is a test message').first()).toBeVisible({ timeout: 15000 });
-    console.log('Hello prompt sent successfully');
-
-    // Wait briefly for any response to start (not required for test success)
-    await page.waitForTimeout(2000);
-
-    // ==========================================
-    // Step 5: Delete the session
-    // ==========================================
-    console.log('Step 5: Deleting session...');
-
-    // The session should appear in the sidebar under the project
-    // Find the session item (it will have a Claude logo icon)
-    // First, expand the project if needed by clicking on it
-    await renamedProjectItem.click();
-    await page.waitForTimeout(500);
-
-    // Find session delete button - hover over session to reveal it
-    const sessionDeleteButton = page.locator('[title*="Delete session" i], button:has(svg.lucide-trash-2)').first();
-
-    // Try hovering on session items to reveal delete button
-    const sessionElements = page.locator('button:has(svg.lucide-message-square), div:has(svg[class*="claude"])');
-    const sessionCount = await sessionElements.count();
-
-    if (sessionCount > 0) {
-      await sessionElements.first().hover();
-      await page.waitForTimeout(500);
-    }
-
-    // Click delete button if visible
-    if (await sessionDeleteButton.isVisible().catch(() => false)) {
-      await sessionDeleteButton.click();
-
-      // Confirm deletion in the confirmation modal
-      const confirmDeleteBtn = page.getByRole('button', { name: /Delete/i }).last();
-      await expect(confirmDeleteBtn).toBeVisible({ timeout: 5000 });
-      await confirmDeleteBtn.click();
-      await page.waitForTimeout(2000);
-      console.log('Session deleted successfully');
-    } else {
-      console.log('Session delete button not found - may have already been deleted or UI differs');
-    }
-
-    // ==========================================
-    // Step 6: Delete the project
-    // ==========================================
-    console.log('Step 6: Deleting project...');
-
-    // Find the renamed project and hover to show delete button
-    const projectToDelete = page.getByText(renamedProjectName).first();
-    await expect(projectToDelete).toBeVisible({ timeout: 5000 });
-    await projectToDelete.hover();
-    await page.waitForTimeout(500);
-
-    // Click the delete button for the project
-    const projectDeleteButton = page.locator('[title*="Delete project" i]').first();
-    const isProjectDeleteVisible = await projectDeleteButton.isVisible().catch(() => false);
-
-    if (isProjectDeleteVisible) {
-      await projectDeleteButton.click();
-    } else {
-      // Try clicking any visible trash icon near the project
-      const trashButton = page.locator('svg.lucide-trash-2').first();
+  if (!isDeleteVisible) {
+    // Try alternative: find trash icon near the project
+    const trashButton = page.locator('svg.lucide-trash-2').first();
+    const isTrashVisible = await trashButton.isVisible().catch(() => false);
+    if (isTrashVisible) {
       await trashButton.click();
+    } else {
+      // Cannot find delete button, skip
+      return;
     }
+  } else {
+    await deleteButton.click();
+  }
 
-    // Confirm deletion in the confirmation modal
-    const confirmProjectDeleteBtn = page.getByRole('button', { name: /Delete/i }).last();
-    await expect(confirmProjectDeleteBtn).toBeVisible({ timeout: 5000 });
-    await confirmProjectDeleteBtn.click();
+  // Confirm deletion in the modal
+  const confirmDeleteButton = page.getByRole('button', { name: /Delete/i }).last();
+  await expect(confirmDeleteButton).toBeVisible();
+  await confirmDeleteButton.click();
 
-    // Wait for project to be deleted
-    await page.waitForTimeout(3000);
-
-    // Verify the project is no longer visible (use a shorter timeout as it should be gone)
-    const projectGone = await page.getByText(renamedProjectName).isVisible().catch(() => false);
-    expect(projectGone).toBe(false);
-    console.log('Project deleted successfully');
-
-    console.log('All steps completed successfully!');
-  });
-});
+  // Wait for project to be removed from the list
+  await expect(projectLocator).not.toBeVisible({ timeout: 10000 });
+}
 
 test.describe('Project Operations - Individual Tests', () => {
   // Skip if no test credentials are provided
@@ -277,92 +141,222 @@ test.describe('Project Operations - Individual Tests', () => {
   );
 
   test.beforeEach(async ({ page }) => {
-    // Navigate to the app and login
     await page.goto('/');
     await page.waitForLoadState('networkidle');
-
-    // Login with test credentials
-    const username = process.env.TEST_USERNAME;
-    const password = process.env.TEST_PASSWORD;
-
-    await page.locator('input[type="text"], input[name="username"]').first().fill(username);
-    await page.locator('input[type="password"]').fill(password);
-    await page.locator('button[type="submit"]').click();
-
-    // Wait for login to complete
-    await page.waitForTimeout(3000);
+    await performLogin(page);
   });
 
   test('should show project creation wizard when clicking New Project', async ({ page }) => {
+    test.setTimeout(TEST_TIMEOUT);
+
     // Click "New Project" button
     const newProjectButton = page.locator('button:has-text("New Project")').first();
-    await expect(newProjectButton).toBeVisible({ timeout: 15000 });
+    await expect(newProjectButton).toBeVisible();
     await newProjectButton.click();
 
-    // Verify wizard modal appears - use specific heading
+    // Verify wizard modal appears with correct heading
     const wizardHeading = page.getByRole('heading', { name: 'Create New Project' });
-    await expect(wizardHeading).toBeVisible({ timeout: 10000 });
+    await expect(wizardHeading).toBeVisible();
 
-    // Verify wizard has expected steps/options - Existing Workspace option
-    await expect(
-      page.getByText('Existing Workspace').first()
-    ).toBeVisible({ timeout: 5000 });
+    // Verify wizard has "Existing Workspace" option
+    const existingWorkspaceText = page.getByText('Existing Workspace').first();
+    await expect(existingWorkspaceText).toBeVisible();
 
-    // Close the wizard
+    // Close the wizard using the X button
     const closeButton = page.locator('button:has(svg.lucide-x)').first();
-    if (await closeButton.isVisible()) {
-      await closeButton.click();
-    }
+    await expect(closeButton).toBeVisible();
+    await closeButton.click();
+
+    // Verify wizard is closed
+    await expect(wizardHeading).not.toBeVisible();
   });
 
   test('should display project list in sidebar', async ({ page }) => {
-    // Wait for sidebar to load
-    await page.waitForTimeout(2000);
+    test.setTimeout(TEST_TIMEOUT);
 
-    // Check that sidebar is visible - use first() to avoid strict mode violation
-    const sidebar = page.getByRole('heading', { name: 'Claude Code UI' }).first();
-    await expect(sidebar).toBeVisible({ timeout: 15000 });
+    // Check that sidebar header is visible
+    const sidebarHeader = page.getByRole('heading', { name: 'Claude Code UI' }).first();
+    await expect(sidebarHeader).toBeVisible();
 
     // Check that New Project button is available
     const newProjectButton = page.locator('button:has-text("New Project")').first();
-    await expect(newProjectButton).toBeVisible({ timeout: 10000 });
+    await expect(newProjectButton).toBeVisible();
   });
 
   test('should have settings button accessible', async ({ page }) => {
-    // Wait for page to load
-    await page.waitForTimeout(2000);
+    test.setTimeout(TEST_TIMEOUT);
 
-    // Settings button visibility depends on viewport - try desktop selector first, then mobile
-    // Desktop: small text button at bottom of sidebar
-    // Mobile: larger button with icon
-    let settingsButton = page.locator('button:has-text("Settings")').filter({ hasText: /^Settings$/i }).first();
-    let isVisible = await settingsButton.isVisible().catch(() => false);
+    // Settings button may be text button or icon button depending on viewport
+    // Try desktop selector first (text button)
+    const textSettingsButton = page.locator('button:has-text("Settings")').filter({ hasText: /^Settings$/i }).first();
+    const iconSettingsButton = page.locator('button:has(svg.lucide-settings)').first();
+    const roleSettingsButton = page.getByRole('button', { name: /settings/i }).first();
 
-    if (!isVisible) {
-      // Try the button with settings icon
-      settingsButton = page.locator('button:has(svg.lucide-settings)').first();
-      isVisible = await settingsButton.isVisible().catch(() => false);
-    }
+    // Check which button is visible
+    const textButtonVisible = await textSettingsButton.isVisible().catch(() => false);
+    const iconButtonVisible = await iconSettingsButton.isVisible().catch(() => false);
+    const roleButtonVisible = await roleSettingsButton.isVisible().catch(() => false);
 
-    if (!isVisible) {
-      // Try getting any button with "Settings" text
-      settingsButton = page.getByRole('button', { name: /settings/i }).first();
-    }
+    // At least one settings button should exist in the DOM
+    const anySettingsButton = textSettingsButton.or(iconSettingsButton).or(roleSettingsButton);
+    await expect(anySettingsButton.first()).toBeAttached();
 
-    // The button may be hidden in mobile view - verify it exists in DOM
-    await expect(settingsButton).toBeAttached({ timeout: 15000 });
+    // If any button is visible, click it and verify settings modal opens
+    if (textButtonVisible || iconButtonVisible || roleButtonVisible) {
+      const visibleButton = textButtonVisible
+        ? textSettingsButton
+        : iconButtonVisible
+          ? iconSettingsButton
+          : roleSettingsButton;
 
-    // Click it if visible
-    if (await settingsButton.isVisible()) {
-      await settingsButton.click();
+      await visibleButton.click();
 
       // Verify settings modal opens
-      await expect(
-        page.getByRole('dialog').or(page.locator('[class*="modal"]'))
-      ).toBeVisible({ timeout: 10000 });
-    } else {
-      // In mobile/hidden view, just verify the button exists in the DOM
-      console.log('Settings button is hidden in current viewport, but exists in DOM');
+      const settingsModal = page.getByRole('dialog');
+      await expect(settingsModal).toBeVisible();
     }
+    // If no button visible (mobile/collapsed view), we've already verified it exists in DOM
+  });
+});
+
+test.describe('Project Workflow - Complete Lifecycle', () => {
+  // Skip if no test credentials are provided
+  test.skip(
+    !process.env.TEST_USERNAME || !process.env.TEST_PASSWORD,
+    'Skipping tests - set TEST_USERNAME and TEST_PASSWORD env vars'
+  );
+
+  // Use unique identifiers for this test run
+  const testProjectPath = '/tmp';
+  const renamedProjectName = `E2E-Test-${Date.now()}`;
+  let createdProjectName = '';
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await performLogin(page);
+  });
+
+  test.afterEach(async ({ page }) => {
+    // Cleanup: Delete the test project if it exists
+    // Try to delete by renamed name first, then by original name
+    await deleteProject(page, renamedProjectName).catch(() => {});
+    if (createdProjectName && createdProjectName !== renamedProjectName) {
+      await deleteProject(page, createdProjectName).catch(() => {});
+    }
+  });
+
+  test('complete project lifecycle: create, rename, session, chat, delete', async ({ page }) => {
+    test.setTimeout(120000); // Extended timeout for full lifecycle
+
+    // ==========================================
+    // Step 1: Create a new project
+    // ==========================================
+    createdProjectName = await createProject(page, testProjectPath);
+
+    // Verify project appears in sidebar
+    const projectInSidebar = page.getByText(createdProjectName, { exact: false }).first();
+    await expect(projectInSidebar).toBeVisible();
+
+    // ==========================================
+    // Step 2: Rename the project
+    // ==========================================
+    // Find and hover over the project row to reveal action buttons
+    const projectRow = page.locator(`button:has-text("${createdProjectName}")`).first();
+    await expect(projectRow).toBeVisible();
+    await projectRow.hover();
+
+    // Click the edit button - try by title first
+    const editByTitle = page.locator('[title*="Rename" i], [title*="rename" i]').first();
+    const editByTitleVisible = await editByTitle.isVisible().catch(() => false);
+
+    if (editByTitleVisible) {
+      await editByTitle.click();
+    } else {
+      // Try clicking the edit icon directly
+      const editIcon = page.locator('svg.lucide-edit-3').first();
+      await expect(editIcon).toBeVisible();
+      await editIcon.click();
+    }
+
+    // Find and fill the rename input
+    const renameInput = page.locator('input[type="text"]').filter({ hasNot: page.locator('[disabled]') }).first();
+    await expect(renameInput).toBeVisible();
+    await renameInput.fill(renamedProjectName);
+    await renameInput.press('Enter');
+
+    // Verify the project was renamed
+    const renamedProjectInSidebar = page.getByText(renamedProjectName).first();
+    await expect(renamedProjectInSidebar).toBeVisible();
+
+    // ==========================================
+    // Step 3: Create a new session
+    // ==========================================
+    // Click on the project to expand it
+    await renamedProjectInSidebar.click();
+
+    // Wait for project to expand and show "New Session" button
+    const newSessionButton = page.locator('button:has-text("New Session")').first();
+    await expect(newSessionButton).toBeVisible();
+    await newSessionButton.click();
+
+    // Verify chat interface is visible (textarea for input)
+    const chatTextarea = page.locator('textarea').first();
+    await expect(chatTextarea).toBeVisible({ timeout: 15000 });
+
+    // ==========================================
+    // Step 4: Send a hello prompt to Claude
+    // ==========================================
+    const testMessage = 'Hello! This is a test message from the E2E test suite.';
+    await chatTextarea.fill(testMessage);
+
+    // Find and click the send button (try arrow-up icon first, then send icon)
+    const sendButtonArrow = page.locator('button:has(svg.lucide-arrow-up)').first();
+    const sendButtonSend = page.locator('button:has(svg.lucide-send)').first();
+
+    const arrowVisible = await sendButtonArrow.isVisible().catch(() => false);
+    const sendVisible = await sendButtonSend.isVisible().catch(() => false);
+
+    if (arrowVisible) {
+      await sendButtonArrow.click();
+    } else if (sendVisible) {
+      await sendButtonSend.click();
+    } else {
+      // Fallback to keyboard submission
+      await chatTextarea.press('Control+Enter');
+    }
+
+    // Verify the user message appears in the chat
+    const userMessage = page.getByText(testMessage).first();
+    await expect(userMessage).toBeVisible();
+
+    // ==========================================
+    // Step 5: Delete the session (optional - may not be visible)
+    // ==========================================
+    // Re-click the project to ensure it's expanded
+    await renamedProjectInSidebar.click();
+
+    // Try to find and delete the session if visible
+    const sessionDeleteButton = page.locator('[title*="Delete session" i], button:has(svg.lucide-trash-2)').first();
+    const sessionDeleteVisible = await sessionDeleteButton.isVisible().catch(() => false);
+
+    if (sessionDeleteVisible) {
+      await sessionDeleteButton.click();
+
+      // Confirm deletion if modal appears
+      const confirmDeleteButton = page.getByRole('button', { name: /Delete/i }).last();
+      const confirmVisible = await confirmDeleteButton.isVisible().catch(() => false);
+      if (confirmVisible) {
+        await confirmDeleteButton.click();
+      }
+    }
+
+    // ==========================================
+    // Step 6: Delete the project
+    // ==========================================
+    await deleteProject(page, renamedProjectName);
+
+    // Verify the project is no longer visible
+    await expect(page.getByText(renamedProjectName)).not.toBeVisible();
   });
 });
