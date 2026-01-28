@@ -1,0 +1,110 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+Claude Code UI is a web-based desktop/mobile interface for Claude Code CLI, Cursor CLI, and OpenAI Codex. It provides real-time project management, chat interface, file explorer, git integration, and terminal access to these AI coding assistants.
+
+## Development Commands
+
+```bash
+# Install dependencies
+npm install
+
+# Development mode (runs both frontend and backend with hot reload)
+npm run dev
+
+# Build for production
+npm run build
+
+# Start production server (builds then serves)
+npm start
+
+# Run server only (for debugging backend)
+npm run server
+
+# Run frontend only (Vite dev server)
+npm run client
+
+# Linting (runs oxlint, eslint, and knip)
+npm run lint
+
+# Individual linters
+npm run lint:oxlint    # Fast Rust-based linter
+npm run lint:eslint    # ESLint with React/security plugins
+npm run lint:knip      # Detect unused files, deps, and exports
+
+# Type checking
+npm run type-check     # Run TypeScript compiler (tsc --noEmit)
+```
+
+## Architecture
+
+### Backend (Node.js + Express)
+- **Entry point**: `server/index.js` - Express server with WebSocket support
+- **CLI integrations**:
+  - `server/claude-sdk.js` - Claude integration via `@anthropic-ai/claude-agent-sdk`
+  - `server/cursor-cli.js` - Cursor CLI integration
+  - `server/openai-codex.js` - OpenAI Codex integration
+- **API routes**: `server/routes/` - Express routes for git, MCP, settings, taskmaster, etc.
+- **Database**: `server/database/db.js` - SQLite (better-sqlite3) for auth/settings
+- **Middleware**: `server/middleware/auth.js` - JWT authentication
+
+### Frontend (React + Vite)
+- **Entry point**: `src/main.jsx` → `src/App.jsx`
+- **Contexts** (in `src/contexts/`):
+  - `AuthContext.jsx` - User authentication state
+  - `WebSocketContext.jsx` - Real-time communication with backend
+  - `ThemeContext.jsx` - Dark/light mode
+  - `TaskMasterContext.jsx` - TaskMaster AI integration
+  - `TasksSettingsContext.jsx` - Task-related settings
+- **Key components** (in `src/components/`):
+  - `ChatInterface.jsx` - Main chat UI
+  - `Sidebar.jsx` - Project/session navigation
+  - `FileTree.jsx` - Project file explorer
+  - `Shell.jsx` - Terminal component (xterm.js)
+  - `GitPanel.jsx` - Git operations UI
+  - `Settings.jsx` - Application settings modal
+
+### Shared Code
+- `shared/modelConstants.js` - Model definitions for Claude, Cursor, and Codex
+
+### Communication Flow
+1. Frontend connects via WebSocket (`/ws` for chat, `/shell` for terminal)
+2. User messages sent as `claude-command`, `cursor-command`, or `codex-command`
+3. Backend streams responses via `claude-response` messages
+4. Session management with `session-created`, `claude-complete` events
+5. File system changes in `~/.claude/projects/` trigger `projects_updated` WebSocket events
+
+## Configuration
+
+Environment variables (`.env`):
+- `PORT` - Backend server port (default: 3001)
+- `VITE_PORT` - Frontend dev server port (default: 5173)
+- `CONTEXT_WINDOW` - Claude context window size (default: 160000)
+- `DATABASE_PATH` - Custom auth database location
+
+## Key Patterns
+
+### Session Protection System
+The app tracks "active sessions" to prevent automatic project updates from clearing chat messages during conversations. See `App.jsx` for implementation using `activeSessions` state and the `markSessionAsActive`/`markSessionAsInactive` callbacks.
+
+### WebSocket Message Types
+- `claude-command` / `cursor-command` / `codex-command` - User prompts
+- `claude-response` - Streaming AI responses
+- `claude-permission-request` - Tool approval requests
+- `projects_updated` - Project file changes
+- `session-created` / `claude-complete` - Session lifecycle
+
+### i18n
+Internationalization support in `src/i18n/` with English and Chinese locales.
+
+## Development Workflow
+
+**Before committing any changes**, always run:
+
+1. **Lint check**: `npm run lint` - Ensures code quality and catches issues early
+2. **Playwright tests**: `npm run test:e2e` - Runs end-to-end tests to verify functionality
+
+This applies to all code changes, including bug fixes, new features, and refactoring.
