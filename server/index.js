@@ -1093,8 +1093,25 @@ function handleShellConnection(ws) {
                     console.log('🔧 Executing shell command:', shellCommand);
 
                     // Use appropriate shell based on platform
-                    const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
+                    // On Unix-like systems, use the user's default shell or fall back to common shells
+                    let shell;
+                    if (os.platform() === 'win32') {
+                        shell = 'powershell.exe';
+                    } else {
+                        // Try user's default shell first, then fall back to common shells with full paths
+                        const userShell = process.env.SHELL;
+                        if (userShell && fs.existsSync(userShell)) {
+                            shell = userShell;
+                        } else if (fs.existsSync('/bin/zsh')) {
+                            shell = '/bin/zsh';
+                        } else if (fs.existsSync('/bin/bash')) {
+                            shell = '/bin/bash';
+                        } else {
+                            shell = '/bin/sh';
+                        }
+                    }
                     const shellArgs = os.platform() === 'win32' ? ['-Command', shellCommand] : ['-c', shellCommand];
+                    console.log('🐚 Using shell:', shell);
 
                     // Use terminal dimensions from client if provided, otherwise use defaults
                     const termCols = data.cols || 80;
