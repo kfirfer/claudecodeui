@@ -948,17 +948,24 @@ async function getSessionMessages(projectName, sessionId, limit = null, offset =
 // Rename a project's display name
 async function renameProject(projectName, newDisplayName) {
   const config = await loadProjectConfig();
-  
+
   if (!newDisplayName || newDisplayName.trim() === '') {
-    // Remove custom name if empty, will fall back to auto-generated
-    delete config[projectName];
+    // Remove custom display name if empty, but preserve other properties
+    if (config[projectName]) {
+      delete config[projectName].displayName;
+      // If no other properties remain, remove the entry entirely
+      if (Object.keys(config[projectName]).length === 0) {
+        delete config[projectName];
+      }
+    }
   } else {
-    // Set custom display name
+    // Set custom display name while preserving existing properties (manuallyAdded, originalPath)
     config[projectName] = {
+      ...config[projectName],
       displayName: newDisplayName.trim()
     };
   }
-  
+
   await saveProjectConfig(config);
   return true;
 }
@@ -1102,6 +1109,42 @@ async function addProjectManually(projectPath, displayName = null) {
   const projectDir = path.join(os.homedir(), '.claude', 'projects', projectName);
 
   if (config[projectName]) {
+    // Check if this is an orphaned entry (exists in config but not visible in UI)
+    // This happens when a project loses its manuallyAdded flag (e.g., after renaming)
+    // and has no directory in ~/.claude/projects/
+    let projectDirExists = false;
+    try {
+      await fs.access(projectDir);
+      projectDirExists = true;
+    } catch {
+      // Directory doesn't exist
+    }
+
+    const isOrphaned = !config[projectName].manuallyAdded && !projectDirExists;
+
+    if (isOrphaned) {
+      // Fix the orphaned entry by restoring manuallyAdded flag
+      config[projectName] = {
+        ...config[projectName],
+        manuallyAdded: true,
+        originalPath: absolutePath
+      };
+      if (displayName) {
+        config[projectName].displayName = displayName;
+      }
+      await saveProjectConfig(config);
+
+      return {
+        name: projectName,
+        path: absolutePath,
+        fullPath: absolutePath,
+        displayName: displayName || config[projectName].displayName || await generateDisplayName(projectName, absolutePath),
+        isManuallyAdded: true,
+        sessions: [],
+        cursorSessions: []
+      };
+    }
+
     throw new Error(`Project already configured for path: ${absolutePath}`);
   }
 
