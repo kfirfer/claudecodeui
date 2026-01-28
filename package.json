@@ -23,6 +23,7 @@
     "url": "https://github.com/siteboon/claudecodeui/issues"
   },
   "scripts": {
+    "postinstall": "npm rebuild node-pty --build-from-source || true",
     "dev": "concurrently --kill-others \"npm run server\" \"npm run client\"",
     "server": "node server/index.js",
     "client": "vite --host",
