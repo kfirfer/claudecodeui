@@ -19,10 +19,9 @@ test.describe('Project Workflow', () => {
     'Skipping tests - set TEST_USERNAME and TEST_PASSWORD env vars'
   );
 
-  // Unique identifiers for this test run
-  const testProjectPath = `/tmp/claude-ui-test-${Date.now()}`;
-  const originalProjectName = `test-${Date.now()}`;
-  const renamedProjectName = `renamed-test-${Date.now()}`;
+  // Unique identifiers for this test run - use /tmp which always exists
+  const testProjectPath = '/tmp';
+  const renamedProjectName = `E2E-Test-${Date.now()}`;
 
   test.beforeEach(async ({ page }) => {
     // Navigate to the app and login
@@ -39,7 +38,7 @@ test.describe('Project Workflow', () => {
 
     // Wait for login to complete and sidebar to load
     await page.waitForTimeout(3000);
-    await expect(page.locator('text=Projects').or(page.locator('text=New Project'))).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('button:has-text("New Project")').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('complete project lifecycle: create, rename, session, chat, delete', async ({ page }) => {
@@ -54,7 +53,7 @@ test.describe('Project Workflow', () => {
     await newProjectButton.click();
 
     // Wait for Project Creation Wizard modal to appear
-    await expect(page.locator('text=Create New Project').or(page.locator('h3:has-text("Create")'))).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Create New Project' })).toBeVisible({ timeout: 10000 });
 
     // Step 1 of wizard: Select "Existing Workspace" option (should be default)
     const existingWorkspaceOption = page.locator('button:has-text("Existing Workspace"), button:has-text("existing")').first();
@@ -76,14 +75,19 @@ test.describe('Project Workflow', () => {
     await page.waitForTimeout(500);
 
     // Step 3: Confirm and create
-    await page.locator('button:has-text("Create Project"), button:has-text("Create")').last().click();
+    const createButton = page.getByRole('button', { name: /Create Project/i });
+    await expect(createButton).toBeVisible({ timeout: 5000 });
+    await createButton.click();
 
     // Wait for project creation to complete and modal to close
     await page.waitForTimeout(3000);
 
+    // The modal should close after successful creation
+    await expect(page.getByRole('heading', { name: 'Create New Project' })).not.toBeVisible({ timeout: 15000 });
+
     // Verify project appears in sidebar (it will show the folder name from the path)
-    const projectName = testProjectPath.split('/').pop();
-    await expect(page.locator(`text=${projectName}`).first()).toBeVisible({ timeout: 15000 });
+    const projectName = testProjectPath.split('/').pop(); // "tmp"
+    await expect(page.getByText(projectName, { exact: false }).first()).toBeVisible({ timeout: 15000 });
     console.log('Project created successfully');
 
     // ==========================================
