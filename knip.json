@@ -1,0 +1,37 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "entry": [
+    "src/main.jsx",
+    "src/App.jsx",
+    "server/index.js",
+    "server/cli.js"
+  ],
+  "project": [
+    "src/**/*.{js,jsx}",
+    "server/**/*.js",
+    "shared/**/*.js"
+  ],
+  "ignore": [
+    "src/services/api/**",
+    "**/*.d.ts",
+    "eslint-custom-rules/**"
+  ],
+  "ignoreDependencies": [
+    "@vitejs/plugin-react",
+    "autoprefixer",
+    "postcss",
+    "tailwindcss",
+    "vite",
+    "sharp",
+    "eslint*",
+    "@eslint/*",
+    "@typescript-eslint/*",
+    "eslint-plugin-*",
+    "eslint-import-resolver-typescript",
+    "globals",
+    "typescript",
+    "oxlint",
+    "node-gyp"
+  ],
+  "ignoreExportsUsedInFile": true
+}
