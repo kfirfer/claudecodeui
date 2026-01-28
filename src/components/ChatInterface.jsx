@@ -17,14 +17,12 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, memo } from 'react';
-import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useDropzone } from 'react-dropzone';
-import TodoList from './TodoList';
 import ClaudeLogo from './ClaudeLogo.jsx';
 import CursorLogo from './CursorLogo.jsx';
 import CodexLogo from './CodexLogo.jsx';
@@ -1671,6 +1669,7 @@ const MessageComponent = memo(({ message, index: _index, prevMessage, createDiff
                           <div className="space-y-2 mb-4">
                             {options.map((option) => (
                               <button
+                                type="button"
                                 key={option.number}
                                 className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${
                                   option.isSelected
@@ -1727,6 +1726,7 @@ const MessageComponent = memo(({ message, index: _index, prevMessage, createDiff
                           </svg>
                           <span className="font-medium">Read</span>
                           <button
+                            type="button"
                             onClick={() => onFileOpen && onFileOpen(input.file_path)}
                             className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-mono transition-colors"
                           >
@@ -1906,6 +1906,7 @@ const ImageAttachment = ({ file, onRemove, uploadProgress, error }) => {
         </div>
       )}
       <button
+        type="button"
         onClick={onRemove}
         className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100"
       >
@@ -1925,7 +1926,7 @@ const ImageAttachment = ({ file, onRemove, uploadProgress, error }) => {
 // - onReplaceTemporarySession: Called to replace temporary session ID with real WebSocket session ID
 //
 // This ensures uninterrupted chat experience by pausing sidebar refreshes during conversations.
-function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick, onShowAllTasks }) {
+function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick: _onTaskClick, onShowAllTasks }) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { t } = useTranslation('chat');
   const [input, setInput] = useState(() => {
@@ -1965,7 +1966,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   const inputContainerRef = useRef(null);
   const inputHighlightRef = useRef(null);
   const scrollContainerRef = useRef(null);
-  const isLoadingSessionRef = useRef(false); // Track session loading to prevent multiple scrolls
+  // Track session loading to prevent multiple scrolls
+  const isLoadingSessionRef = useRef(false);
   const isLoadingMoreRef = useRef(false);
   const topLoadLockRef = useRef(false);
   const pendingScrollRestoreRef = useRef(null);
@@ -1976,7 +1978,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   // (prevents background sessions from streaming into a different view).
   const pendingViewSessionRef = useRef(null);
   const commandQueryTimerRef = useRef(null);
-  const [debouncedInput, setDebouncedInput] = useState('');
+  const [_debouncedInput, setDebouncedInput] = useState('');
   const [showFileDropdown, setShowFileDropdown] = useState(false);
   const [fileList, setFileList] = useState([]);
   const [fileMentions, setFileMentions] = useState([]);
@@ -2071,6 +2073,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             setCursorModel(modelId);
           }
         }
+        return data;
       })
       .catch(err => console.error('Error loading Cursor config:', err));
     }
@@ -2119,8 +2122,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
               return bCount - aCount;
             });
             setSlashCommands(sortedCommands);
-          } catch {
-            console.error('Error parsing command history:', e);
+          } catch (err) {
+            console.error('Error parsing command history:', err);
           }
         }
       } catch (error) {
@@ -2183,11 +2186,12 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         }))
         .filter(cmd => cmd.usageCount > 0)
         .sort((a, b) => b.usageCount - a.usageCount)
-        .slice(0, 5); // Top 5 most used
+        // Top 5 most used
+        .slice(0, 5);
 
       return commandsWithUsage;
-    } catch {
-      console.error('Error parsing command history:', e);
+    } catch (error) {
+      console.error('Error parsing command history:', error);
       return [];
     }
   }, [selectedProject, slashCommands]);
@@ -2297,8 +2301,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             timestamp: Date.now()
           }]);
         } else {
-          // Remove last N messages
-          setChatMessages(prev => prev.slice(0, -data.steps * 2)); // Remove user + assistant pairs
+          // Remove last N messages (user + assistant pairs)
+          setChatMessages(prev => prev.slice(0, -data.steps * 2));
           setChatMessages(prev => [...prev, {
             role: 'assistant',
             content: `⏪ ${data.message}`,
@@ -2316,8 +2320,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   const handleSubmitRef = useRef(null);
 
   // Handle custom command execution
-  const handleCustomCommand = useCallback(async (result, args) => {
-    const { content, hasBashCommands, hasFileIncludes } = result;
+  const handleCustomCommand = useCallback(async (result, _args) => {
+    const { content, hasBashCommands, hasFileIncludes: _hasFileIncludes } = result;
 
     // Show confirmation for bash commands
     if (hasBashCommands) {
@@ -2494,15 +2498,17 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       const data = await res.json();
       const blobs = data?.session?.messages || [];
       const converted = [];
-      const toolUseMap = {}; // Map to store tool uses by ID for linking results
-      
+      // Map to store tool uses by ID for linking results
+      const toolUseMap = {};
+
       // First pass: process all messages maintaining order
       for (let blobIdx = 0; blobIdx < blobs.length; blobIdx++) {
         const blob = blobs[blobIdx];
         const content = blob.content;
         let text = '';
         let role = 'assistant';
-        let reasoningText = null; // Move to outer scope
+        // Move to outer scope
+        let reasoningText = null;
         try {
           // Handle different Cursor message formats
           if (content?.role && content?.content) {
@@ -2611,13 +2617,13 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                             inPatch = true;
                           } else if (inPatch) {
                             if (line.startsWith('-')) {
-                              oldLines.push(line.substring(1));
+                              oldLines.push(line.slice(1));
                             } else if (line.startsWith('+')) {
-                              newLines.push(line.substring(1));
+                              newLines.push(line.slice(1));
                             } else if (line.startsWith(' ')) {
                               // Context line - add to both
-                              oldLines.push(line.substring(1));
-                              newLines.push(line.substring(1));
+                              oldLines.push(line.slice(1));
+                              newLines.push(line.slice(1));
                             }
                           }
                         }
@@ -3756,7 +3762,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           }]);
           break;
           
-        case 'cursor-result':
+        case 'cursor-result': {
           // Get session ID from message or fall back to current session
           const cursorCompletedSessionId = latestMessage.sessionId || currentSessionId;
 
@@ -3804,12 +3810,13 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                 }
                 return updated;
               });
-            } catch {
-              console.warn('Error handling cursor-result message:', e);
+            } catch (err) {
+              console.warn('Error handling cursor-result message:', err);
             }
           }
 
           // Store session ID for future use and trigger refresh (for new sessions)
+          {
           const pendingCursorSessionId = sessionStorage.getItem('pendingSessionId');
           if (cursorCompletedSessionId && !currentSessionId && cursorCompletedSessionId === pendingCursorSessionId) {
             setCurrentSessionId(cursorCompletedSessionId);
@@ -3820,13 +3827,16 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
               setTimeout(() => window.refreshProjects(), 500);
             }
           }
+          }
+          }
           break;
 
         case 'cursor-output':
           // Handle Cursor raw terminal output; strip ANSI and ignore empty control-only payloads
           try {
             const raw = String(latestMessage.data ?? '');
-            const cleaned = raw.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim();
+            // eslint-disable-next-line no-control-regex
+            const cleaned = raw.replaceAll(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replaceAll(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim();
             if (cleaned) {
               streamBufferRef.current += (streamBufferRef.current ? `\n${cleaned}` : cleaned);
               if (!streamTimerRef.current) {
@@ -3848,12 +3858,12 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                 }, 100);
               }
             }
-          } catch {
-            console.warn('Error handling cursor-output message:', e);
+          } catch (err) {
+            console.warn('Error handling cursor-output message:', err);
           }
           break;
-          
-        case 'claude-complete':
+
+        case 'claude-complete': {
           // Get session ID from message or fall back to current session
           const completedSessionId = latestMessage.sessionId || currentSessionId || sessionStorage.getItem('pendingSessionId');
 
@@ -3873,7 +3883,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
               onSessionNotProcessing(completedSessionId);
             }
           }
-          
+
           // If we have a pending session ID and the conversation completed successfully, use it
           const pendingSessionId = sessionStorage.getItem('pendingSessionId');
           if (pendingSessionId && !currentSessionId && latestMessage.exitCode === 0) {
@@ -3881,9 +3891,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             sessionStorage.removeItem('pendingSessionId');
 
             // No need to manually refresh - projects_updated WebSocket message will handle it
-            console.log('✅ New session complete, ID set to:', pendingSessionId);
+            console.log('New session complete, ID set to:', pendingSessionId);
           }
-          
+
           // Clear persisted chat messages after successful completion
           if (selectedProject && latestMessage.exitCode === 0) {
             safeLocalStorage.removeItem(`chat_messages_${selectedProject.name}`);
@@ -3892,8 +3902,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           // This does not remove saved permissions; it only resets transient UI state.
           setPendingPermissionRequests([]);
           break;
+        }
 
-        case 'codex-response':
+        case 'codex-response': {
           // Handle Codex SDK responses
           const codexData = latestMessage.data;
           if (codexData) {
@@ -3997,8 +4008,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             }
           }
           break;
+        }
 
-        case 'codex-complete':
+        case 'codex-complete': {
           // Handle Codex session completion
           const codexCompletedSessionId = latestMessage.sessionId || currentSessionId || sessionStorage.getItem('pendingSessionId');
 
@@ -4033,6 +4045,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             safeLocalStorage.removeItem(`chat_messages_${selectedProject.name}`);
           }
           break;
+        }
 
         case 'codex-error':
           // Handle Codex errors
@@ -4093,7 +4106,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           break;
         }
 
-        case 'claude-status':
+        case 'claude-status': {
           // Handle Claude working status messages
           const statusData = latestMessage.data;
           if (statusData) {
@@ -4103,7 +4116,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
               tokens: 0,
               can_interrupt: true
             };
-            
+
             // Check for different status message formats
             if (statusData.message) {
               statusInfo.text = statusData.message;
@@ -4130,7 +4143,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             setCanAbortSession(statusInfo.can_interrupt);
           }
           break;
-  
+        }
       }
     }
   }, [messages]);
@@ -5025,6 +5038,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                 <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
                   {/* Claude Button */}
                   <button
+                    type="button"
                     onClick={() => {
                       setProvider('claude');
                       localStorage.setItem('selected-provider', 'claude');
@@ -5032,8 +5046,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                       setTimeout(() => textareaRef.current?.focus(), 100);
                     }}
                     className={`group relative w-64 h-32 bg-white dark:bg-gray-800 rounded-xl border-2 transition-all duration-200 hover:scale-105 hover:shadow-xl ${
-                      provider === 'claude' 
-                        ? 'border-blue-500 shadow-lg ring-2 ring-blue-500/20' 
+                      provider === 'claude'
+                        ? 'border-blue-500 shadow-lg ring-2 ring-blue-500/20'
                         : 'border-gray-200 dark:border-gray-700 hover:border-blue-400'
                     }`}
                   >
@@ -5054,9 +5068,10 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                       </div>
                     )}
                   </button>
-                  
+
                   {/* Cursor Button */}
                   <button
+                    type="button"
                     onClick={() => {
                       setProvider('cursor');
                       localStorage.setItem('selected-provider', 'cursor');
@@ -5064,8 +5079,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                       setTimeout(() => textareaRef.current?.focus(), 100);
                     }}
                     className={`group relative w-64 h-32 bg-white dark:bg-gray-800 rounded-xl border-2 transition-all duration-200 hover:scale-105 hover:shadow-xl ${
-                      provider === 'cursor' 
-                        ? 'border-purple-500 shadow-lg ring-2 ring-purple-500/20' 
+                      provider === 'cursor'
+                        ? 'border-purple-500 shadow-lg ring-2 ring-purple-500/20'
                         : 'border-gray-200 dark:border-gray-700 hover:border-purple-400'
                     }`}
                   >
@@ -5089,6 +5104,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
                   {/* Codex Button */}
                   <button
+                    type="button"
                     onClick={() => {
                       setProvider('codex');
                       localStorage.setItem('selected-provider', 'codex');
@@ -5241,6 +5257,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
               <div className="text-center text-gray-500 dark:text-gray-400 text-sm py-2 border-b border-gray-200 dark:border-gray-700">
                 {t('session.messages.showingLast', { count: visibleMessageCount, total: chatMessages.length })} •
                 <button
+                  type="button"
                   className="ml-1 text-blue-600 hover:text-blue-700 underline"
                   onClick={loadEarlierMessages}
                 >
@@ -5547,6 +5564,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             {/* Scroll to bottom button - positioned next to mode indicator */}
             {isUserScrolledUp && chatMessages.length > 0 && (
               <button
+                type="button"
                 onClick={scrollToBottom}
                 className="w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:ring-offset-gray-800"
                 title="Scroll to bottom"
