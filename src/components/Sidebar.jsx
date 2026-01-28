@@ -342,6 +342,18 @@ function Sidebar({
 
       if (response.ok) {
         console.log('[Sidebar] Session deleted successfully, calling callback');
+
+        // Immediately clear the session from local additionalSessions state
+        // This prevents the session from briefly appearing in the list
+        // during the render cycle before the parent's state update takes effect
+        setAdditionalSessions(prev => {
+          const updated = { ...prev };
+          if (updated[projectName]) {
+            updated[projectName] = updated[projectName].filter(s => s.id !== sessionId);
+          }
+          return updated;
+        });
+
         // Call parent callback if provided
         if (onSessionDelete) {
           onSessionDelete(sessionId);

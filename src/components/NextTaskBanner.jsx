@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowRight, List, Flag, CheckCircle, Circle, Plus, FileText, Settings, X, Terminal, Eye, Play, Zap, Target } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useTaskMaster } from '../contexts/TaskMasterContext';
@@ -13,7 +13,7 @@ const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [showCLI, setShowCLI] = useState(false);
   const [showTaskDetail, setShowTaskDetail] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, _setIsLoading] = useState(false);
 
   // Handler functions
   const handleCreateManualTask = () => {

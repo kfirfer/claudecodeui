@@ -764,6 +764,7 @@ This document outlines the requirements for building an AI-powered task manageme
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generate Tasks from PRD</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setShowGenerateModal(false)}
                 className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
               >
@@ -820,6 +821,7 @@ This document outlines the requirements for building an AI-powered task manageme
               {/* Footer */}
               <div className="pt-4">
                 <button
+                  type="button"
                   onClick={() => setShowGenerateModal(false)}
                   className="w-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
                 >
@@ -853,12 +855,14 @@ This document outlines the requirements for building an AI-powered task manageme
               
               <div className="flex justify-end space-x-3">
                 <button
+                  type="button"
                   onClick={() => setShowOverwriteConfirm(false)}
                   className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={async () => {
                     setShowOverwriteConfirm(false);
                     await performSave();
