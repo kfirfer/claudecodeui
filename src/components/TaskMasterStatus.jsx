@@ -3,13 +3,12 @@ import { useTaskMaster } from '../contexts/TaskMasterContext';
 import TaskIndicator from './TaskIndicator';
 
 const TaskMasterStatus = () => {
-  const { 
-    currentProject, 
-    projectTaskMaster, 
+  const {
+    currentProject,
     mcpServerStatus,
     isLoading,
     isLoadingMCP,
-    error 
+    error
   } = useTaskMaster();
 
   if (isLoading || isLoadingMCP) {

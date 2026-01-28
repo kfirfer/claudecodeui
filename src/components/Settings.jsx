@@ -1,20 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Badge } from './ui/badge';
-import { X, Plus, Settings as SettingsIcon, Shield, AlertTriangle, Moon, Sun, Server, Edit3, Trash2, Globe, Terminal, Zap, FolderOpen, LogIn, Key, GitBranch, Check } from 'lucide-react';
+import { X, Settings as SettingsIcon, Moon, Sun, Globe, FolderOpen, Key, GitBranch } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
-import ClaudeLogo from './ClaudeLogo';
-import CursorLogo from './CursorLogo';
-import CodexLogo from './CodexLogo';
 import CredentialsSettings from './CredentialsSettings';
 import GitSettings from './GitSettings';
 import TasksSettings from './TasksSettings';
 import LoginModal from './LoginModal';
 import { authenticatedFetch } from '../utils/api';
 
-// New settings components
+// Settings components
 import AgentListItem from './settings/AgentListItem';
 import AccountContent from './settings/AccountContent';
 import PermissionsContent from './settings/PermissionsContent';
@@ -40,7 +36,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
     name: '',
     type: 'stdio',
     scope: 'user',
-    projectPath: '', // For local scope
+    // For local scope
+    projectPath: '',
     config: {
       command: '',
       args: [],
@@ -49,8 +46,10 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
       headers: {},
       timeout: 30000
     },
-    jsonInput: '', // For JSON import
-    importMode: 'form' // 'form' or 'json'
+    // For JSON import
+    jsonInput: '',
+    // 'form' or 'json'
+    importMode: 'form'
   });
   const [mcpLoading, setMcpLoading] = useState(false);
   const [mcpTestResults, setMcpTestResults] = useState({});
@@ -58,8 +57,10 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
   const [mcpToolsLoading, setMcpToolsLoading] = useState({});
   const [activeTab, setActiveTab] = useState(initialTab);
   const [jsonValidationError, setJsonValidationError] = useState('');
-  const [selectedAgent, setSelectedAgent] = useState('claude'); // 'claude', 'cursor', or 'codex'
-  const [selectedCategory, setSelectedCategory] = useState('account'); // 'account', 'permissions', or 'mcp'
+  // 'claude', 'cursor', or 'codex'
+  const [selectedAgent, setSelectedAgent] = useState('claude');
+  // 'account', 'permissions', or 'mcp'
+  const [selectedCategory, setSelectedCategory] = useState('account');
 
   // Code Editor settings
   const [codeEditorTheme, setCodeEditorTheme] = useState(() =>
@@ -68,11 +69,13 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
   const [codeEditorWordWrap, setCodeEditorWordWrap] = useState(() =>
     localStorage.getItem('codeEditorWordWrap') === 'true'
   );
+  // Default true
   const [codeEditorShowMinimap, setCodeEditorShowMinimap] = useState(() =>
-    localStorage.getItem('codeEditorShowMinimap') !== 'false' // Default true
+    localStorage.getItem('codeEditorShowMinimap') !== 'false'
   );
+  // Default true
   const [codeEditorLineNumbers, setCodeEditorLineNumbers] = useState(() =>
-    localStorage.getItem('codeEditorLineNumbers') !== 'false' // Default true
+    localStorage.getItem('codeEditorLineNumbers') !== 'false'
   );
   const [codeEditorFontSize, setCodeEditorFontSize] = useState(() =>
     localStorage.getItem('codeEditorFontSize') || '14'
@@ -124,40 +127,6 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
     loading: true,
     error: null
   });
-
-  // Common tool patterns for Claude
-  const commonTools = [
-    'Bash(git log:*)',
-    'Bash(git diff:*)',
-    'Bash(git status:*)',
-    'Write',
-    'Read',
-    'Edit',
-    'Glob',
-    'Grep',
-    'MultiEdit',
-    'Task',
-    'TodoWrite',
-    'TodoRead',
-    'WebFetch',
-    'WebSearch'
-  ];
-  
-  // Common shell commands for Cursor
-  const commonCursorCommands = [
-    'Shell(ls)',
-    'Shell(mkdir)',
-    'Shell(cd)',
-    'Shell(cat)',
-    'Shell(echo)',
-    'Shell(git status)',
-    'Shell(git diff)',
-    'Shell(git log)',
-    'Shell(npm install)',
-    'Shell(npm run)',
-    'Shell(python)',
-    'Shell(node)'
-  ];
 
   // Fetch Cursor MCP servers
   const fetchCursorMcpServers = async () => {
@@ -687,19 +656,19 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
 
   const handleClaudeLogin = () => {
     setLoginProvider('claude');
-    setSelectedProject(projects?.[0] || { name: 'default', fullPath: process.cwd() });
+    setSelectedProject(projects?.[0] || { name: 'default', fullPath: '.' });
     setShowLoginModal(true);
   };
 
   const handleCursorLogin = () => {
     setLoginProvider('cursor');
-    setSelectedProject(projects?.[0] || { name: 'default', fullPath: process.cwd() });
+    setSelectedProject(projects?.[0] || { name: 'default', fullPath: '.' });
     setShowLoginModal(true);
   };
 
   const handleCodexLogin = () => {
     setLoginProvider('codex');
-    setSelectedProject(projects?.[0] || { name: 'default', fullPath: process.cwd() });
+    setSelectedProject(projects?.[0] || { name: 'default', fullPath: '.' });
     setShowLoginModal(true);
   };
 
@@ -761,28 +730,6 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const addAllowedTool = (tool) => {
-    if (tool && !allowedTools.includes(tool)) {
-      setAllowedTools([...allowedTools, tool]);
-      setNewAllowedTool('');
-    }
-  };
-
-  const removeAllowedTool = (tool) => {
-    setAllowedTools(allowedTools.filter(t => t !== tool));
-  };
-
-  const addDisallowedTool = (tool) => {
-    if (tool && !disallowedTools.includes(tool)) {
-      setDisallowedTools([...disallowedTools, tool]);
-      setNewDisallowedTool('');
-    }
-  };
-
-  const removeDisallowedTool = (tool) => {
-    setDisallowedTools(disallowedTools.filter(t => t !== tool));
   };
 
   // MCP form handling functions
@@ -906,7 +853,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
       setMcpToolsLoading({ ...mcpToolsLoading, [serverId]: true });
       const result = await discoverMcpTools(serverId, scope);
       setMcpServerTools({ ...mcpServerTools, [serverId]: result });
-    } catch (error) {
+    } catch {
       setMcpServerTools({ 
         ...mcpServerTools, 
         [serverId]: { 
@@ -929,16 +876,6 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
         [key]: value
       }
     }));
-  };
-
-
-  const getTransportIcon = (type) => {
-    switch (type) {
-      case 'stdio': return <Terminal className="w-4 h-4" />;
-      case 'sse': return <Zap className="w-4 h-4" />;
-      case 'http': return <Globe className="w-4 h-4" />;
-      default: return <Server className="w-4 h-4" />;
-    }
   };
 
   if (!isOpen) return null;
@@ -968,6 +905,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
           <div className="border-b border-border">
             <div className="flex px-4 md:px-6">
               <button
+                type="button"
                 onClick={() => setActiveTab('agents')}
                 className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === 'agents'
@@ -978,6 +916,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
                 {t('mainTabs.agents')}
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab('appearance')}
                 className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === 'appearance'
@@ -988,6 +927,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
                 {t('mainTabs.appearance')}
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab('git')}
                 className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === 'git'
@@ -999,6 +939,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
                 {t('mainTabs.git')}
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab('api')}
                 className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === 'api'
@@ -1010,6 +951,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
                 {t('mainTabs.apiTokens')}
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab('tasks')}
                 className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === 'tasks'
@@ -1042,6 +984,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
             </div>
           </div>
           <button
+            type="button"
             onClick={toggleDarkMode}
             className="relative inline-flex h-8 w-14 items-center rounded-full bg-gray-200 dark:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
             role="switch"
@@ -1110,6 +1053,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
             </div>
           </div>
           <button
+            type="button"
             onClick={() => setCodeEditorTheme(codeEditorTheme === 'dark' ? 'light' : 'dark')}
             className="relative inline-flex h-8 w-14 items-center rounded-full bg-gray-200 dark:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
             role="switch"
@@ -1144,6 +1088,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
             </div>
           </div>
           <button
+            type="button"
             onClick={() => setCodeEditorWordWrap(!codeEditorWordWrap)}
             className="relative inline-flex h-8 w-14 items-center rounded-full bg-gray-200 dark:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
             role="switch"
@@ -1172,6 +1117,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
             </div>
           </div>
           <button
+            type="button"
             onClick={() => setCodeEditorShowMinimap(!codeEditorShowMinimap)}
             className="relative inline-flex h-8 w-14 items-center rounded-full bg-gray-200 dark:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
             role="switch"
@@ -1200,6 +1146,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
             </div>
           </div>
           <button
+            type="button"
             onClick={() => setCodeEditorLineNumbers(!codeEditorLineNumbers)}
             className="relative inline-flex h-8 w-14 items-center rounded-full bg-gray-200 dark:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
             role="switch"
@@ -1314,6 +1261,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
                   <div className="border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
                     <div className="flex px-2 md:px-4 overflow-x-auto">
                       <button
+                        type="button"
                         onClick={() => setSelectedCategory('account')}
                         className={`px-3 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                           selectedCategory === 'account'
@@ -1324,6 +1272,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
                         {t('tabs.account')}
                       </button>
                       <button
+                        type="button"
                         onClick={() => setSelectedCategory('permissions')}
                         className={`px-3 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                           selectedCategory === 'permissions'
@@ -1334,6 +1283,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
                         {t('tabs.permissions')}
                       </button>
                       <button
+                        type="button"
                         onClick={() => setSelectedCategory('mcp')}
                         className={`px-3 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                           selectedCategory === 'mcp'
@@ -1427,8 +1377,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
                         agent="cursor"
                         servers={cursorMcpServers}
                         onAdd={() => {/* TODO: Add cursor MCP form */}}
-                        onEdit={(server) => {/* TODO: Edit cursor MCP form */}}
-                        onDelete={(serverId) => {/* TODO: Delete cursor MCP */}}
+                        onEdit={(_server) => {/* TODO: Edit cursor MCP form */}}
+                        onDelete={(_serverId) => {/* TODO: Delete cursor MCP */}}
                       />
                     )}
 
@@ -1660,7 +1610,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
                                     setJsonValidationError('');
                                   }
                                 }
-                              } catch (err) {
+                              } catch {
                                 if (e.target.value.trim()) {
                                   setJsonValidationError(t('mcpForm.validation.invalidJson'));
                                 } else {

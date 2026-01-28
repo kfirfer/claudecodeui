@@ -16,7 +16,8 @@ function FileTree({ selectedProject }) {
   const [expandedDirs, setExpandedDirs] = useState(new Set());
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
-  const [viewMode, setViewMode] = useState('detailed'); // 'simple', 'detailed', 'compact'
+  // viewMode can be 'simple', 'detailed', or 'compact'
+  const [viewMode, setViewMode] = useState('detailed');
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredFiles, setFilteredFiles] = useState([]);
 
@@ -123,7 +124,7 @@ function FileTree({ selectedProject }) {
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    return `${parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;
   };
 
   // Format date as relative time
@@ -144,6 +145,7 @@ function FileTree({ selectedProject }) {
     return items.map((item) => (
       <div key={item.path} className="select-none">
         <Button
+          type="button"
           variant="ghost"
           className={cn(
             "w-full justify-start p-2 h-auto font-normal text-left hover:bg-accent",
@@ -364,6 +366,7 @@ function FileTree({ selectedProject }) {
           <h3 className="text-sm font-medium text-foreground">{t('fileTree.files')}</h3>
           <div className="flex gap-1">
             <Button
+              type="button"
               variant={viewMode === 'simple' ? 'default' : 'ghost'}
               size="sm"
               className="h-8 w-8 p-0"
@@ -373,6 +376,7 @@ function FileTree({ selectedProject }) {
               <List className="w-4 h-4" />
             </Button>
             <Button
+              type="button"
               variant={viewMode === 'compact' ? 'default' : 'ghost'}
               size="sm"
               className="h-8 w-8 p-0"
@@ -382,6 +386,7 @@ function FileTree({ selectedProject }) {
               <Eye className="w-4 h-4" />
             </Button>
             <Button
+              type="button"
               variant={viewMode === 'detailed' ? 'default' : 'ghost'}
               size="sm"
               className="h-8 w-8 p-0"
@@ -405,6 +410,7 @@ function FileTree({ selectedProject }) {
           />
           {searchQuery && (
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-accent"

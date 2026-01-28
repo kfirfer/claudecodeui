@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
@@ -6,7 +6,7 @@ import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { useTranslation } from 'react-i18next';
 
-import { FolderOpen, Folder, Plus, MessageSquare, Clock, ChevronDown, ChevronRight, Edit3, Check, X, Trash2, Settings, FolderPlus, RefreshCw, Sparkles, Edit2, Star, Search, AlertTriangle } from 'lucide-react';
+import { FolderOpen, Folder, Plus, MessageSquare, Clock, ChevronDown, ChevronRight, Edit3, Check, X, Trash2, Settings, FolderPlus, RefreshCw, Edit2, Star, Search, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import ClaudeLogo from './ClaudeLogo';
 import CursorLogo from './CursorLogo.jsx';
@@ -58,7 +58,7 @@ function Sidebar({
   onShowSettings,
   updateAvailable,
   latestVersion,
-  currentVersion,
+  _currentVersion,
   releaseInfo,
   onShowVersionModal,
   isPWA,
@@ -78,7 +78,7 @@ function Sidebar({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingSession, setEditingSession] = useState(null);
   const [editingSessionName, setEditingSessionName] = useState('');
-  const [generatingSummary, setGeneratingSummary] = useState({});
+  const [_generatingSummary, _setGeneratingSummary] = useState({});
   const [searchFilter, setSearchFilter] = useState('');
   const [deletingProjects, setDeletingProjects] = useState(new Set());
   const [deleteConfirmation, setDeleteConfirmation] = useState(null); // { project, sessionCount }
@@ -309,6 +309,14 @@ function Sidebar({
     setEditingName('');
   };
 
+  // Placeholder for session summary update functionality
+  // TODO: Implement backend API endpoint for updating session summaries
+  const updateSessionSummary = async (_projectName, _sessionId, newSummary) => {
+    console.warn('updateSessionSummary: API endpoint not implemented yet', { newSummary });
+    setEditingSession(null);
+    setEditingSessionName('');
+  };
+
   const showDeleteSessionConfirmation = (projectName, sessionId, sessionTitle, provider = 'claude') => {
     setSessionDeleteConfirmation({ projectName, sessionId, sessionTitle, provider });
   };
@@ -389,48 +397,6 @@ function Sidebar({
     }
   };
 
-  const createNewProject = async () => {
-    if (!newProjectPath.trim()) {
-      alert(t('messages.enterProjectPath'));
-      return;
-    }
-
-    setCreatingProject(true);
-
-    try {
-      const response = await api.createProject(newProjectPath.trim());
-
-      if (response.ok) {
-        const result = await response.json();
-
-        // Save the path to recent paths before clearing
-        saveToRecentPaths(newProjectPath.trim());
-
-        setShowNewProject(false);
-        setNewProjectPath('');
-
-        // Refresh projects to show the new one
-        if (window.refreshProjects) {
-          window.refreshProjects();
-        } else {
-          window.location.reload();
-        }
-      } else {
-        const error = await response.json();
-        alert(error.error || t('messages.createProjectFailed'));
-      }
-    } catch (error) {
-      console.error('Error creating project:', error);
-      alert(t('messages.createProjectError'));
-    } finally {
-      setCreatingProject(false);
-    }
-  };
-
-  const cancelNewProject = () => {
-    setShowNewProject(false);
-    setNewProjectPath('');
-  };
 
   const loadMoreSessions = async (project) => {
     // Check if we can load more sessions
@@ -498,7 +464,7 @@ function Sidebar({
       {showNewProject && ReactDOM.createPortal(
         <ProjectCreationWizard
           onClose={() => setShowNewProject(false)}
-          onProjectCreated={(project) => {
+          onProjectCreated={(_project) => {
             // Refresh projects list after creation
             if (window.refreshProjects) {
               window.refreshProjects();
@@ -700,6 +666,7 @@ function Sidebar({
             )}
             <div className="flex gap-2">
               <button
+                type="button"
                 className="w-8 h-8 rounded-md bg-background border border-border flex items-center justify-center active:scale-95 transition-all duration-150"
                 onClick={async () => {
                   setIsRefreshing(true);
@@ -714,6 +681,7 @@ function Sidebar({
                 <RefreshCw className={`w-4 h-4 text-foreground ${isRefreshing ? 'animate-spin' : ''}`} />
               </button>
               <button
+                type="button"
                 className="w-8 h-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center active:scale-95 transition-all duration-150"
                 onClick={() => setShowNewProject(true)}
               >
@@ -773,6 +741,7 @@ function Sidebar({
             />
             {searchFilter && (
               <button
+                type="button"
                 onClick={() => setSearchFilter('')}
                 className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 hover:bg-accent rounded"
               >
@@ -934,6 +903,7 @@ function Sidebar({
                             {editingProject === project.name ? (
                               <>
                                 <button
+                                  type="button"
                                   className="w-8 h-8 rounded-lg bg-green-500 dark:bg-green-600 flex items-center justify-center active:scale-90 transition-all duration-150 shadow-sm active:shadow-none"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -943,6 +913,7 @@ function Sidebar({
                                   <Check className="w-4 h-4 text-white" />
                                 </button>
                                 <button
+                                  type="button"
                                   className="w-8 h-8 rounded-lg bg-gray-500 dark:bg-gray-600 flex items-center justify-center active:scale-90 transition-all duration-150 shadow-sm active:shadow-none"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -956,10 +927,11 @@ function Sidebar({
                               <>
                                 {/* Star button */}
                                 <button
+                                  type="button"
                                   className={cn(
                                     "w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-150 border",
-                                    isStarred 
-                                      ? "bg-yellow-500/10 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800" 
+                                    isStarred
+                                      ? "bg-yellow-500/10 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800"
                                       : "bg-gray-500/10 dark:bg-gray-900/30 border-gray-200 dark:border-gray-800"
                                   )}
                                   onClick={(e) => {
@@ -971,12 +943,13 @@ function Sidebar({
                                 >
                                   <Star className={cn(
                                     "w-4 h-4 transition-colors",
-                                    isStarred 
-                                      ? "text-yellow-600 dark:text-yellow-400 fill-current" 
+                                    isStarred
+                                      ? "text-yellow-600 dark:text-yellow-400 fill-current"
                                       : "text-gray-600 dark:text-gray-400"
                                   )} />
                                 </button>
                                 <button
+                                    type="button"
                                     className="w-8 h-8 rounded-lg bg-red-500/10 dark:bg-red-900/30 flex items-center justify-center active:scale-90 border border-red-200 dark:border-red-800"
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -987,6 +960,7 @@ function Sidebar({
                                     <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
                                   </button>
                                 <button
+                                  type="button"
                                   className="w-8 h-8 rounded-lg bg-primary/10 dark:bg-primary/20 flex items-center justify-center active:scale-90 border border-primary/20 dark:border-primary/30"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1272,6 +1246,7 @@ function Sidebar({
                                   </div>
                                   {!isCursorSession && (
                                     <button
+                                      type="button"
                                       className="w-5 h-5 rounded-md bg-red-50 dark:bg-red-900/20 flex items-center justify-center active:scale-95 transition-transform opacity-70 ml-1"
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -1354,6 +1329,7 @@ function Sidebar({
                                       autoFocus
                                     />
                                     <button
+                                      type="button"
                                       className="w-6 h-6 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 rounded flex items-center justify-center"
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -1364,6 +1340,7 @@ function Sidebar({
                                       <Check className="w-3 h-3 text-green-600 dark:text-green-400" />
                                     </button>
                                     <button
+                                      type="button"
                                       className="w-6 h-6 bg-gray-50 hover:bg-gray-100 dark:bg-gray-900/20 dark:hover:bg-gray-900/40 rounded flex items-center justify-center"
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -1379,6 +1356,7 @@ function Sidebar({
                                   <>
                                     {!isCodexSession && (
                                       <button
+                                        type="button"
                                         className="w-6 h-6 bg-gray-50 hover:bg-gray-100 dark:bg-gray-900/20 dark:hover:bg-gray-900/40 rounded flex items-center justify-center"
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -1391,6 +1369,7 @@ function Sidebar({
                                       </button>
                                     )}
                                     <button
+                                      type="button"
                                       className="w-6 h-6 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded flex items-center justify-center"
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -1436,6 +1415,7 @@ function Sidebar({
                       {/* Sessions - New Session Button */}
                       <div className="md:hidden px-3 pb-2">
                         <button
+                          type="button"
                           className="w-full h-8 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md flex items-center justify-center gap-2 font-medium text-xs active:scale-[0.98] transition-all duration-150"
                           onClick={() => {
                             handleProjectSelect(project);
@@ -1493,6 +1473,7 @@ function Sidebar({
           {/* Mobile Version Notification */}
           <div className="md:hidden p-3 pb-2">
             <button
+              type="button"
               className="w-full h-12 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl flex items-center justify-start gap-3 px-4 active:scale-[0.98] transition-all duration-150"
               onClick={onShowVersionModal}
             >
@@ -1518,6 +1499,7 @@ function Sidebar({
         {/* Mobile Settings */}
         <div className="md:hidden p-4 pb-20 border-t border-border/50">
           <button
+            type="button"
             className="w-full h-14 bg-muted/50 hover:bg-muted/70 rounded-2xl flex items-center justify-start gap-4 px-4 active:scale-[0.98] transition-all duration-150"
             onClick={onShowSettings}
           >

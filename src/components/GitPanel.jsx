@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { GitBranch, GitCommit, Plus, Minus, RefreshCw, Check, X, ChevronDown, ChevronRight, Info, History, FileText, Mic, MicOff, Sparkles, Download, RotateCcw, Trash2, AlertTriangle, Upload } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { GitBranch, GitCommit, Plus, RefreshCw, Check, ChevronDown, ChevronRight, Info, History, FileText, Sparkles, Download, Trash2, AlertTriangle, Upload } from 'lucide-react';
 import { MicButton } from './MicButton.jsx';
 import { authenticatedFetch } from '../utils/api';
 import DiffViewer from './DiffViewer.jsx';
@@ -376,7 +376,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
   const confirmAndExecute = async () => {
     if (!confirmAction) return;
 
-    const { type, file, message } = confirmAction;
+    const { type, file, message: _message } = confirmAction;
     setConfirmAction(null);
 
     try {
@@ -698,35 +698,37 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
             <div className="flex items-center gap-1">
               {(status === 'M' || status === 'D') && (
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setConfirmAction({ 
-                      type: 'discard', 
+                    setConfirmAction({
+                      type: 'discard',
                       file: filePath,
-                      message: `Discard all changes to "${filePath}"? This action cannot be undone.` 
+                      message: `Discard all changes to "${filePath}"? This action cannot be undone.`
                     });
                   }}
                   className={`${isMobile ? 'px-2 py-1 text-xs' : 'p-1'} hover:bg-red-100 dark:hover:bg-red-900 rounded text-red-600 dark:text-red-400 font-medium flex items-center gap-1`}
                   title="Discard changes"
                 >
-                  <Trash2 className={`${isMobile ? 'w-3 h-3' : 'w-3 h-3'}`} />
+                  <Trash2 className="w-3 h-3" />
                   {isMobile && <span>Discard</span>}
                 </button>
               )}
               {status === 'U' && (
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setConfirmAction({ 
-                      type: 'delete', 
+                    setConfirmAction({
+                      type: 'delete',
                       file: filePath,
-                      message: `Delete untracked file "${filePath}"? This action cannot be undone.` 
+                      message: `Delete untracked file "${filePath}"? This action cannot be undone.`
                     });
                   }}
                   className={`${isMobile ? 'px-2 py-1 text-xs' : 'p-1'} hover:bg-red-100 dark:hover:bg-red-900 rounded text-red-600 dark:text-red-400 font-medium flex items-center gap-1`}
                   title="Delete untracked file"
                 >
-                  <Trash2 className={`${isMobile ? 'w-3 h-3' : 'w-3 h-3'}`} />
+                  <Trash2 className="w-3 h-3" />
                   {isMobile && <span>Delete</span>}
                 </button>
               )}
@@ -768,6 +770,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
               </div>
               {isMobile && (
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setWrapText(!wrapText);
@@ -801,6 +804,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
       <div className={`flex items-center justify-between border-b border-gray-200 dark:border-gray-700 ${isMobile ? 'px-3 py-2' : 'px-4 py-3'}`}>
         <div className="relative" ref={dropdownRef}>
           <button
+            type="button"
             onClick={() => setShowBranchDropdown(!showBranchDropdown)}
             className={`flex items-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors ${isMobile ? 'space-x-1 px-2 py-1' : 'space-x-2 px-3 py-1.5'}`}
           >
@@ -837,6 +841,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
               <div className="py-1 max-h-64 overflow-y-auto">
                 {branches.map(branch => (
                   <button
+                    type="button"
                     key={branch}
                     onClick={() => switchBranch(branch)}
                     className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
@@ -852,6 +857,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
               </div>
               <div className="border-t border-gray-200 dark:border-gray-700 py-1">
                 <button
+                  type="button"
                   onClick={() => {
                     setShowNewBranchModal(true);
                     setShowBranchDropdown(false);
@@ -873,9 +879,10 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
               {/* Publish button - show when branch doesn't exist on remote */}
               {!remoteStatus?.hasUpstream && (
                 <button
-                  onClick={() => setConfirmAction({ 
-                    type: 'publish', 
-                    message: `Publish branch "${currentBranch}" to ${remoteStatus.remoteName}?` 
+                  type="button"
+                  onClick={() => setConfirmAction({
+                    type: 'publish',
+                    message: `Publish branch "${currentBranch}" to ${remoteStatus.remoteName}?`
                   })}
                   disabled={isPublishing}
                   className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1"
@@ -892,9 +899,10 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
                   {/* Pull button - show when behind (primary action) */}
                   {remoteStatus.behind > 0 && (
                     <button
-                      onClick={() => setConfirmAction({ 
-                        type: 'pull', 
-                        message: `Pull ${remoteStatus.behind} commit${remoteStatus.behind !== 1 ? 's' : ''} from ${remoteStatus.remoteName}?` 
+                      type="button"
+                      onClick={() => setConfirmAction({
+                        type: 'pull',
+                        message: `Pull ${remoteStatus.behind} commit${remoteStatus.behind !== 1 ? 's' : ''} from ${remoteStatus.remoteName}?`
                       })}
                       disabled={isPulling}
                       className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
@@ -908,9 +916,10 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
                   {/* Push button - show when ahead (primary action when ahead only) */}
                   {remoteStatus.ahead > 0 && (
                     <button
-                      onClick={() => setConfirmAction({ 
-                        type: 'push', 
-                        message: `Push ${remoteStatus.ahead} commit${remoteStatus.ahead !== 1 ? 's' : ''} to ${remoteStatus.remoteName}?` 
+                      type="button"
+                      onClick={() => setConfirmAction({
+                        type: 'push',
+                        message: `Push ${remoteStatus.ahead} commit${remoteStatus.ahead !== 1 ? 's' : ''} to ${remoteStatus.remoteName}?`
                       })}
                       disabled={isPushing}
                       className="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 flex items-center gap-1"
@@ -924,6 +933,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
                   {/* Fetch button - show when ahead only or when diverged (secondary action) */}
                   {(remoteStatus.ahead > 0 || (remoteStatus.behind > 0 && remoteStatus.ahead > 0)) && (
                     <button
+                      type="button"
                       onClick={handleFetch}
                       disabled={isFetching}
                       className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
@@ -939,6 +949,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
           )}
           
           <button
+            type="button"
             onClick={() => {
               fetchGitStatus();
               fetchBranches();
@@ -975,6 +986,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
               : 'max-h-0 opacity-0 -translate-y-2 overflow-hidden'
           }`}>
             <button
+              type="button"
               onClick={() => setActiveView('changes')}
               className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
                 activeView === 'changes'
@@ -988,6 +1000,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
               </div>
             </button>
             <button
+              type="button"
               onClick={() => setActiveView('history')}
               className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
                 activeView === 'history'
@@ -1014,6 +1027,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
                 {isMobile && isCommitAreaCollapsed ? (
                   <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
                       <button
+                        type="button"
                         onClick={() => setIsCommitAreaCollapsed(false)}
                         className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
                       >
@@ -1031,6 +1045,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium">Commit Changes</span>
                         <button
+                          type="button"
                           onClick={() => setIsCommitAreaCollapsed(true)}
                           className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
                         >
@@ -1055,6 +1070,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
                       />
                       <div className="absolute right-2 top-2 flex gap-1">
                         <button
+                          type="button"
                           onClick={generateCommitMessage}
                           disabled={selectedFiles.size === 0 || isGeneratingMessage}
                           className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1080,9 +1096,10 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
                         {selectedFiles.size} file{selectedFiles.size !== 1 ? 's' : ''} selected
                       </span>
                       <button
-                        onClick={() => setConfirmAction({ 
-                          type: 'commit', 
-                          message: `Commit ${selectedFiles.size} file${selectedFiles.size !== 1 ? 's' : ''} with message: "${commitMessage.trim()}"?` 
+                        type="button"
+                        onClick={() => setConfirmAction({
+                          type: 'commit',
+                          message: `Commit ${selectedFiles.size} file${selectedFiles.size !== 1 ? 's' : ''} with message: "${commitMessage.trim()}"?`
                         })}
                         disabled={!commitMessage.trim() || selectedFiles.size === 0 || isCommitting}
                         className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
@@ -1105,11 +1122,12 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
                 ? 'max-h-16 opacity-100 translate-y-0' 
                 : 'max-h-0 opacity-0 -translate-y-2 overflow-hidden'
             }`}>
-              <span className={`text-gray-600 dark:text-gray-400 ${isMobile ? 'text-xs' : 'text-xs'}`}>
+              <span className="text-gray-600 dark:text-gray-400 text-xs">
                 {selectedFiles.size} of {(gitStatus?.modified?.length || 0) + (gitStatus?.added?.length || 0) + (gitStatus?.deleted?.length || 0) + (gitStatus?.untracked?.length || 0)} {isMobile ? '' : 'files'} selected
               </span>
               <div className={`flex ${isMobile ? 'gap-1' : 'gap-2'}`}>
                 <button
+                  type="button"
                   onClick={() => {
                     const allFiles = new Set([
                       ...(gitStatus?.modified || []),
@@ -1119,14 +1137,15 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
                     ]);
                     setSelectedFiles(allFiles);
                   }}
-                  className={`text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 ${isMobile ? 'text-xs' : 'text-xs'}`}
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs"
                 >
                   {isMobile ? 'All' : 'Select All'}
                 </button>
                 <span className="text-gray-300 dark:text-gray-600">|</span>
                 <button
+                  type="button"
                   onClick={() => setSelectedFiles(new Set())}
-                  className={`text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 ${isMobile ? 'text-xs' : 'text-xs'}`}
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs"
                 >
                   {isMobile ? 'None' : 'Deselect All'}
                 </button>
@@ -1138,6 +1157,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
           {!gitStatus?.error && !isMobile && (
             <div className="border-b border-gray-200 dark:border-gray-700">
               <button
+                type="button"
                 onClick={() => setShowLegend(!showLegend)}
                 className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-750 text-xs text-gray-600 dark:text-gray-400 flex items-center justify-center gap-1"
               >
@@ -1196,6 +1216,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
                 This repository doesn't have any commits yet. Create your first commit to start tracking changes.
               </p>
               <button
+                type="button"
                 onClick={createInitialCommit}
                 disabled={isCreatingInitialCommit}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
@@ -1279,6 +1300,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
               </div>
               <div className="flex justify-end space-x-3">
                 <button
+                  type="button"
                   onClick={() => {
                     setShowNewBranchModal(false);
                     setNewBranchName('');
@@ -1288,6 +1310,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={createBranch}
                   disabled={!newBranchName.trim() || isCreatingBranch}
                   className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
@@ -1339,12 +1362,14 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
               
               <div className="flex justify-end space-x-3">
                 <button
+                  type="button"
                   onClick={() => setConfirmAction(null)}
                   className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={confirmAndExecute}
                   className={`px-4 py-2 text-sm text-white rounded-md ${
                     (confirmAction.type === 'discard' || confirmAction.type === 'delete')

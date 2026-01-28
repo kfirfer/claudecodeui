@@ -30,7 +30,7 @@ export async function transcribeWithWhisper(audioBlob, onStatusChange) {
       return data.text || '';
     } catch (error) {
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        throw new Error('Cannot connect to server. Please ensure the backend is running.');
+        throw new Error('Cannot connect to server. Please ensure the backend is running.', { cause: error });
       }
       throw error;
     }

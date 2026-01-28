@@ -43,8 +43,6 @@ const TaskIndicator = ({
           title: 'MCP server configured, TaskMaster needs initialization'
         };
       
-      case 'not-configured':
-      case 'error':
       default:
         return {
           icon: X,
