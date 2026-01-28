@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronRight, ChevronLeft, Check, GitBranch, User, Mail, LogIn, ExternalLink, Loader2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Check, GitBranch, User, Mail, LogIn, Loader2 } from 'lucide-react';
 import ClaudeLogo from './ClaudeLogo';
 import CursorLogo from './CursorLogo';
 import CodexLogo from './CodexLogo';
@@ -38,7 +38,7 @@ const Onboarding = ({ onComplete }) => {
     error: null
   });
 
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
 
   const prevActiveLoginProviderRef = useRef(undefined);
 
@@ -361,6 +361,7 @@ const Onboarding = ({ onComplete }) => {
                   </div>
                   {!claudeAuthStatus.authenticated && !claudeAuthStatus.loading && (
                     <button
+                      type="button"
                       onClick={handleClaudeLogin}
                       className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
                     >
@@ -394,6 +395,7 @@ const Onboarding = ({ onComplete }) => {
                   </div>
                   {!cursorAuthStatus.authenticated && !cursorAuthStatus.loading && (
                     <button
+                      type="button"
                       onClick={handleCursorLogin}
                       className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
                     >
@@ -427,6 +429,7 @@ const Onboarding = ({ onComplete }) => {
                   </div>
                   {!codexAuthStatus.authenticated && !codexAuthStatus.loading && (
                     <button
+                      type="button"
                       onClick={handleCodexLogin}
                       className="bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
                     >
@@ -517,6 +520,7 @@ const Onboarding = ({ onComplete }) => {
             {/* Navigation Buttons */}
             <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
               <button
+                type="button"
                 onClick={handlePrevStep}
                 disabled={currentStep === 0 || isSubmitting}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
@@ -528,6 +532,7 @@ const Onboarding = ({ onComplete }) => {
               <div className="flex items-center gap-3">
                 {currentStep < steps.length - 1 ? (
                   <button
+                    type="button"
                     onClick={handleNextStep}
                     disabled={!isStepValid() || isSubmitting}
                     className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors duration-200"
@@ -546,6 +551,7 @@ const Onboarding = ({ onComplete }) => {
                   </button>
                 ) : (
                   <button
+                    type="button"
                     onClick={handleFinish}
                     disabled={isSubmitting}
                     className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors duration-200"

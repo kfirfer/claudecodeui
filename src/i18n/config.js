@@ -121,8 +121,8 @@ i18n
 i18n.on('languageChanged', (lng) => {
   try {
     localStorage.setItem('userLanguage', lng);
-  } catch (error) {
-    console.error('Failed to save language preference:', error);
+  } catch (_error) {
+    console.error('Failed to save language preference:', _error);
   }
 });
 

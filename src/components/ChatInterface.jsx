@@ -1129,7 +1129,7 @@ const MessageComponent = memo(({ message, index: _index, prevMessage, createDiff
                       const input = JSON.parse(message.toolInput);
                       if (input.plan) {
                         // Replace escaped newlines with actual newlines
-                        const planContent = input.plan.replaceAll(/\\n/g, '\n');
+                        const planContent = input.plan.replaceAll('\\n', '\n');
                         return (
                           <details className="mt-2" open={autoExpandTools}>
                             <summary className="text-sm text-blue-700 dark:text-blue-300 cursor-pointer hover:text-blue-800 dark:hover:text-blue-200 flex items-center gap-2">
@@ -1264,7 +1264,7 @@ const MessageComponent = memo(({ message, index: _index, prevMessage, createDiff
                             const parsed = JSON.parse(content);
                             if (parsed.plan) {
                               // Replace escaped newlines with actual newlines
-                              const planContent = parsed.plan.replaceAll(/\\n/g, '\n');
+                              const planContent = parsed.plan.replaceAll('\\n', '\n');
                               return (
                                 <div>
                                   <div className="flex items-center gap-2 mb-3">

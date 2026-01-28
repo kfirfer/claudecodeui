@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { oneDark } from '@codemirror/theme-one-dark';
@@ -496,7 +496,7 @@ This document outlines the requirements for building an AI-powered task manageme
       .replace(/^# (.*$)/gim, '<h1>$1</h1>')
       .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
       .replace(/\*(.*)\*/gim, '<em>$1</em>')
-      .replace(/^\- (.*$)/gim, '<li>$1</li>')
+      .replace(/^- (.*$)/gim, '<li>$1</li>')
       .replace(/(<li>.*<\/li>)/gims, '<ul>$1</ul>')
       .replace(/\n\n/gim, '</p><p>')
       .replace(/^(?!<[h|u|l])(.*$)/gim, '<p>$1</p>')
@@ -554,6 +554,7 @@ This document outlines the requirements for building an AI-powered task manageme
                     <span className="text-sm sm:text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap ml-1">.txt</span>
                   </div>
                   <button
+                    type="button"
                     onClick={() => document.querySelector('input[placeholder="Enter PRD filename"]')?.focus()}
                     className="p-1 text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
                     title="Click to edit filename"
@@ -586,20 +587,22 @@ This document outlines the requirements for building an AI-powered task manageme
           
           <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
             <button
+              type="button"
               onClick={() => setPreviewMode(!previewMode)}
               className={cn(
                 'p-2 md:p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800',
                 'min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center',
-                previewMode 
-                  ? 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900' 
+                previewMode
+                  ? 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               )}
               title={previewMode ? 'Switch to edit mode' : 'Preview markdown'}
             >
               <Eye className="w-5 h-5 md:w-4 md:h-4" />
             </button>
-            
+
             <button
+              type="button"
               onClick={() => setWordWrap(!wordWrap)}
               className={cn(
                 'p-2 md:p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800',
@@ -614,14 +617,16 @@ This document outlines the requirements for building an AI-powered task manageme
             </button>
             
             <button
+              type="button"
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="p-2 md:p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
               title="Toggle theme"
             >
               <span className="text-lg md:text-base">{isDarkMode ? '☀️' : '🌙'}</span>
             </button>
-            
+
             <button
+              type="button"
               onClick={handleDownload}
               className="p-2 md:p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
               title="Download PRD"
@@ -630,6 +635,7 @@ This document outlines the requirements for building an AI-powered task manageme
             </button>
             
             <button
+              type="button"
               onClick={handleGenerateTasks}
               disabled={!content.trim()}
               className={cn(
@@ -642,8 +648,9 @@ This document outlines the requirements for building an AI-powered task manageme
               <Sparkles className="w-4 h-4" />
               <span className="hidden md:inline">Generate Tasks</span>
             </button>
-            
+
             <button
+              type="button"
               onClick={handleSave}
               disabled={saving}
               className={cn(
@@ -670,14 +677,16 @@ This document outlines the requirements for building an AI-powered task manageme
             </button>
             
             <button
+              type="button"
               onClick={toggleFullscreen}
               className="hidden md:flex p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 items-center justify-center"
               title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
-            
+
             <button
+              type="button"
               onClick={onClose}
               className="p-2 md:p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
               title="Close"

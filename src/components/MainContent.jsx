@@ -76,7 +76,7 @@ function MainContent({
   
   // TaskMaster context
   const { tasks, currentProject, refreshTasks, setCurrentProject } = useTaskMaster();
-  const { tasksEnabled, isTaskMasterInstalled, isTaskMasterReady } = useTasksSettings();
+  const { tasksEnabled, isTaskMasterInstalled, isTaskMasterReady: _isTaskMasterReady } = useTasksSettings();
   
   // Only show tasks tab if TaskMaster is installed and enabled
   const shouldShowTasksTab = tasksEnabled && isTaskMasterInstalled;
@@ -219,6 +219,7 @@ function MainContent({
             className="bg-background border-b border-border p-2 sm:p-3 pwa-header-safe flex-shrink-0"
           >
             <button
+              type="button"
               onClick={onMenuClick}
               className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 pwa-menu-button"
             >
@@ -231,13 +232,13 @@ function MainContent({
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center text-gray-500 dark:text-gray-400">
             <div className="w-12 h-12 mx-auto mb-4">
-              <div 
-                className="w-full h-full rounded-full border-4 border-gray-200 border-t-blue-500" 
-                style={{ 
+              <div
+                className="w-full h-full rounded-full border-4 border-gray-200 border-t-blue-500"
+                style={{
                   animation: 'spin 1s linear infinite',
                   WebkitAnimation: 'spin 1s linear infinite',
                   MozAnimation: 'spin 1s linear infinite'
-                }} 
+                }}
               />
             </div>
             <h2 className="text-xl font-semibold mb-2">{t('mainContent.loading')}</h2>
@@ -257,6 +258,7 @@ function MainContent({
             className="bg-background border-b border-border p-2 sm:p-3 pwa-header-safe flex-shrink-0"
           >
             <button
+              type="button"
               onClick={onMenuClick}
               className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 pwa-menu-button"
             >
@@ -298,6 +300,7 @@ function MainContent({
           <div className="flex items-center space-x-2 min-w-0 flex-1">
             {isMobile && (
               <button
+                type="button"
                 onClick={onMenuClick}
                 onTouchStart={(e) => {
                   e.preventDefault();
@@ -361,6 +364,7 @@ function MainContent({
             <div className="relative flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
               <Tooltip content={t('tabs.chat')} position="bottom">
                 <button
+                  type="button"
                   onClick={() => setActiveTab('chat')}
                   className={`relative px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md ${
                     activeTab === 'chat'
@@ -378,6 +382,7 @@ function MainContent({
               </Tooltip>
               <Tooltip content={t('tabs.shell')} position="bottom">
                 <button
+                  type="button"
                   onClick={() => setActiveTab('shell')}
                   className={`relative px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 ${
                     activeTab === 'shell'
@@ -395,6 +400,7 @@ function MainContent({
               </Tooltip>
               <Tooltip content={t('tabs.files')} position="bottom">
                 <button
+                  type="button"
                   onClick={() => setActiveTab('files')}
                   className={`relative px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 ${
                     activeTab === 'files'
@@ -412,6 +418,7 @@ function MainContent({
               </Tooltip>
               <Tooltip content={t('tabs.git')} position="bottom">
                 <button
+                  type="button"
                   onClick={() => setActiveTab('git')}
                   className={`relative px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 ${
                     activeTab === 'git'
@@ -430,6 +437,7 @@ function MainContent({
               {shouldShowTasksTab && (
                 <Tooltip content={t('tabs.tasks')} position="bottom">
                   <button
+                    type="button"
                     onClick={() => setActiveTab('tasks')}
                     className={`relative px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 ${
                       activeTab === 'tasks'

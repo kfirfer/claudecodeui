@@ -440,17 +440,32 @@ function AppContent() {
       setSelectedSession(null);
       navigate('/');
     }
-    
+
     // Update projects state locally instead of full refresh
-    setProjects(prevProjects => 
-      prevProjects.map(project => ({
-        ...project,
-        sessions: project.sessions?.filter(session => session.id !== sessionId) || [],
-        sessionMeta: {
-          ...project.sessionMeta,
-          total: Math.max(0, (project.sessionMeta?.total || 0) - 1)
-        }
-      }))
+    // Filter the session from all session types (Claude, Codex, Cursor)
+    setProjects(prevProjects =>
+      prevProjects.map(project => {
+        const filteredSessions = project.sessions?.filter(session => session.id !== sessionId) || [];
+        const filteredCodexSessions = project.codexSessions?.filter(session => session.id !== sessionId) || [];
+        const filteredCursorSessions = project.cursorSessions?.filter(session => session.id !== sessionId) || [];
+
+        // Calculate how many sessions were removed
+        const removedCount =
+          ((project.sessions?.length || 0) - filteredSessions.length) +
+          ((project.codexSessions?.length || 0) - filteredCodexSessions.length) +
+          ((project.cursorSessions?.length || 0) - filteredCursorSessions.length);
+
+        return {
+          ...project,
+          sessions: filteredSessions,
+          codexSessions: filteredCodexSessions,
+          cursorSessions: filteredCursorSessions,
+          sessionMeta: {
+            ...project.sessionMeta,
+            total: Math.max(0, (project.sessionMeta?.total || 0) - removedCount)
+          }
+        };
+      })
     );
   };
 
@@ -583,7 +598,7 @@ function AppContent() {
     const { t } = useTranslation('common');
     const [isUpdating, setIsUpdating] = useState(false);
     const [updateOutput, setUpdateOutput] = useState('');
-    const [updateError, setUpdateError] = useState('');
+    const [_updateError, setUpdateError] = useState('');
 
     if (!showVersionModal) return null;
 
@@ -639,6 +654,7 @@ function AppContent() {
       <div className="fixed inset-0 z-50 flex items-center justify-center">
         {/* Backdrop */}
         <button
+          type="button"
           className="fixed inset-0 bg-black/50 backdrop-blur-sm"
           onClick={() => setShowVersionModal(false)}
           aria-label={t('versionUpdate.ariaLabels.closeModal')}
@@ -662,6 +678,7 @@ function AppContent() {
               </div>
             </div>
             <button
+              type="button"
               onClick={() => setShowVersionModal(false)}
               className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
             >
@@ -738,6 +755,7 @@ function AppContent() {
           {/* Actions */}
           <div className="flex gap-2 pt-2">
             <button
+              type="button"
               onClick={() => setShowVersionModal(false)}
               className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
             >
@@ -746,6 +764,7 @@ function AppContent() {
             {!updateOutput && (
               <>
                 <button
+                  type="button"
                   onClick={() => {
                     navigator.clipboard.writeText('git checkout main && git pull && npm install');
                   }}
@@ -754,6 +773,7 @@ function AppContent() {
                   {t('versionUpdate.buttons.copyCommand')}
                 </button>
                 <button
+                  type="button"
                   onClick={handleUpdateNow}
                   disabled={isUpdating}
                   className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed rounded-md transition-colors flex items-center justify-center gap-2"
@@ -813,6 +833,7 @@ function AppContent() {
               <div className="h-full flex flex-col items-center py-4 gap-4">
                 {/* Expand Button */}
                 <button
+                  type="button"
                   onClick={() => setSidebarVisible(true)}
                   className="p-2 hover:bg-accent rounded-md transition-colors duration-200 group"
                   aria-label={t('versionUpdate.ariaLabels.showSidebar')}
@@ -830,6 +851,7 @@ function AppContent() {
 
                 {/* Settings Icon */}
                 <button
+                  type="button"
                   onClick={() => setShowSettings(true)}
                   className="p-2 hover:bg-accent rounded-md transition-colors duration-200"
                   aria-label={t('versionUpdate.ariaLabels.settings')}
@@ -841,6 +863,7 @@ function AppContent() {
                 {/* Update Indicator */}
                 {updateAvailable && (
                   <button
+                    type="button"
                     onClick={() => setShowVersionModal(true)}
                     className="relative p-2 hover:bg-accent rounded-md transition-colors duration-200"
                     aria-label={t('versionUpdate.ariaLabels.updateAvailable')}
@@ -862,6 +885,7 @@ function AppContent() {
           sidebarOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
         }`}>
           <button
+            type="button"
             className="fixed inset-0 bg-background/80 backdrop-blur-sm transition-opacity duration-150 ease-out"
             onClick={(e) => {
               e.stopPropagation();

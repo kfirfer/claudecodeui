@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, List, Clock, Flag, CheckCircle, Circle, AlertCircle, Pause, ChevronDown, ChevronUp, Plus, FileText, Settings, X, Terminal, Eye, Play, Zap, Target } from 'lucide-react';
+import { ArrowRight, List, Flag, CheckCircle, Circle, Plus, FileText, Settings, X, Terminal, Eye, Play, Zap, Target } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useTaskMaster } from '../contexts/TaskMasterContext';
 import { api } from '../utils/api';
@@ -7,8 +7,7 @@ import Shell from './Shell';
 import TaskDetail from './TaskDetail';
 
 const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
-  const { nextTask, tasks, currentProject, isLoadingTasks, projectTaskMaster, refreshTasks, refreshProjects } = useTaskMaster();
-  const [showDetails, setShowDetails] = useState(false);
+  const { nextTask, tasks, currentProject, isLoadingTasks, projectTaskMaster, refreshTasks } = useTaskMaster();
   const [showTaskOptions, setShowTaskOptions] = useState(false);
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
@@ -17,28 +16,6 @@ const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   // Handler functions
-  const handleInitializeTaskMaster = async () => {
-    if (!currentProject) return;
-    
-    setIsLoading(true);
-    try {
-      const response = await api.taskmaster.init(currentProject.name);
-      if (response.ok) {
-        await refreshProjects();
-        setShowTaskOptions(false);
-      } else {
-        const error = await response.json();
-        console.error('Failed to initialize TaskMaster:', error);
-        alert(`Failed to initialize TaskMaster: ${error.message}`);
-      }
-    } catch (error) {
-      console.error('Error initializing TaskMaster:', error);
-      alert('Error initializing TaskMaster. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleCreateManualTask = () => {
     setShowCreateTaskModal(true);
     setShowTaskOptions(false);
@@ -76,6 +53,7 @@ const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
           </div>
           <div className="flex items-center gap-1">
             <button
+              type="button"
               onClick={() => setShowTaskOptions(!showTaskOptions)}
               className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors flex items-center gap-1"
             >
@@ -104,6 +82,7 @@ const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
             <div className="flex flex-col gap-2">
               {!projectTaskMaster?.hasTaskmaster ? (
                 <button
+                  type="button"
                   className="text-xs px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded transition-colors text-left flex items-center gap-2"
                   onClick={() => setShowCLI(true)}
                 >
@@ -116,6 +95,7 @@ const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
                     <strong>Add more tasks:</strong> Create additional tasks manually or generate them from a PRD template
                   </div>
                   <button
+                    type="button"
                     className="text-xs px-3 py-2 bg-green-100 dark:bg-green-900 hover:bg-green-200 dark:hover:bg-green-800 text-green-800 dark:text-green-200 rounded transition-colors text-left flex items-center gap-2 disabled:opacity-50"
                     onClick={handleCreateManualTask}
                     disabled={isLoading}
@@ -124,6 +104,7 @@ const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
                     Create a new task manually
                   </button>
                   <button
+                    type="button"
                     className="text-xs px-3 py-2 bg-purple-100 dark:bg-purple-900 hover:bg-purple-200 dark:hover:bg-purple-800 text-purple-800 dark:text-purple-200 rounded transition-colors text-left flex items-center gap-2 disabled:opacity-50"
                     onClick={handleParsePRD}
                     disabled={isLoading}
@@ -175,6 +156,7 @@ const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
           
           <div className="flex items-center gap-1 flex-shrink-0">
             <button
+              type="button"
               onClick={() => onStartTask?.()}
               className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors shadow-sm flex items-center gap-1"
             >
@@ -182,6 +164,7 @@ const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
               Start Task
             </button>
             <button
+              type="button"
               onClick={() => setShowTaskDetail(true)}
               className="text-xs px-2 py-1.5 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-md transition-colors flex items-center gap-1"
               title="View task details"
@@ -190,6 +173,7 @@ const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
             </button>
             {onShowAllTasks && (
               <button
+                type="button"
                 onClick={onShowAllTasks}
                 className="text-xs px-2 py-1.5 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-md transition-colors flex items-center gap-1"
                 title="View all tasks"
@@ -224,6 +208,7 @@ const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
             {completedTasks}/{totalTasks}
           </span>
           <button
+            type="button"
             onClick={onShowAllTasks}
             className="text-xs px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors"
           >
@@ -282,6 +267,7 @@ const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowCLI(false)}
                 className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
               >
@@ -309,6 +295,7 @@ const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
                   TaskMaster initialization will start automatically
                 </div>
                 <button
+                  type="button"
                   onClick={() => setShowCLI(false)}
                   className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
                 >
@@ -378,6 +365,7 @@ const CreateTaskModal = ({ currentProject, onClose, onTaskCreated }) => {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Create New Task</h3>
           <button
+            type="button"
             onClick={onClose}
             className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
           >
@@ -587,6 +575,7 @@ const TemplateSelector = ({ currentProject, onClose, onTemplateApplied }) => {
              'Generating Tasks'}
           </h3>
           <button
+            type="button"
             onClick={onClose}
             className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
           >
@@ -658,12 +647,14 @@ const TemplateSelector = ({ currentProject, onClose, onTemplateApplied }) => {
 
             <div className="flex gap-2 pt-4">
               <button
+                type="button"
                 onClick={() => setStep('select')}
                 className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
               >
                 Back
               </button>
               <button
+                type="button"
                 onClick={handleApplyTemplate}
                 className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded disabled:opacity-50"
                 disabled={isApplying}

@@ -17,7 +17,7 @@ const TaskList = ({
   onTaskCreated,
   onShowPRDEditor,
   existingPRDs = [],
-  onRefreshPRDs
+  onRefreshPRDs: _onRefreshPRDs
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -32,7 +32,7 @@ const TaskList = ({
   const [isTaskMasterComplete, setIsTaskMasterComplete] = useState(false);
   const [showPRDDropdown, setShowPRDDropdown] = useState(false);
   
-  const { projectTaskMaster, refreshProjects, refreshTasks, setCurrentProject } = useTaskMaster();
+  const { projectTaskMaster, refreshProjects, refreshTasks: _refreshTasks, setCurrentProject } = useTaskMaster();
 
   // Close PRD dropdown when clicking outside
   useEffect(() => {
@@ -102,7 +102,6 @@ const TaskList = ({
           aVal = new Date(a.updatedAt || a.createdAt || 0);
           bVal = new Date(b.updatedAt || b.createdAt || 0);
           break;
-        case 'id':
         default:
           // Handle numeric and dotted IDs (1, 1.1, 1.2, 2, 2.1, etc.)
           const parseId = (id) => {
@@ -257,6 +256,7 @@ const TaskList = ({
             </div>
             
             <button
+              type="button"
               onClick={() => {
                 setIsTaskMasterComplete(false); // Reset completion state
                 setShowCLI(true);
@@ -290,6 +290,7 @@ const TaskList = ({
                       <h4 className="font-medium text-gray-900 dark:text-white mb-1">Create a Product Requirements Document (PRD)</h4>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Discuss your project idea and create a PRD that describes what you want to build.</p>
                       <button
+                        type="button"
                         onClick={() => {
                           onShowPRDEditor?.();
                         }}
@@ -306,6 +307,7 @@ const TaskList = ({
                           <div className="flex flex-wrap gap-2">
                             {existingPRDs.map((prd) => (
                               <button
+                                type="button"
                                 key={prd.name}
                                 onClick={async () => {
                                   try {
@@ -367,6 +369,7 @@ const TaskList = ({
 
                 <div className="flex gap-3 pt-4 border-t border-blue-200 dark:border-blue-700">
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -406,6 +409,7 @@ const TaskList = ({
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowCLI(false);
                     // Refresh project data after closing CLI to detect TaskMaster initialization
@@ -471,6 +475,7 @@ const TaskList = ({
                     )}
                   </div>
                   <button
+                    type="button"
                     onClick={() => {
                       setShowCLI(false);
                       setIsTaskMasterComplete(false); // Reset state
@@ -485,8 +490,8 @@ const TaskList = ({
                     }}
                     className={cn(
                       "px-4 py-2 text-sm font-medium rounded-md transition-colors",
-                      isTaskMasterComplete 
-                        ? "bg-green-600 hover:bg-green-700 text-white" 
+                      isTaskMasterComplete
+                        ? "bg-green-600 hover:bg-green-700 text-white"
                         : "text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600"
                     )}
                   >
@@ -522,11 +527,12 @@ const TaskList = ({
           {/* View Toggle */}
           <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
             <button
+              type="button"
               onClick={() => setViewMode('kanban')}
               className={cn(
                 'p-2 rounded-md transition-colors',
-                viewMode === 'kanban' 
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' 
+                viewMode === 'kanban'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               )}
               title="Kanban view"
@@ -534,11 +540,12 @@ const TaskList = ({
               <Columns className="w-4 h-4" />
             </button>
             <button
+              type="button"
               onClick={() => setViewMode('list')}
               className={cn(
                 'p-2 rounded-md transition-colors',
-                viewMode === 'list' 
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' 
+                viewMode === 'list'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               )}
               title="List view"
@@ -546,11 +553,12 @@ const TaskList = ({
               <List className="w-4 h-4" />
             </button>
             <button
+              type="button"
               onClick={() => setViewMode('grid')}
               className={cn(
                 'p-2 rounded-md transition-colors',
-                viewMode === 'grid' 
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' 
+                viewMode === 'grid'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               )}
               title="Grid view"
@@ -561,11 +569,12 @@ const TaskList = ({
 
           {/* Filters Toggle */}
           <button
+            type="button"
             onClick={() => setShowFilters(!showFilters)}
             className={cn(
               'flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors',
-              showFilters 
-                ? 'bg-blue-50 dark:bg-blue-900 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300' 
+              showFilters
+                ? 'bg-blue-50 dark:bg-blue-900 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300'
                 : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
             )}
           >
@@ -579,6 +588,7 @@ const TaskList = ({
             <>
               {/* Help Button */}
               <button
+                type="button"
                 onClick={() => setShowHelpGuide(true)}
                 className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors border border-gray-300 dark:border-gray-600"
                 title="TaskMaster Getting Started Guide"
@@ -592,6 +602,7 @@ const TaskList = ({
                   // Dropdown when PRDs exist
                   <div className="relative">
                     <button
+                      type="button"
                       onClick={() => setShowPRDDropdown(!showPRDDropdown)}
                       className="flex items-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
                       title={`${existingPRDs.length} PRD${existingPRDs.length > 1 ? 's' : ''} available`}
@@ -608,6 +619,7 @@ const TaskList = ({
                       <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-30">
                         <div className="p-2">
                           <button
+                            type="button"
                             onClick={() => {
                               onShowPRDEditor?.();
                               setShowPRDDropdown(false);
@@ -621,6 +633,7 @@ const TaskList = ({
                           <div className="text-xs text-gray-500 dark:text-gray-400 px-3 py-1 font-medium">Existing PRDs:</div>
                           {existingPRDs.map((prd) => (
                             <button
+                              type="button"
                               key={prd.name}
                               onClick={async () => {
                                 try {
@@ -652,6 +665,7 @@ const TaskList = ({
                 ) : (
                   // Simple button when no PRDs exist
                   <button
+                    type="button"
                     onClick={() => {
                       onShowPRDEditor?.();
                     }}
@@ -667,6 +681,7 @@ const TaskList = ({
               {/* Add Task Button */}
               {((currentProject?.taskMasterConfigured || currentProject?.taskmaster?.hasTaskmaster || projectTaskMaster?.hasTaskmaster) || tasks.length > 0) && (
                 <button
+                  type="button"
                   onClick={() => setShowCreateModal(true)}
                   className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
                   title="Add a new task"
@@ -754,6 +769,7 @@ const TaskList = ({
               Showing {filteredAndSortedTasks.length} of {tasks.length} tasks
             </div>
             <button
+              type="button"
               onClick={clearFilters}
               className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
             >
