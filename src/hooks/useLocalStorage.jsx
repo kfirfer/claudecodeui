@@ -27,7 +27,7 @@ function useLocalStorage(key, initialValue) {
     }
     try {
       const valueToStore =
-        value instanceof Function ? value(storedValue) : value;
+        typeof value === 'function' ? value(storedValue) : value;
       window.localStorage.setItem(key, JSON.stringify(valueToStore));
       setStoredValue(valueToStore);
     } catch (error) {

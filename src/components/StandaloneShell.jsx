@@ -29,7 +29,7 @@ function StandaloneShell({
   title = null,
   className = "",
   showHeader = true,
-  compact = false,
+  compact: _compact = false,
   minimal = false
 }) {
   const [isCompleted, setIsCompleted] = useState(false);
@@ -73,6 +73,7 @@ function StandaloneShell({
             </div>
             {onClose && (
               <button
+                type="button"
                 onClick={onClose}
                 className="text-gray-400 hover:text-white"
                 title="Close"

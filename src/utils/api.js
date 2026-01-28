@@ -103,10 +103,11 @@ export const api = {
   getFiles: (projectName) =>
     authenticatedFetch(`/api/projects/${projectName}/files`),
   transcribe: (formData) =>
+    // Let browser set Content-Type for FormData
     authenticatedFetch('/api/transcribe', {
       method: 'POST',
       body: formData,
-      headers: {}, // Let browser set Content-Type for FormData
+      headers: {},
     }),
 
   // TaskMaster endpoints

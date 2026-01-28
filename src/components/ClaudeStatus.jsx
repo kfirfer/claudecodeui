@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
 
-function ClaudeStatus({ status, onAbort, isLoading, provider = 'claude' }) {
+function ClaudeStatus({ status, onAbort, isLoading, provider: _provider = 'claude' }) {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [animationPhase, setAnimationPhase] = useState(0);
   const [fakeTokens, setFakeTokens] = useState(0);
@@ -90,6 +90,7 @@ function ClaudeStatus({ status, onAbort, isLoading, provider = 'claude' }) {
         {/* Interrupt button */}
         {canInterrupt && onAbort && (
           <button
+            type="button"
             onClick={onAbort}
             className="ml-2 sm:ml-3 text-xs bg-red-600 hover:bg-red-700 active:bg-red-800 text-white px-2 py-1 sm:px-3 sm:py-1.5 rounded-md transition-colors flex items-center gap-1 sm:gap-1.5 flex-shrink-0 font-medium"
           >

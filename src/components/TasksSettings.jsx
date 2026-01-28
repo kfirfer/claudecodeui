@@ -1,4 +1,3 @@
-import { Zap } from 'lucide-react';
 import { useTasksSettings } from '../contexts/TasksSettingsContext';
 import { useTranslation } from 'react-i18next';
 

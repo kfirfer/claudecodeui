@@ -17,12 +17,14 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, memo } from 'react';
+import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useDropzone } from 'react-dropzone';
+import TodoList from './TodoList';
 import ClaudeLogo from './ClaudeLogo.jsx';
 import CursorLogo from './CursorLogo.jsx';
 import CodexLogo from './CodexLogo.jsx';
@@ -2213,8 +2215,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
     try {
       parsedHistory = history ? JSON.parse(history) : {};
-    } catch {
-      console.error('Error parsing command history:', e);
+    } catch (err) {
+      console.error('Error parsing command history:', err);
     }
 
     parsedHistory[command.name] = (parsedHistory[command.name] || 0) + 1;
@@ -2755,8 +2757,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
               text = content.message.content;
             }
           }
-        } catch {
-          console.log('Error parsing blob content:', e);
+        } catch (err) {
+          console.log('Error parsing blob content:', err);
         }
         if (text && text.trim()) {
           const message = {
@@ -2792,8 +2794,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       });
       
       return converted;
-    } catch {
-      console.error('Error loading Cursor session messages:', e);
+    } catch (err) {
+      console.error('Error loading Cursor session messages:', err);
       return [];
     } finally {
       setIsLoadingSessionMessages(false);
@@ -3731,8 +3733,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
               }
             }
             // For other cursor-system messages, avoid dumping raw objects to chat
-          } catch {
-            console.warn('Error handling cursor-system message:', e);
+          } catch (err) {
+            console.warn('Error handling cursor-system message:', err);
           }
           break;
           
@@ -4958,7 +4960,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
 
 
-  const handleNewSession = () => {
+  const _handleNewSession = () => {
     setChatMessages([]);
     setInput('');
     setIsLoading(false);
@@ -5323,9 +5325,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
 
       {/* Input Area - Fixed Bottom */}
-      <div className={`p-2 sm:p-4 md:p-4 flex-shrink-0 ${
-        isInputFocused ? 'pb-2 sm:pb-4 md:pb-6' : 'pb-2 sm:pb-4 md:pb-6'
-      }`}>
+      <div className="p-2 sm:p-4 md:p-4 flex-shrink-0 pb-2 sm:pb-4 md:pb-6">
     
         <div className="flex-1">
               <ClaudeStatus

@@ -29,6 +29,13 @@ export default defineConfig(({ command, mode }) => {
         output: {
           manualChunks: {
             'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+            'vendor-markdown': [
+              'react-markdown',
+              'react-syntax-highlighter',
+              'remark-gfm',
+              'remark-math',
+              'rehype-katex'
+            ],
             'vendor-codemirror': [
               '@uiw/react-codemirror',
               '@codemirror/lang-css',
