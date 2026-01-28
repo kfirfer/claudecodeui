@@ -1110,7 +1110,9 @@ function handleShellConnection(ws) {
                             shell = '/bin/sh';
                         }
                     }
-                    const shellArgs = os.platform() === 'win32' ? ['-Command', shellCommand] : ['-c', shellCommand];
+                    // Use login shell (-l) on Unix to source profile files (.profile, .bash_profile, etc.)
+                    // This ensures PATH includes directories where claude/cursor may be installed
+                    const shellArgs = os.platform() === 'win32' ? ['-Command', shellCommand] : ['-l', '-c', shellCommand];
                     console.log('🐚 Using shell:', shell);
 
                     // Use terminal dimensions from client if provided, otherwise use defaults
