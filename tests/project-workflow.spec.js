@@ -117,43 +117,30 @@ async function createProject(page, projectPath) {
  * @param {string} projectName
  */
 async function deleteProjectViaUI(page, projectName) {
-  // Find the project in sidebar - wait for it to be visible first
-  const projectLocator = page.getByText(projectName).first();
-  const isProjectVisible = await projectLocator.isVisible().catch(() => false);
+  // Find the project button in sidebar (the button contains the project name)
+  const projectButton = page.locator(`button:has-text("${projectName}")`).first();
+  const isProjectVisible = await projectButton.isVisible().catch(() => false);
 
   if (!isProjectVisible) {
     // Project doesn't exist in UI, nothing to delete
     return;
   }
 
-  // Hover to reveal action buttons
-  await projectLocator.hover();
+  // Hover over the project button to reveal action buttons
+  await projectButton.hover();
 
-  // Wait for and click the delete button
-  const deleteButton = page.locator('[title*="Delete project" i]').first();
-  const isDeleteVisible = await deleteButton.isVisible().catch(() => false);
-
-  if (!isDeleteVisible) {
-    // Try alternative: find trash icon near the project
-    const trashButton = page.locator('svg.lucide-trash-2').first();
-    const isTrashVisible = await trashButton.isVisible().catch(() => false);
-    if (isTrashVisible) {
-      await trashButton.click();
-    } else {
-      // Cannot find delete button, skip
-      return;
-    }
-  } else {
-    await deleteButton.click();
-  }
+  // Find and click the delete button within this project's button element
+  const deleteButton = projectButton.locator('[title*="Delete" i]').first();
+  await expect(deleteButton).toBeVisible({ timeout: 5000 });
+  await deleteButton.click();
 
   // Confirm deletion in the modal
   const confirmDeleteButton = page.getByRole('button', { name: /Delete/i }).last();
-  await expect(confirmDeleteButton).toBeVisible();
+  await expect(confirmDeleteButton).toBeVisible({ timeout: 5000 });
   await confirmDeleteButton.click();
 
   // Wait for project to be removed from the list
-  await expect(projectLocator).not.toBeVisible({ timeout: 10000 });
+  await expect(projectButton).not.toBeVisible({ timeout: 10000 });
 }
 
 test.describe('Project Operations - Individual Tests', () => {
@@ -250,157 +237,133 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
     'Skipping tests - set TEST_USERNAME and TEST_PASSWORD env vars'
   );
 
-  // Use unique identifiers for this test run
-  // Create test directory in user's home to avoid forbidden paths
-  const testId = Date.now();
-  const testProjectPath = path.join(os.homedir(), `e2e-test-project-${testId}`);
-  const renamedProjectName = `E2E-Test-Renamed-${testId}`;
-  let createdProjectName = '';
-
-  test.beforeAll(async () => {
-    // Create the test directory before running tests
-    await createTestDirectory(testProjectPath);
-  });
-
-  test.afterAll(async () => {
-    // Clean up the test directory after all tests
-    await removeTestDirectory(testProjectPath);
-  });
-
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
     await performLogin(page);
   });
 
-  test.afterEach(async ({ page }) => {
-    // Cleanup: Delete the test project from the UI if it exists
-    // Try to delete by renamed name first, then by original name
-    try {
-      await deleteProjectViaUI(page, renamedProjectName);
-    } catch {
-      // Ignore errors
-    }
-    if (createdProjectName && createdProjectName !== renamedProjectName) {
-      try {
-        await deleteProjectViaUI(page, createdProjectName);
-      } catch {
-        // Ignore errors
-      }
-    }
-  });
-
   test('complete project lifecycle: create, rename, session, chat, delete', async ({ page }) => {
     test.setTimeout(120000); // Extended timeout for full lifecycle
 
-    // ==========================================
-    // Step 1: Create a new project
-    // ==========================================
-    createdProjectName = await createProject(page, testProjectPath);
+    // Generate unique identifiers for THIS test run at execution time
+    const testId = Date.now();
+    const testProjectPath = path.join(os.homedir(), `e2e-test-project-${testId}`);
+    const projectFolderName = `e2e-test-project-${testId}`;
+    const renamedProjectName = `E2E-Test-Renamed-${testId}`;
 
-    // Verify project appears in sidebar
-    const projectInSidebar = page.getByText(createdProjectName, { exact: false }).first();
-    await expect(projectInSidebar).toBeVisible();
+    // Create the test directory before running the test
+    await createTestDirectory(testProjectPath);
 
-    // ==========================================
-    // Step 2: Rename the project
-    // ==========================================
-    // Find and hover over the project row to reveal action buttons
-    const projectRow = page.locator(`button:has-text("${createdProjectName}")`).first();
-    await expect(projectRow).toBeVisible();
-    await projectRow.hover();
+    try {
+      // ==========================================
+      // Step 1: Create a new project
+      // ==========================================
+      const createdProjectName = await createProject(page, testProjectPath);
+      expect(createdProjectName).toBe(projectFolderName);
 
-    // Click the edit button - try by title first
-    const editByTitle = page.locator('[title*="Rename" i], [title*="rename" i]').first();
-    const editByTitleVisible = await editByTitle.isVisible().catch(() => false);
+      // Verify project appears in sidebar - use the unique folder name for exact match
+      // The button accessible name includes the path, so we use a regex that matches our unique ID
+      const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
+      await expect(projectButton).toBeVisible();
 
-    if (editByTitleVisible) {
-      await editByTitle.click();
-    } else {
-      // Try clicking the edit icon directly
-      const editIcon = page.locator('svg.lucide-edit-3').first();
-      await expect(editIcon).toBeVisible();
-      await editIcon.click();
-    }
+      // ==========================================
+      // Step 2: Rename the project
+      // ==========================================
+      // Find and hover over the project row to reveal action buttons
+      await projectButton.hover();
 
-    // Find and fill the rename input
-    const renameInput = page.locator('input[type="text"]').filter({ hasNot: page.locator('[disabled]') }).first();
-    await expect(renameInput).toBeVisible();
-    await renameInput.fill(renamedProjectName);
-    await renameInput.press('Enter');
+      // Click the edit button within this project's button
+      const editButton = projectButton.locator('[title*="Rename" i]').first();
+      await expect(editButton).toBeVisible();
+      await editButton.click();
 
-    // Verify the project was renamed
-    const renamedProjectInSidebar = page.getByText(renamedProjectName).first();
-    await expect(renamedProjectInSidebar).toBeVisible();
+      // Find and fill the rename input - it should appear within the project button area
+      const renameInput = projectButton.locator('input[placeholder*="name" i]').first();
+      await expect(renameInput).toBeVisible();
+      await renameInput.fill(renamedProjectName);
+      await renameInput.press('Enter');
 
-    // ==========================================
-    // Step 3: Create a new session
-    // ==========================================
-    // Click on the project to expand it
-    await renamedProjectInSidebar.click();
+      // Verify the project was renamed - search for button with our unique renamed name
+      // Use a regex that matches our unique testId to ensure we find the right project
+      const renamedProjectButton = page.locator(`button:has-text("${renamedProjectName}")`).first();
+      await expect(renamedProjectButton).toBeVisible({ timeout: 10000 });
 
-    // Wait for project to expand and show "New Session" button
-    const newSessionButton = page.locator('button:has-text("New Session")').first();
-    await expect(newSessionButton).toBeVisible();
-    await newSessionButton.click();
+      // ==========================================
+      // Step 3: Create a new session
+      // ==========================================
+      // Click on the project to expand it
+      await renamedProjectButton.click();
 
-    // Verify chat interface is visible (textarea for input)
-    const chatTextarea = page.locator('textarea').first();
-    await expect(chatTextarea).toBeVisible({ timeout: 15000 });
+      // Wait for project to expand and show "New Session" button
+      // The New Session button appears inside the expanded project's session list
+      const newSessionButton = page.locator('button:has-text("New Session")').first();
+      // Use dispatchEvent to click the button even if it's in a scrollable/overflow area
+      await newSessionButton.dispatchEvent('click');
 
-    // ==========================================
-    // Step 4: Send a hello prompt to Claude
-    // ==========================================
-    const testMessage = 'Hello! This is a test message from the E2E test suite.';
-    await chatTextarea.fill(testMessage);
+      // Verify chat interface is visible (textarea for input)
+      const chatTextarea = page.locator('textarea').first();
+      await expect(chatTextarea).toBeVisible({ timeout: 15000 });
 
-    // Find and click the send button (try arrow-up icon first, then send icon)
-    const sendButtonArrow = page.locator('button:has(svg.lucide-arrow-up)').first();
-    const sendButtonSend = page.locator('button:has(svg.lucide-send)').first();
+      // ==========================================
+      // Step 4: Send a hello prompt to Claude
+      // ==========================================
+      const testMessage = 'Hello! This is a test message from the E2E test suite.';
+      await chatTextarea.fill(testMessage);
 
-    const arrowVisible = await sendButtonArrow.isVisible().catch(() => false);
-    const sendVisible = await sendButtonSend.isVisible().catch(() => false);
+      // Find and click the send button (try arrow-up icon first, then send icon)
+      const sendButtonArrow = page.locator('button:has(svg.lucide-arrow-up)').first();
+      const sendButtonSend = page.locator('button:has(svg.lucide-send)').first();
 
-    if (arrowVisible) {
-      await sendButtonArrow.click();
-    } else if (sendVisible) {
-      await sendButtonSend.click();
-    } else {
-      // Fallback to keyboard submission
-      await chatTextarea.press('Control+Enter');
-    }
+      const arrowVisible = await sendButtonArrow.isVisible().catch(() => false);
+      const sendVisible = await sendButtonSend.isVisible().catch(() => false);
 
-    // Verify the user message appears in the chat
-    const userMessage = page.getByText(testMessage).first();
-    await expect(userMessage).toBeVisible();
-
-    // ==========================================
-    // Step 5: Delete the session (optional - may not be visible)
-    // ==========================================
-    // Re-click the project to ensure it's expanded
-    await renamedProjectInSidebar.click();
-
-    // Try to find and delete the session if visible
-    const sessionDeleteButton = page.locator('[title*="Delete session" i], button:has(svg.lucide-trash-2)').first();
-    const sessionDeleteVisible = await sessionDeleteButton.isVisible().catch(() => false);
-
-    if (sessionDeleteVisible) {
-      await sessionDeleteButton.click();
-
-      // Confirm deletion if modal appears
-      const confirmDeleteButton = page.getByRole('button', { name: /Delete/i }).last();
-      const confirmVisible = await confirmDeleteButton.isVisible().catch(() => false);
-      if (confirmVisible) {
-        await confirmDeleteButton.click();
+      if (arrowVisible) {
+        await sendButtonArrow.click();
+      } else if (sendVisible) {
+        await sendButtonSend.click();
+      } else {
+        // Fallback to keyboard submission
+        await chatTextarea.press('Control+Enter');
       }
+
+      // Verify the user message appears in the chat
+      const userMessage = page.getByText(testMessage).first();
+      await expect(userMessage).toBeVisible();
+
+      // ==========================================
+      // Step 5: Delete the session (optional - may not be visible)
+      // ==========================================
+      // Re-click the project to ensure it's expanded
+      await renamedProjectButton.click();
+
+      // Try to find and delete the session if visible
+      const sessionDeleteButton = page.locator('[title*="Delete session" i], button:has(svg.lucide-trash-2)').first();
+      const sessionDeleteVisible = await sessionDeleteButton.isVisible().catch(() => false);
+
+      if (sessionDeleteVisible) {
+        await sessionDeleteButton.click();
+
+        // Confirm deletion if modal appears
+        const confirmDeleteButton = page.getByRole('button', { name: /Delete/i }).last();
+        const confirmVisible = await confirmDeleteButton.isVisible().catch(() => false);
+        if (confirmVisible) {
+          await confirmDeleteButton.click();
+        }
+      }
+
+      // ==========================================
+      // Step 6: Delete the project
+      // ==========================================
+      await deleteProjectViaUI(page, renamedProjectName);
+
+      // Verify the project is no longer visible in the sidebar
+      // Use the button locator to check for the project, not text which may appear elsewhere
+      await expect(page.locator(`button:has-text("${renamedProjectName}")`).first()).not.toBeVisible();
+
+    } finally {
+      // Clean up the test directory regardless of test outcome
+      await removeTestDirectory(testProjectPath);
     }
-
-    // ==========================================
-    // Step 6: Delete the project
-    // ==========================================
-    await deleteProjectViaUI(page, renamedProjectName);
-
-    // Verify the project is no longer visible
-    await expect(page.getByText(renamedProjectName)).not.toBeVisible();
   });
 });
