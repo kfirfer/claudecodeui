@@ -46,3 +46,6 @@ cld: ##
 diff: ##
 	git diff main...HEAD > diff.txt
 
+deploy: ## Deploy to server via Ansible
+	npm run build && ansible-playbook -i ansible/inventory.ini ansible/deploy.yml
+

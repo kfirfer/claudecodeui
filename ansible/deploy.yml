@@ -1,0 +1,110 @@
+---
+- name: Deploy Claude Code UI
+  hosts: webservers
+  become: false
+  vars:
+    app_name: claudecodeui
+    app_dir: /home/dev334/claudecodeui
+    local_dist_dir: "{{ playbook_dir }}/../dist"
+    local_server_dir: "{{ playbook_dir }}/../server"
+    local_shared_dir: "{{ playbook_dir }}/../shared"
+    local_package_json: "{{ playbook_dir }}/../package.json"
+    local_package_lock: "{{ playbook_dir }}/../package-lock.json"
+
+  tasks:
+    - name: Create application directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Create subdirectories
+      file:
+        path: "{{ app_dir }}/{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - dist
+        - server
+        - shared
+
+    - name: Copy package.json
+      copy:
+        src: "{{ local_package_json }}"
+        dest: "{{ app_dir }}/package.json"
+        mode: '0644'
+
+    - name: Copy package-lock.json
+      copy:
+        src: "{{ local_package_lock }}"
+        dest: "{{ app_dir }}/package-lock.json"
+        mode: '0644'
+
+    - name: Synchronize dist folder
+      synchronize:
+        src: "{{ local_dist_dir }}/"
+        dest: "{{ app_dir }}/dist/"
+        delete: true
+        recursive: true
+
+    - name: Synchronize server folder
+      synchronize:
+        src: "{{ local_server_dir }}/"
+        dest: "{{ app_dir }}/server/"
+        delete: true
+        recursive: true
+
+    - name: Synchronize shared folder
+      synchronize:
+        src: "{{ local_shared_dir }}/"
+        dest: "{{ app_dir }}/shared/"
+        delete: true
+        recursive: true
+
+    - name: Install npm dependencies
+      command: npm ci --omit=dev
+      args:
+        chdir: "{{ app_dir }}"
+      register: npm_install
+      changed_when: npm_install.rc == 0
+
+    - name: Check if PM2 process exists
+      shell: npx pm2 describe {{ app_name }}
+      register: pm2_status
+      ignore_errors: true
+      changed_when: false
+
+    - name: Stop existing PM2 process
+      shell: npx pm2 stop {{ app_name }}
+      args:
+        chdir: "{{ app_dir }}"
+      when: pm2_status.rc == 0
+      ignore_errors: true
+
+    - name: Delete existing PM2 process
+      shell: npx pm2 delete {{ app_name }}
+      args:
+        chdir: "{{ app_dir }}"
+      when: pm2_status.rc == 0
+      ignore_errors: true
+
+    - name: Start application with PM2
+      shell: npx pm2 start server/index.js --name {{ app_name }}
+      args:
+        chdir: "{{ app_dir }}"
+      environment:
+        NODE_ENV: production
+        PORT: 3001
+
+    - name: Save PM2 process list
+      shell: npx pm2 save
+      changed_when: true
+
+    - name: Display PM2 status
+      shell: npx pm2 status
+      register: pm2_final_status
+      changed_when: false
+
+    - name: Show PM2 status
+      debug:
+        var: pm2_final_status.stdout_lines
