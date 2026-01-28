@@ -20,10 +20,123 @@ import compat from 'eslint-plugin-compat';
 import jsdoc from 'eslint-plugin-jsdoc';
 import boundaries from 'eslint-plugin-boundaries';
 import noUnsanitized from 'eslint-plugin-no-unsanitized';
+import globals from 'globals';
 import customRules from './eslint-custom-rules/index.js';
 
 export default [
   js.configs.recommended,
+  // JavaScript/JSX files (current codebase)
+  {
+    files: ['src/**/*.{js,jsx}'],
+    ignores: ['**/*.config.{ts,js}', 'vite.config.ts', 'playwright.config.ts'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true
+        }
+      },
+      globals: {
+        ...globals.browser,
+        React: 'readonly'
+      }
+    },
+    plugins: {
+      'react': react,
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
+      'jsx-a11y': jsxA11y,
+      'import': importPlugin,
+      'security': security,
+      'sonarjs': sonarjs,
+      'unicorn': unicorn,
+      'react-perf': perf,
+      'promise': promisePlugin,
+      'array-func': arrayFunc,
+      'no-loops': noLoops,
+      'no-secrets': noSecrets,
+      'compat': compat,
+      'jsdoc': jsdoc,
+      'boundaries': boundaries,
+      'no-unsanitized': noUnsanitized,
+      'custom': customRules
+    },
+    rules: {
+      // Core JavaScript bug prevention
+      'no-constant-condition': 'error',
+      'no-unreachable': 'error',
+      'no-dupe-keys': 'error',
+      'no-duplicate-case': 'error',
+      'no-empty': 'error',
+      'no-extra-boolean-cast': 'error',
+      'no-func-assign': 'error',
+      'no-invalid-regexp': 'error',
+      'no-obj-calls': 'error',
+      'use-isnan': 'error',
+      'valid-typeof': 'error',
+      'no-fallthrough': 'error',
+      'no-self-assign': 'error',
+      'no-self-compare': 'error',
+      'no-unmodified-loop-condition': 'error',
+      'no-console': 'off',
+      'no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_',
+        ignoreRestSiblings: true
+      }],
+
+      // React hooks rules (prevent bugs)
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+
+      // Promise rules (async bug prevention)
+      'promise/always-return': 'error',
+      'promise/no-return-wrap': 'error',
+      'promise/param-names': 'error',
+      'promise/catch-or-return': 'error',
+      'promise/no-nesting': 'warn',
+      'promise/no-promise-in-callback': 'warn',
+      'promise/no-callback-in-promise': 'warn',
+      'promise/no-return-in-finally': 'error',
+
+      // Array function rules
+      'array-func/no-unnecessary-this-arg': 'error',
+      'array-func/avoid-reverse': 'error',
+
+      // React rules
+      'react/react-in-jsx-scope': 'off',
+      'react/prop-types': 'off',
+      'react/jsx-no-bind': 'off',
+
+      // Import rules
+      'import/no-duplicates': 'error',
+
+      // Security rules
+      'security/detect-eval-with-expression': 'error',
+
+      // SonarJS rules
+      'sonarjs/no-redundant-boolean': 'error',
+      'sonarjs/no-useless-catch': 'error',
+      'sonarjs/no-all-duplicated-branches': 'error',
+      'sonarjs/no-element-overwrite': 'error',
+      'sonarjs/no-empty-collection': 'error',
+
+      // Unicorn rules
+      'unicorn/throw-new-error': 'error',
+      'unicorn/prefer-modern-dom-apis': 'error',
+      'unicorn/no-array-push-push': 'error',
+      'unicorn/prefer-optional-catch-binding': 'error'
+    },
+    settings: {
+      react: {
+        version: 'detect'
+      }
+    }
+  },
+  // TypeScript files (for future migration)
   {
     files: ['**/*.{ts,tsx}'],
     ignores: ['**/*.config.{ts,js}', 'vite.config.ts', 'playwright.config.ts'],

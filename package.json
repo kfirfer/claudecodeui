@@ -29,7 +29,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "npm run build && npm run server",
-    "release": "./release.sh"
+    "release": "./release.sh",
+    "lint": "npm run lint:oxlint && npm run lint:eslint && npm run lint:knip",
+    "lint:oxlint": "oxlint --config .oxlintrc.json src/",
+    "lint:eslint": "eslint src/",
+    "lint:knip": "knip"
   },
   "keywords": [
     "claude coode",
