@@ -52,8 +52,10 @@ function CodeEditor({ file, onClose, projectPath, isSidebar = false, isExpanded 
         const chunksData = getChunks(state);
         const chunks = chunksData?.chunks || [];
 
-        // Clear previous gutters
-        Object.keys(gutters).forEach(key => delete gutters[key]);
+        // Clear previous gutters - need dynamic delete to reset the object
+        for (const key of Object.keys(gutters)) {
+          Reflect.deleteProperty(gutters, key);
+        }
 
         // Mark lines that are part of chunks
         chunks.forEach(chunk => {
@@ -565,8 +567,9 @@ function CodeEditor({ file, onClose, projectPath, isSidebar = false, isExpanded 
           'bg-background flex flex-col w-full h-full' :
           `bg-background shadow-2xl flex flex-col ${
           // Mobile: always fullscreen, Desktop: modal sizing
-          'w-full h-full md:rounded-lg md:shadow-2xl' +
-          (isFullscreen ? ' md:w-full md:h-full md:rounded-none' : ' md:w-full md:max-w-6xl md:h-[80vh] md:max-h-[80vh]')
+          `w-full h-full md:rounded-lg md:shadow-2xl${
+            isFullscreen ? ' md:w-full md:h-full md:rounded-none' : ' md:w-full md:max-w-6xl md:h-[80vh] md:max-h-[80vh]'
+          }`
         }`}>
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0 min-w-0">

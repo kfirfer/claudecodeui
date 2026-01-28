@@ -349,7 +349,8 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
   const raw = Array.isArray(children) ? children.join('') : String(children ?? '');
   const looksMultiline = /[\r\n]/.test(raw);
   const inlineDetected = inline || (node && node.type === 'inlineCode');
-  const shouldInline = inlineDetected || !looksMultiline; // fallback to inline if single-line
+  // Fallback to inline if single-line
+  const shouldInline = inlineDetected || !looksMultiline;
 
   // Inline code rendering
   if (shouldInline) {
@@ -385,7 +386,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
             ta.style.opacity = '0';
             document.body.appendChild(ta);
             ta.select();
-            try { document.execCommand('copy'); } catch {}
+            try { document.execCommand('copy'); } catch { /* ignore */ }
             document.body.removeChild(ta);
             doSet();
           });
@@ -396,11 +397,11 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
           ta.style.opacity = '0';
           document.body.appendChild(ta);
           ta.select();
-          try { document.execCommand('copy'); } catch {}
+          try { document.execCommand('copy'); } catch { /* ignore */ }
           document.body.removeChild(ta);
           doSet();
         }
-      } catch {}
+      } catch { /* ignore */ }
     };
 
     // Code block with syntax highlighting
@@ -495,7 +496,7 @@ const markdownComponents = {
 };
 
 // Memoized message component to prevent unnecessary re-renders
-const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFileOpen, onShowSettings, onGrantToolPermission, autoExpandTools, showRawParameters, showThinking, selectedProject, provider }) => {
+const MessageComponent = memo(({ message, index: _index, prevMessage, createDiff, onFileOpen, onShowSettings, onGrantToolPermission, autoExpandTools, showRawParameters, showThinking, selectedProject, provider }) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
                    ((prevMessage.type === 'assistant') ||
@@ -528,7 +529,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
           ta.style.opacity = '0';
           document.body.appendChild(ta);
           ta.select();
-          try { document.execCommand('copy'); } catch {}
+          try { document.execCommand('copy'); } catch { /* ignore */ }
           document.body.removeChild(ta);
           doSet();
         });
@@ -539,23 +540,24 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
         ta.style.opacity = '0';
         document.body.appendChild(ta);
         ta.select();
-        try { document.execCommand('copy'); } catch {}
+        try { document.execCommand('copy'); } catch { /* ignore */ }
         document.body.removeChild(ta);
         doSet();
       }
-    } catch {}
+    } catch { /* ignore */ }
   }, [message.content]);
 
   React.useEffect(() => {
-    if (!autoExpandTools || !messageRef.current || !message.isToolUse) return;
-    
+    const currentRef = messageRef.current;
+    if (!autoExpandTools || !currentRef || !message.isToolUse) return;
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting && !isExpanded) {
             setIsExpanded(true);
             // Find all details elements and open them
-            const details = messageRef.current.querySelectorAll('details');
+            const details = currentRef.querySelectorAll('details');
             details.forEach(detail => {
               detail.open = true;
             });
@@ -564,13 +566,11 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
       },
       { threshold: 0.1 }
     );
-    
-    observer.observe(messageRef.current);
-    
+
+    observer.observe(currentRef);
+
     return () => {
-      if (messageRef.current) {
-        observer.unobserve(messageRef.current);
-      }
+      observer.unobserve(currentRef);
     };
   }, [autoExpandTools, isExpanded, message.isToolUse]);
 
@@ -686,7 +686,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                                     {input.path && <span className="ml-2">{t('search.in')} {input.path}</span>}
                                   </span>
                                 );
-                              } catch (e) {
+                              } catch {
                                 return null;
                               }
                             })()}
@@ -735,6 +735,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                   </div>
                   {onShowSettings && (
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         onShowSettings();
@@ -763,6 +764,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                               <span>View edit diff for</span>
                             </span> 
                             <button
+                              type="button"
                               onClick={async (e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -803,6 +805,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                             <div className="bg-white dark:bg-gray-900/50 border border-gray-200/60 dark:border-gray-700/60 rounded-lg overflow-hidden shadow-sm">
                               <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-gray-800/80 dark:to-gray-800/40 border-b border-gray-200/60 dark:border-gray-700/60 backdrop-blur-sm">
                                 <button
+                                  type="button"
                                   onClick={async () => {
                                     if (!onFileOpen) return;
 
@@ -877,7 +880,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                         </details>
                       );
                     }
-                  } catch (e) {
+                  } catch {
                     // Fall back to raw display if parsing fails
                   }
                   return (
@@ -921,6 +924,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                                 <span>Creating new file:</span>
                               </span>
                               <button
+                                type="button"
                                 onClick={async (e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
@@ -956,6 +960,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                               <div className="bg-white dark:bg-gray-900/50 border border-gray-200/60 dark:border-gray-700/60 rounded-lg overflow-hidden shadow-sm">
                                 <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-gray-800/80 dark:to-gray-800/40 border-b border-gray-200/60 dark:border-gray-700/60 backdrop-blur-sm">
                                   <button
+                                    type="button"
                                     onClick={async () => {
                                       if (!onFileOpen) return;
 
@@ -1026,7 +1031,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                           </details>
                         );
                       }
-                    } catch (e) {
+                    } catch {
                       // Fall back to regular display
                     }
                   }
@@ -1066,7 +1071,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                           </details>
                         );
                       }
-                    } catch (e) {
+                    } catch {
                       // Fall back to regular display
                     }
                   }
@@ -1088,7 +1093,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                           )}
                         </div>
                       );
-                    } catch (e) {
+                    } catch {
                       // Fall back to regular display
                     }
                   }
@@ -1104,6 +1109,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                           <div className="mt-2 text-sm text-blue-700 dark:text-blue-300">
                             Read{' '}
                             <button
+                              type="button"
                               onClick={() => onFileOpen && onFileOpen(input.file_path)}
                               className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline font-mono"
                             >
@@ -1112,7 +1118,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                           </div>
                         );
                       }
-                    } catch (e) {
+                    } catch {
                       // Fall back to regular display
                     }
                   }
@@ -1123,7 +1129,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                       const input = JSON.parse(message.toolInput);
                       if (input.plan) {
                         // Replace escaped newlines with actual newlines
-                        const planContent = input.plan.replace(/\\n/g, '\n');
+                        const planContent = input.plan.replaceAll(/\\n/g, '\n');
                         return (
                           <details className="mt-2" open={autoExpandTools}>
                             <summary className="text-sm text-blue-700 dark:text-blue-300 cursor-pointer hover:text-blue-800 dark:hover:text-blue-200 flex items-center gap-2">
@@ -1138,7 +1144,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                           </details>
                         );
                       }
-                    } catch (e) {
+                    } catch {
                       // Fall back to regular display
                     }
                   }
@@ -1246,7 +1252,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                                 </div>
                               );
                             }
-                          } catch (e) {
+                          } catch {
                             // Fall through to regular handling
                           }
                         }
@@ -1258,7 +1264,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                             const parsed = JSON.parse(content);
                             if (parsed.plan) {
                               // Replace escaped newlines with actual newlines
-                              const planContent = parsed.plan.replace(/\\n/g, '\n');
+                              const planContent = parsed.plan.replaceAll(/\\n/g, '\n');
                               return (
                                 <div>
                                   <div className="flex items-center gap-2 mb-3">
@@ -1270,7 +1276,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                                 </div>
                               );
                             }
-                          } catch (e) {
+                          } catch {
                             // Fall through to regular handling
                           }
                         }
@@ -1291,7 +1297,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                                 <div className="space-y-1 max-h-96 overflow-y-auto">
                                   {toolData.filenames.map((filePath, index) => {
                                     const fileName = filePath.split('/').pop();
-                                    const dirPath = filePath.substring(0, filePath.lastIndexOf('/'));
+                                    const dirPath = filePath.slice(0, filePath.lastIndexOf('/'));
 
                                     return (
                                       <div
@@ -1378,6 +1384,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                                     <div className="space-y-2 mb-4">
                                       {options.map((option) => (
                                         <button
+                                          type="button"
                                           key={option.number}
                                           className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${
                                             selectedOption === option.number
@@ -1434,6 +1441,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                                 <span className="font-medium">File updated successfully</span>
                               </div>
                               <button
+                                type="button"
                                 onClick={async () => {
                                   if (!onFileOpen) return;
 
@@ -1462,7 +1470,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                             </div>
                           );
                         }
-                        
+
                         // Handle Write tool output for file creation
                         const fileCreateMatch = content.match(/(?:The file|File) (.+?) has been (?:created|written)(?: successfully)?\.?/);
                         if (fileCreateMatch) {
@@ -1472,6 +1480,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                                 <span className="font-medium">File created successfully</span>
                               </div>
                               <button
+                                type="button"
                                 onClick={async () => {
                                   if (!onFileOpen) return;
 
@@ -1727,7 +1736,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                       </div>
                     );
                   }
-                } catch (e) {
+                } catch {
                   return (
                     <div className="bg-gray-50/50 dark:bg-gray-800/30 border-l-2 border-gray-400 dark:border-gray-500 pl-3 py-2 my-2">
                       <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
@@ -1758,7 +1767,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                       </div>
                     );
                   }
-                } catch (e) {
+                } catch {
                   return (
                     <div className="bg-gray-50/50 dark:bg-gray-800/30 border-l-2 border-gray-400 dark:border-gray-500 pl-3 py-2 my-2">
                       <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
@@ -1842,7 +1851,7 @@ const MessageComponent = memo(({ message, index, prevMessage, createDiff, onFile
                           </div>
                         </div>
                       );
-                    } catch (e) {
+                    } catch {
                       // Not valid JSON, fall through to normal rendering
                     }
                   }
@@ -2110,7 +2119,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
               return bCount - aCount;
             });
             setSlashCommands(sortedCommands);
-          } catch (e) {
+          } catch {
             console.error('Error parsing command history:', e);
           }
         }
@@ -2177,7 +2186,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         .slice(0, 5); // Top 5 most used
 
       return commandsWithUsage;
-    } catch (e) {
+    } catch {
       console.error('Error parsing command history:', e);
       return [];
     }
@@ -2200,7 +2209,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
     try {
       parsedHistory = history ? JSON.parse(history) : {};
-    } catch (e) {
+    } catch {
       console.error('Error parsing command history:', e);
     }
 
@@ -2740,7 +2749,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
               text = content.message.content;
             }
           }
-        } catch (e) {
+        } catch {
           console.log('Error parsing blob content:', e);
         }
         if (text && text.trim()) {
@@ -2777,7 +2786,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       });
       
       return converted;
-    } catch (e) {
+    } catch {
       console.error('Error loading Cursor session messages:', e);
       return [];
     } finally {
@@ -3716,7 +3725,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
               }
             }
             // For other cursor-system messages, avoid dumping raw objects to chat
-          } catch (e) {
+          } catch {
             console.warn('Error handling cursor-system message:', e);
           }
           break;
@@ -3795,7 +3804,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                 }
                 return updated;
               });
-            } catch (e) {
+            } catch {
               console.warn('Error handling cursor-result message:', e);
             }
           }
@@ -3839,7 +3848,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                 }, 100);
               }
             }
-          } catch (e) {
+          } catch {
             console.warn('Error handling cursor-output message:', e);
           }
           break;
