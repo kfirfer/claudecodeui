@@ -133,3 +133,4 @@ tasks/
 
 # Tests
 test-results/
+playwright-report/
