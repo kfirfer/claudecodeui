@@ -1973,6 +1973,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   const isLoadingMoreRef = useRef(false);
   const topLoadLockRef = useRef(false);
   const pendingScrollRestoreRef = useRef(null);
+  // Track when we're restoring scroll position after pagination to prevent auto-scroll interference
+  const isPaginationScrollRestoreRef = useRef(false);
   // Streaming throttle buffers
   const streamBufferRef = useRef('');
   const streamTimerRef = useRef(null);
@@ -3044,6 +3046,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       );
 
       if (moreMessages.length > 0) {
+        // Mark that we're about to restore scroll position after pagination
+        // This prevents the auto-scroll useEffect from interfering
+        isPaginationScrollRestoreRef.current = true;
         pendingScrollRestoreRef.current = {
           height: previousScrollHeight,
           top: previousScrollTop
@@ -3088,6 +3093,12 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
     container.scrollTop = top + Math.max(scrollDiff, 0);
     pendingScrollRestoreRef.current = null;
+    // Clear the pagination restore flag after a microtask to ensure useEffect sees it
+    // We use queueMicrotask to ensure this runs after the current render cycle
+    // but before the useEffect's setTimeout would execute
+    queueMicrotask(() => {
+      isPaginationScrollRestoreRef.current = false;
+    });
   }, [chatMessages.length]);
 
   useEffect(() => {
@@ -4285,6 +4296,11 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   });
 
   useEffect(() => {
+    // Skip auto-scroll during pagination scroll restore - useLayoutEffect handles that
+    if (isPaginationScrollRestoreRef.current) {
+      return;
+    }
+
     // Auto-scroll to bottom when new messages arrive
     if (scrollContainerRef.current && chatMessages.length > 0) {
       if (autoScrollToBottom) {
