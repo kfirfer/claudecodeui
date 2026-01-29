@@ -33,8 +33,7 @@ const QuickSettingsPanel = ({
   onAutoScrollChange,
   sendByCtrlEnter,
   onSendByCtrlEnterChange,
-  isMobile,
-  isInputFocused
+  isMobile
 }) => {
   const { t } = useTranslation('settings');
   const [localIsOpen, setLocalIsOpen] = useState(isOpen);
@@ -44,20 +43,24 @@ const QuickSettingsPanel = ({
   const { isDarkMode } = useTheme();
 
   // Draggable handle state
+  // On mobile, default to 85% from bottom (near top of screen) to avoid overlap with input area
+  // On desktop, default to 50% (middle of screen)
+  const defaultPosition = isMobile ? 85 : 50;
   const [handlePosition, setHandlePosition] = useState(() => {
     const saved = localStorage.getItem('quickSettingsHandlePosition');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return parsed.y ?? 50;
+        // On mobile, ensure saved position is not too low (min 65% from bottom)
+        const savedY = parsed.y ?? defaultPosition;
+        return isMobile ? Math.max(savedY, 65) : savedY;
       } catch {
         // Remove corrupted data
         localStorage.removeItem('quickSettingsHandlePosition');
-        return 50;
+        return defaultPosition;
       }
     }
-    // Default to 50% (middle of screen)
-    return 50;
+    return defaultPosition;
   });
 
   const [isDragging, setIsDragging] = useState(false);
@@ -66,8 +69,8 @@ const QuickSettingsPanel = ({
   // Track if user has moved during drag
   const [hasMoved, setHasMoved] = useState(false);
   const handleRef = useRef(null);
-  // Percentage constraints
-  const constraintsRef = useRef({ min: 10, max: 90 });
+  // Percentage constraints - on mobile, keep handle higher to avoid overlap with input area
+  const constraintsRef = useRef(isMobile ? { min: 60, max: 90 } : { min: 10, max: 90 });
   // Pixels to move before it's considered a drag
   const dragThreshold = 5;
 
@@ -221,7 +224,6 @@ const QuickSettingsPanel = ({
   return (
     <>
       {/* Pull Tab - Combined drag handle and toggle button */}
-      {/* Hide on mobile when input is focused to prevent accidental touches when sending messages */}
       <button
         type="button"
         ref={handleRef}
@@ -240,7 +242,7 @@ const QuickSettingsPanel = ({
           isDragging ? 'border-blue-500 dark:border-blue-400' : 'border-gray-200 dark:border-gray-700'
         } rounded-l-md p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-lg ${
           isDragging ? 'cursor-grabbing' : 'cursor-pointer'
-        } touch-none ${isMobile && isInputFocused ? 'opacity-0 pointer-events-none' : ''}`}
+        } touch-none`}
         style={{ ...getPositionStyle(), touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
         aria-label={isDragging ? t('quickSettings.dragHandle.dragging') : localIsOpen ? t('quickSettings.dragHandle.closePanel') : t('quickSettings.dragHandle.openPanel')}
         title={isDragging ? t('quickSettings.dragHandle.draggingStatus') : t('quickSettings.dragHandle.toggleAndMove')}

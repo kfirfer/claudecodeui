@@ -995,7 +995,6 @@ function AppContent() {
           sendByCtrlEnter={sendByCtrlEnter}
           onSendByCtrlEnterChange={setSendByCtrlEnter}
           isMobile={isMobile}
-          isInputFocused={isInputFocused}
         />
       )}
 

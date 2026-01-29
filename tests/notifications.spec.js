@@ -638,6 +638,12 @@ test.describe('Notification Trigger', () => {
       // Immediately switch to new tab to trigger unfocused state
       await newPage.bringToFront();
 
+      // Manually trigger visibility change event since bringToFront() may not fire it
+      await page.evaluate(() => {
+        Object.defineProperty(document, 'hidden', { value: true, writable: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+
       // Wait for notification log to appear (polling the collected logs)
       await expect.poll(
         () => notificationLogs.some(log => log.includes('Notification sent')),
