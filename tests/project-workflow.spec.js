@@ -431,6 +431,14 @@ test.describe('Session Visibility - Immediate Display', () => {
   test('session should appear in sidebar immediately after sending first message', async ({ page }) => {
     test.setTimeout(120000);
 
+    // Capture console logs for debugging
+    const consoleLogs = [];
+    page.on('console', msg => {
+      if (msg.text().includes('[App]') || msg.text().includes('[Sidebar]') || msg.text().includes('[ChatInterface]')) {
+        consoleLogs.push(`[${msg.type()}] ${msg.text()}`);
+      }
+    });
+
     // Generate unique identifier for this test run
     const testId = Date.now();
     const testProjectPath = path.join(os.homedir(), `e2e-session-visibility-${testId}`);
@@ -519,6 +527,10 @@ test.describe('Session Visibility - Immediate Display', () => {
       await expect(async () => {
         const sessionVisible = await sessionInSidebar.isVisible().catch(() => false);
         const spinnerVisible = await pendingSessionSpinner.isVisible().catch(() => false);
+        // Log debug info if not visible yet
+        if (!sessionVisible && !spinnerVisible) {
+          console.log('Console logs:', consoleLogs);
+        }
         expect(sessionVisible || spinnerVisible).toBe(true);
       }).toPass({ timeout: 3000 });
 
