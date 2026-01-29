@@ -597,14 +597,31 @@ import NotificationSettings from './settings/NotificationSettings';
 
 ### Task 2.3: Add NotificationSettings Styles
 **Status**: [ ]
-**File**: `src/components/settings/NotificationSettings.css` or add to existing styles
+**File**: Use Tailwind CSS classes inline (matching codebase pattern)
+
+**Note**: The codebase uses Tailwind CSS classes extensively. Follow the pattern from existing settings components like `Settings.jsx` (see lines 999-1032 for toggle button styling pattern).
 
 #### Subtasks:
-- [ ] 2.3.1 Style permission status badge
-- [ ] 2.3.2 Style toggle rows
-- [ ] 2.3.3 Style buttons (request permission, test notification)
-- [ ] 2.3.4 Style warning notices
-- [ ] 2.3.5 Ensure dark/light theme compatibility
+- [ ] 2.3.1 Style permission status badge using Tailwind classes
+- [ ] 2.3.2 Style toggle rows matching existing toggle pattern (see Settings.jsx line 1009-1029)
+- [ ] 2.3.3 Style buttons using existing Button component or Tailwind classes
+- [ ] 2.3.4 Style warning notices with `bg-yellow-50 dark:bg-yellow-900/20` pattern
+- [ ] 2.3.5 Ensure dark/light theme compatibility using `dark:` prefix classes
+
+#### Styling Reference (from Settings.jsx toggle pattern):
+```jsx
+<button
+  type="button"
+  onClick={handleToggle}
+  className="relative inline-flex h-8 w-14 items-center rounded-full bg-gray-200 dark:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+  role="switch"
+  aria-checked={isEnabled}
+>
+  <span className={`${
+    isEnabled ? 'translate-x-7' : 'translate-x-1'
+  } inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-200`} />
+</button>
+```
 
 ---
 
@@ -620,40 +637,63 @@ import NotificationSettings from './settings/NotificationSettings';
 
 #### Subtasks:
 - [ ] 3.1.1 Import useNotificationContext
-- [ ] 3.1.2 Add notification trigger in `claude-complete` handler (~line 3923)
-- [ ] 3.1.3 Add notification trigger for `cursor-complete` if applicable
-- [ ] 3.1.4 Add notification trigger for `codex-complete` if applicable
+- [ ] 3.1.2 Add notification trigger in `claude-complete` handler (line 3923)
+- [ ] 3.1.3 Add notification trigger for `codex-complete` handler (line 3375)
+- [ ] 3.1.4 Add notification trigger for `cursor-result` handler (line 3377)
 - [ ] 3.1.5 Format notification content with project/session info
 - [ ] 3.1.6 Handle notification click to focus chat
+
+#### Validated Event Handlers (from ChatInterface.jsx):
+
+The lifecycle message types are defined at lines 3374-3379:
+```javascript
+const lifecycleMessageTypes = new Set([
+  'claude-complete',
+  'codex-complete',
+  'cursor-result',
+  'session-aborted',
+  'claude-error',
+  'cursor-error',
+]);
+```
 
 #### Implementation Details:
 
 ```javascript
 // In ChatInterface.jsx
 
-// Import at top
+// Import at top (add to existing imports)
 import { useNotificationContext } from '../contexts/NotificationContext';
+import { getNotificationContent } from '../utils/notificationContent';
 
-// Inside component
+// Inside component (add after other useContext hooks)
 const { sendNotification, settings } = useNotificationContext();
 
-// In the claude-complete case handler (around line 3923):
+// In the claude-complete case handler (line 3923):
 case 'claude-complete': {
-  // ... existing completion logic ...
+  const completedSessionId = latestMessage.sessionId || currentSessionId || sessionStorage.getItem('pendingSessionId');
 
-  // Trigger browser notification
-  if (settings.enabled) {
-    const projectName = currentProject?.name || 'Unknown Project';
-    sendNotification('Claude Code Finished', {
-      body: `Task completed in ${projectName}`,
-      tag: `claude-complete-${data.sessionId}`,
-      data: { sessionId: data.sessionId, projectPath: currentProject?.path }
-    });
+  // Update UI state if this is the current session
+  if (completedSessionId === currentSessionId || !currentSessionId) {
+    setIsLoading(false);
+    setCanAbortSession(false);
+    setClaudeStatus(null);
   }
 
-  // ... rest of existing logic ...
+  // ... existing session inactive logic (lines 3934-3942) ...
+
+  // ADD: Trigger browser notification
+  const notificationContent = getNotificationContent('claude', latestMessage, selectedProject);
+  sendNotification(notificationContent.title, {
+    body: notificationContent.body,
+    tag: notificationContent.tag
+  });
+
+  // ... rest of existing logic (lines 3944-3961) ...
   break;
 }
+
+// Similar pattern for codex-complete and cursor-result handlers
 ```
 
 ---
@@ -1307,24 +1347,33 @@ src/
 │   ├── ChatInterface.jsx            # MODIFIED - Add notification triggers
 │   └── settings/
 │       ├── NotificationSettings.jsx # NEW - Settings UI component
-│       └── NotificationSettings.css # NEW - Styles
+│       └── NotificationSettings.css # NEW - Styles (or Tailwind classes)
 ├── utils/
 │   ├── notificationContent.js       # NEW - Content formatting
 │   └── notificationSound.js         # NEW - Audio utilities
+├── i18n/
+│   └── locales/
+│       ├── en/
+│       │   └── settings.json        # MODIFIED - Add notification translation keys
+│       └── zh/
+│           └── settings.json        # MODIFIED - Add notification translation keys (Chinese)
 ├── App.jsx                          # MODIFIED - Add NotificationProvider
 public/
-├── claude-icon.png                  # NEW or existing - Notification icon
-├── claude-badge.png                 # NEW - Badge icon
+├── icons/
+│   ├── claude-ai-icon.svg           # EXISTING - Use for notification icon
+│   └── icon-128x128.png             # EXISTING - Use for notification badge
 └── sounds/
     └── notification.mp3             # NEW - Notification sound
 tests/
 ├── utils/
-│   └── notification-mocks.js        # NEW - Test utilities
+│   └── notification-mocks.js        # NEW - Test utilities (create tests/utils/ directory)
 ├── notifications-settings.spec.js   # NEW - Settings tests
 ├── notifications-trigger.spec.js    # NEW - Trigger tests
 ├── notifications-permissions.spec.js# NEW - Permission tests
 └── notifications-integration.spec.js# NEW - Integration tests
 ```
+
+**Note**: The `tests/utils/` directory does not exist yet and will need to be created.
 
 ---
 
@@ -1405,3 +1454,42 @@ tests/
 - [ ] Properly documented with JSDoc
 - [ ] Modular and maintainable structure
 - [ ] No unused code or dependencies
+
+---
+
+## Codebase Validation Summary
+
+This plan has been validated against the actual codebase structure. Key findings:
+
+### Verified Integration Points
+
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| Context Pattern | ✅ Validated | Matches `ThemeContext.jsx`, `AuthContext.jsx` patterns |
+| Hooks Pattern | ✅ Validated | Matches `useLocalStorage.jsx`, `useVersionCheck.js` patterns |
+| Settings Tab Structure | ✅ Validated | Current tabs: agents, appearance, git, api, tasks (lines 927-986) |
+| App.jsx Provider Order | ✅ Corrected | Updated to match actual nesting (lines 1017-1042) |
+| ChatInterface Events | ✅ Validated | `claude-complete` handler at line 3923, `codex-complete` at line 3377 |
+| Test Structure | ✅ Validated | Playwright tests in `tests/`, follows `project-workflow.spec.js` pattern |
+| Public Assets | ✅ Validated | Using existing icons from `/public/icons/` |
+| i18n System | ✅ Added | Uses `react-i18next`, translation keys in `src/i18n/locales/` |
+
+### Existing Code References
+
+- **Contexts**: `src/contexts/ThemeContext.jsx` (reference pattern, 96 lines)
+- **Hooks**: `src/hooks/useLocalStorage.jsx` (reference pattern, 41 lines)
+- **Settings**: `src/components/Settings.jsx` (integration point)
+- **ChatInterface**: `src/components/ChatInterface.jsx` (notification trigger at line 3923)
+- **App Provider Tree**: `src/App.jsx` (lines 1015-1044)
+- **Test Pattern**: `tests/project-workflow.spec.js` (Playwright E2E pattern)
+- **i18n Config**: `src/i18n/locales/en/settings.json` (translation keys)
+
+### Browser Notification API Compatibility
+
+Per Playwright documentation, the Notification API should be mocked using `page.addInitScript()` before page load. The plan's test utilities follow this pattern correctly.
+
+### No Conflicts Identified
+
+- No existing notification-related code conflicts
+- No naming conflicts with existing contexts or hooks
+- No circular dependency risks
