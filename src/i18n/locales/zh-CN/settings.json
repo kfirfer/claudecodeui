@@ -92,24 +92,48 @@
     "notifications": "通知"
   },
   "notifications": {
-    "title": "桌面通知",
-    "description": "当 Claude、Cursor 或 Codex 完成处理您的请求时获得通知。",
+    "title": "浏览器通知",
+    "description": "当 Claude、Cursor 或 Codex 完成处理您的请求时，在任何设备上获得通知。",
     "permissionStatus": "权限状态",
     "permissionGranted": "已授权",
     "permissionDenied": "已拒绝",
     "permissionDefault": "未设置",
     "enableNotifications": "启用通知",
     "notificationsBlocked": "通知已被阻止。请在浏览器设置中启用。",
-    "browserNotSupported": "您的浏览器不支持桌面通知。",
+    "browserNotSupported": "您的浏览器不支持浏览器通知。",
     "toggles": {
-      "enableDesktop": "启用桌面通知",
+      "enable": "启用浏览器通知",
       "onlyWhenUnfocused": "仅在标签页失焦时通知",
       "onlyWhenUnfocusedDescription": "仅在浏览器标签页不活动时显示通知",
       "playSound": "播放通知声音"
     },
     "testButton": "发送测试通知",
     "testTitle": "测试通知",
-    "testBody": "通知功能正常工作！"
+    "testBody": "浏览器通知功能正常工作！",
+    "mobile": {
+      "title": "移动端通知",
+      "iosSetupTitle": "需要设置 iOS Safari",
+      "iosSetupDescription": "要在 iOS Safari 上接收通知，请将此应用添加到主屏幕：",
+      "iosStep1": "点击 Safari 中的分享按钮",
+      "iosStep2": "选择「添加到主屏幕」",
+      "iosStep3": "从主屏幕打开应用并启用通知",
+      "androidInfo": "Android Chrome 在浏览器中支持通知。",
+      "mobileInfo": "将应用添加到主屏幕后，移动浏览器通知效果最佳。"
+    },
+    "status": {
+      "swRegistered": "Service Worker 已注册",
+      "swNotRegistered": "Service Worker 未注册",
+      "swRegistering": "正在注册 Service Worker...",
+      "ready": "已准备好接收通知",
+      "notReady": "未就绪 - 请启用通知以完成设置"
+    },
+    "troubleshooting": {
+      "title": "故障排除",
+      "checkPermissions": "检查浏览器设置中是否已允许通知",
+      "clearCache": "尝试清除浏览器缓存并重新加载",
+      "reopenApp": "关闭并重新打开应用",
+      "checkPWA": "对于 iOS，请确保从主屏幕打开应用"
+    }
   },
   "appearanceSettings": {
     "darkMode": {

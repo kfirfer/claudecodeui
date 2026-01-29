@@ -1,9 +1,10 @@
 /**
  * NotificationSettings Component
  *
- * Settings panel for configuring desktop browser notifications.
+ * Settings panel for configuring browser notifications (desktop and mobile).
  * Allows users to enable/disable notifications, configure notification
  * behavior, and test notification functionality.
+ * Includes platform-specific guidance for iOS Safari users.
  *
  * @module components/settings/NotificationSettings
  */
@@ -11,8 +12,76 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNotificationContext } from '../../contexts/NotificationContext';
-import { Bell, BellOff, Volume2, VolumeX, AlertCircle, Check, X } from 'lucide-react';
+import { notificationService } from '../../services/browserNotificationService';
+import { Bell, BellOff, Volume2, VolumeX, AlertCircle, Check, X, Smartphone, CheckCircle2 } from 'lucide-react';
 import { Button } from '../ui/button';
+
+/**
+ * Platform guidance component for mobile users
+ */
+const PlatformGuidance = ({ platformSupport, t }) => {
+  if (!platformSupport || platformSupport.supported) {
+    return null;
+  }
+
+  if (platformSupport.reason === 'ios-safari-requires-pwa' || platformSupport.reason === 'ios-requires-pwa') {
+    return (
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="flex items-start gap-3">
+          <Smartphone className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <h4 className="font-medium text-blue-800 dark:text-blue-200">
+              {t('notifications.mobile.iosSetupTitle')}
+            </h4>
+            <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+              {t('notifications.mobile.iosSetupDescription')}
+            </p>
+            <ol className="text-sm text-blue-700 dark:text-blue-300 mt-2 list-decimal list-inside space-y-1">
+              <li>{t('notifications.mobile.iosStep1')}</li>
+              <li>{t('notifications.mobile.iosStep2')}</li>
+              <li>{t('notifications.mobile.iosStep3')}</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Generic unsupported message
+  return (
+    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+      <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
+        <AlertCircle className="w-5 h-5" />
+        <span>{platformSupport.message || t('notifications.browserNotSupported')}</span>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Service Worker status indicator
+ */
+const SwStatusIndicator = ({ swRegistered, t }) => {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      {swRegistered ? (
+        <>
+          <CheckCircle2 className="w-4 h-4 text-green-600" />
+          <span className="text-green-700 dark:text-green-400">
+            {t('notifications.status.swRegistered')}
+          </span>
+        </>
+      ) : (
+        <>
+          <AlertCircle className="w-4 h-4 text-gray-400" />
+          <span className="text-muted-foreground">
+            {t('notifications.status.swNotRegistered')}
+          </span>
+        </>
+      )}
+    </div>
+  );
+};
 
 /**
  * NotificationSettings component for the Settings panel
@@ -23,6 +92,8 @@ const NotificationSettings = () => {
     permission,
     settings,
     isSupported,
+    swRegistered,
+    platformSupport,
     requestPermission,
     updateSettings
   } = useNotificationContext();
@@ -45,18 +116,33 @@ const NotificationSettings = () => {
 
   /**
    * Send a test notification to verify functionality
+   * Uses Service Worker-based notification for cross-platform compatibility
    */
-  const handleTestNotification = () => {
-    // Temporarily disable the onlyWhenUnfocused check for test
-    const notification = new Notification(t('notifications.testTitle'), {
-      body: t('notifications.testBody'),
-      icon: '/icons/claude-ai-icon.svg',
-      tag: 'test-notification'
-    });
-
-    // Auto-close after 5 seconds
-    setTimeout(() => notification.close(), 5000);
+  const handleTestNotification = async () => {
+    try {
+      // Use the SW-based notification service
+      await notificationService.showNotification(t('notifications.testTitle'), {
+        body: t('notifications.testBody'),
+        tag: 'test-notification'
+      });
+    } catch (error) {
+      console.error('Failed to send test notification:', error);
+      // Fallback to legacy API if available
+      try {
+        const notification = new Notification(t('notifications.testTitle'), {
+          body: t('notifications.testBody'),
+          icon: '/icons/claude-ai-icon.svg',
+          tag: 'test-notification'
+        });
+        setTimeout(() => notification.close(), 5000);
+      } catch (legacyError) {
+        console.error('Legacy notification also failed:', legacyError);
+      }
+    }
   };
+
+  // Check if platform doesn't support notifications
+  const platformUnsupported = platformSupport && !platformSupport.supported;
 
   // Show unsupported message if browser doesn't support notifications
   if (!isSupported) {
@@ -93,6 +179,12 @@ const NotificationSettings = () => {
         {t('notifications.description')}
       </p>
 
+      {/* Platform-specific guidance for iOS Safari */}
+      <PlatformGuidance
+        platformSupport={platformSupport}
+        t={t}
+      />
+
       {/* Permission Status */}
       <div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
         <div className="flex items-center justify-between">
@@ -119,6 +211,12 @@ const NotificationSettings = () => {
                 : t('notifications.permissionDefault')}
           </span>
         </div>
+        {/* SW Status - only show when enabled */}
+        {settings.enabled && permission === 'granted' && (
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+            <SwStatusIndicator swRegistered={swRegistered} t={t} />
+          </div>
+        )}
       </div>
 
       {/* Permission Denied Warning */}
@@ -131,8 +229,8 @@ const NotificationSettings = () => {
         </div>
       )}
 
-      {/* Request Permission Button */}
-      {permission === 'default' && (
+      {/* Request Permission Button - only show if platform supports notifications */}
+      {permission === 'default' && !platformUnsupported && (
         <Button
           onClick={requestPermission}
           variant="outline"
@@ -144,7 +242,7 @@ const NotificationSettings = () => {
         </Button>
       )}
 
-      {/* Settings Toggles */}
+      {/* Settings Toggles - disable if platform doesn't support notifications */}
       <div className="space-y-4">
         {/* Enable Notifications Toggle */}
         <div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
@@ -157,22 +255,22 @@ const NotificationSettings = () => {
               )}
               <div>
                 <div className="font-medium text-foreground">
-                  {t('notifications.toggles.enableDesktop')}
+                  {t('notifications.toggles.enable')}
                 </div>
               </div>
             </div>
             <button
               type="button"
               onClick={handleToggleEnabled}
-              disabled={permission === 'denied'}
+              disabled={permission === 'denied' || platformUnsupported}
               className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${
                 settings.enabled
                   ? 'bg-blue-600'
                   : 'bg-gray-200 dark:bg-gray-700'
-              } ${permission === 'denied' ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${(permission === 'denied' || platformUnsupported) ? 'opacity-50 cursor-not-allowed' : ''}`}
               role="switch"
               aria-checked={settings.enabled}
-              aria-label={t('notifications.toggles.enableDesktop')}
+              aria-label={t('notifications.toggles.enable')}
               data-testid="notification-toggle"
             >
               <span

@@ -274,8 +274,8 @@ test.describe('Notification Settings', () => {
     const notificationToggle = page.locator('[data-testid="notification-toggle"]');
     await expect(notificationToggle).toBeVisible();
 
-    // Verify section shows Desktop Notifications heading
-    const sectionTitle = page.getByRole('heading', { name: 'Desktop Notifications' });
+    // Verify section shows Browser Notifications heading
+    const sectionTitle = page.getByRole('heading', { name: 'Browser Notifications' });
     await expect(sectionTitle).toBeVisible();
 
     // Verify permission badge is visible
@@ -504,7 +504,7 @@ test.describe('Notification Settings', () => {
     await openNotificationSettings(page);
 
     // Verify we're on notifications tab
-    const desktopNotificationsHeading = page.getByRole('heading', { name: 'Desktop Notifications' });
+    const desktopNotificationsHeading = page.getByRole('heading', { name: 'Browser Notifications' });
     await expect(desktopNotificationsHeading).toBeVisible();
 
     // Navigate to another tab (Appearance)

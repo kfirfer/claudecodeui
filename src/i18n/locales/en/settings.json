@@ -92,24 +92,48 @@
     "notifications": "Notifications"
   },
   "notifications": {
-    "title": "Desktop Notifications",
-    "description": "Get notified when Claude, Cursor, or Codex finishes processing your request.",
+    "title": "Browser Notifications",
+    "description": "Get notified on any device when Claude, Cursor, or Codex finishes processing your request.",
     "permissionStatus": "Permission Status",
     "permissionGranted": "Granted",
     "permissionDenied": "Denied",
     "permissionDefault": "Not Set",
     "enableNotifications": "Enable Notifications",
     "notificationsBlocked": "Notifications are blocked. Please enable them in your browser settings.",
-    "browserNotSupported": "Your browser does not support desktop notifications.",
+    "browserNotSupported": "Your browser does not support browser notifications.",
     "toggles": {
-      "enableDesktop": "Enable desktop notifications",
+      "enable": "Enable browser notifications",
       "onlyWhenUnfocused": "Only notify when tab is unfocused",
       "onlyWhenUnfocusedDescription": "Only show notifications when the browser tab is not active",
       "playSound": "Play notification sound"
     },
     "testButton": "Send Test Notification",
     "testTitle": "Test Notification",
-    "testBody": "Notifications are working correctly!"
+    "testBody": "Browser notifications are working correctly!",
+    "mobile": {
+      "title": "Mobile Notifications",
+      "iosSetupTitle": "iOS Safari Setup Required",
+      "iosSetupDescription": "To receive notifications on iOS Safari, add this app to your Home Screen:",
+      "iosStep1": "Tap the Share button in Safari",
+      "iosStep2": "Select 'Add to Home Screen'",
+      "iosStep3": "Open the app from your Home Screen and enable notifications",
+      "androidInfo": "Android Chrome supports notifications in the browser.",
+      "mobileInfo": "Mobile browser notifications work best when the app is added to your home screen."
+    },
+    "status": {
+      "swRegistered": "Service Worker registered",
+      "swNotRegistered": "Service Worker not registered",
+      "swRegistering": "Registering Service Worker...",
+      "ready": "Ready to receive notifications",
+      "notReady": "Not ready - enable notifications to set up"
+    },
+    "troubleshooting": {
+      "title": "Troubleshooting",
+      "checkPermissions": "Check that notifications are allowed in browser settings",
+      "clearCache": "Try clearing browser cache and reloading",
+      "reopenApp": "Close and reopen the app",
+      "checkPWA": "For iOS, ensure the app is opened from the Home Screen"
+    }
   },
   "appearanceSettings": {
     "darkMode": {

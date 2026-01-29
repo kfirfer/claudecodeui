@@ -1,5 +1,22 @@
 # Fix Plan: Inconsistent Projects/Sessions Menu Behavior
 
+## Validation Status
+✅ **Validated against codebase on 2026-01-29**
+
+| Validation Item | Status | Notes |
+|-----------------|--------|-------|
+| Line numbers verified | ✅ Correct | All 15 issues verified against actual code |
+| Root cause confirmed | ✅ Confirmed | Sidebar.jsx:131-134 unconditionally resets state |
+| Issue severities adjusted | ✅ Updated | Issue 3 → MEDIUM, Issue 11 → LOW |
+| Code snippets verified | ✅ Accurate | Match actual implementation |
+
+**Key Corrections Made:**
+- Issue 3 (currentSessionId sync): Downgraded from CRITICAL to MEDIUM - sync already happens but asynchronously at lines 3260 and 3277
+- Issue 11 (deletingProjects): Downgraded from MEDIUM to LOW - finally block at lines 409-415 correctly clears state
+- Issue 7 line reference corrected: 3657-3667 → 3665-3667
+
+---
+
 ## Executive Summary
 
 This document provides a comprehensive plan to fix inconsistent behavior in the Projects and Sessions menu, specifically addressing the reported issue where clicking "Show more sessions" briefly displays content then folds again after approximately one second. During investigation, 15 additional issues were discovered ranging from critical bugs to UX improvements.
@@ -37,15 +54,15 @@ useEffect(() => {
 |---|-------|----------|-----------|
 | 1 | additionalSessions reset on WebSocket update | **CRITICAL** | Sidebar.jsx:131-134 |
 | 2 | Direct prop mutation in loadMoreSessions | **CRITICAL** | Sidebar.jsx:448 |
-| 3 | currentSessionId not synced with selectedSession | **CRITICAL** | ChatInterface.jsx:1996 |
+| 3 | currentSessionId sync is async (potential timing gap) | **MEDIUM** | ChatInterface.jsx:1996, 3260, 3277 |
 | 4 | sessions.length >= 0 always true (logic bug) | **HIGH** | Sidebar.jsx:148 |
 | 5 | loadMoreSessions lacks concurrent request protection | **HIGH** | Sidebar.jsx:419-456 |
 | 6 | Session protection timing gap | **HIGH** | App.jsx:233-234 |
-| 7 | Session replacement race condition | **HIGH** | ChatInterface.jsx:3657-3667 |
+| 7 | Session replacement race condition | **HIGH** | ChatInterface.jsx:3665-3667 |
 | 8 | Single-project-expand with no user indication | **MEDIUM** | Sidebar.jsx:196-204 |
 | 9 | Mobile/Desktop click handler inconsistency | **MEDIUM** | Sidebar.jsx:841-1149 |
 | 10 | localStorage polling every 1s (performance) | **MEDIUM** | Sidebar.jsx:183-187 |
-| 11 | deletingProjects set may not clear on error | **MEDIUM** | Sidebar.jsx:385-415 |
+| 11 | deletingProjects has finally block (verified working) | **LOW** | Sidebar.jsx:385-415 |
 | 12 | getAllSessions lacks deduplication | **MEDIUM** | Sidebar.jsx:234-245 |
 | 13 | checkInterval listener duplication potential | **LOW** | Sidebar.jsx:156-193 |
 | 14 | JSON.stringify may throw on circular refs | **LOW** | App.jsx:260 |
@@ -207,21 +224,23 @@ const handleUpdateProjectMeta = useCallback((projectName, metaUpdate) => {
 
 ---
 
-### Task 1.3: Fix currentSessionId Sync Issue
+### Task 1.3: Improve currentSessionId Sync Timing
 **Status:** [ ] Not Started
-**Priority:** P0 - Critical
+**Priority:** P2 - Medium (downgraded from Critical - sync already happens but asynchronously)
 **Files:** `src/components/ChatInterface.jsx`
 
+**Current State:** The sync DOES happen at lines 3260 and 3277 inside the async `loadMessages()` function, but this creates a timing gap where other code may reference the stale `currentSessionId` before the async sync completes.
+
 #### Subtasks:
-- [ ] 1.3.1: Add useEffect to sync currentSessionId with selectedSession.id
-- [ ] 1.3.2: Review all places that manually set currentSessionId
-- [ ] 1.3.3: Consolidate session ID management logic
+- [ ] 1.3.1: Add immediate useEffect to sync currentSessionId with selectedSession.id (before async operations)
+- [ ] 1.3.2: Review all places that manually set currentSessionId (lines 3260, 3277, and others)
+- [ ] 1.3.3: Consider if immediate sync causes any issues with the existing async flow
 - [ ] 1.3.4: Add test for session switching behavior
 
 #### Implementation:
 
 ```javascript
-// ChatInterface.jsx - Add sync effect
+// ChatInterface.jsx - Add immediate sync effect (runs before async loadMessages)
 useEffect(() => {
   if (selectedSession?.id && selectedSession.id !== currentSessionId) {
     setCurrentSessionId(selectedSession.id);
@@ -229,10 +248,12 @@ useEffect(() => {
 }, [selectedSession?.id, currentSessionId]);
 ```
 
+**Note:** This provides immediate sync. The existing async sync in `loadMessages()` can remain as a backup but the immediate effect ensures no timing gaps.
+
 #### Deliverables:
-- Session ID always in sync
+- Session ID syncs immediately when selectedSession changes
+- No timing gaps where currentSessionId is stale
 - Messages sent to correct session
-- No race conditions on session switch
 
 ---
 
@@ -394,7 +415,7 @@ const handleReplaceTemporarySession = useCallback(async (realSessionId) => {
 ### Task 2.4: Fix Session Replacement Race Condition
 **Status:** [ ] Not Started
 **Priority:** P1 - High
-**Files:** `src/components/ChatInterface.jsx:3657-3667`
+**Files:** `src/components/ChatInterface.jsx:3665-3667`
 
 #### Subtasks:
 - [ ] 2.4.1: Analyze complete session creation flow
@@ -477,15 +498,17 @@ useEffect(() => {
 
 ---
 
-### Task 3.4: Fix deletingProjects Lingering State
+### Task 3.4: Verify deletingProjects State Management (Low Priority)
 **Status:** [ ] Not Started
-**Priority:** P2 - Medium
+**Priority:** P3 - Low (downgraded - verified finally block works correctly at lines 409-415)
 **Files:** `src/components/Sidebar.jsx:385-415`
 
+**Current State:** The finally block at lines 409-415 correctly clears the `deletingProjects` state regardless of success or error. This task is now mainly verification/optional hardening.
+
 #### Subtasks:
-- [ ] 3.4.1: Ensure finally block always clears state
-- [ ] 3.4.2: Add timeout to clear state after max wait
-- [ ] 3.4.3: Add cleanup on unmount
+- [x] 3.4.1: Verify finally block always clears state (VERIFIED - code is correct)
+- [ ] 3.4.2: Optional: Add timeout to clear state after max wait (edge case protection)
+- [ ] 3.4.3: Optional: Add cleanup on unmount (defensive coding)
 
 ---
 
@@ -623,22 +646,22 @@ if (!projectsEqual(updatedSelectedProject, selectedProject)) {
 
 ```
 Week 1:
-├── Task 1.1: Fix additionalSessions reset (CRITICAL)
+├── Task 1.1: Fix additionalSessions reset (CRITICAL - Root cause of reported bug)
 ├── Task 1.2: Fix direct prop mutation (CRITICAL)
-└── Task 1.3: Fix currentSessionId sync (CRITICAL)
+├── Task 2.1: Fix sessions.length logic bug (HIGH)
+└── Task 2.2: Add concurrent request protection (HIGH)
 
 Week 2:
-├── Task 2.1: Fix sessions.length logic bug
-├── Task 2.2: Add concurrent request protection
-├── Task 2.3: Fix session protection timing gap
-└── Task 2.4: Fix session replacement race condition
+├── Task 2.3: Fix session protection timing gap (HIGH)
+├── Task 2.4: Fix session replacement race condition (HIGH)
+├── Task 1.3: Improve currentSessionId sync timing (MEDIUM - moved from Week 1)
+└── Task 3.5: Add session deduplication (MEDIUM)
 
 Week 3:
-├── Task 3.1: Improve project expansion UX
-├── Task 3.2: Fix mobile/desktop inconsistency
-├── Task 3.3: Optimize localStorage polling
-├── Task 3.4: Fix deletingProjects state
-└── Task 3.5: Add session deduplication
+├── Task 3.1: Improve project expansion UX (MEDIUM)
+├── Task 3.2: Fix mobile/desktop inconsistency (MEDIUM)
+├── Task 3.3: Optimize localStorage polling (MEDIUM)
+└── Task 3.4: Verify deletingProjects state (LOW - verified working)
 
 Week 4:
 ├── Task 4.1-4.3: Low priority cleanup
@@ -653,7 +676,8 @@ Week 4:
 
 ```
 Task 1.1 → Task 1.2 (prop mutation fix depends on state lifting)
-Task 1.3 → Task 2.3 → Task 2.4 (session ID fixes are related)
+Task 2.3 → Task 2.4 (session protection fixes are related)
+Task 1.3 is independent (can be done anytime, provides optional timing improvement)
 Task 3.3 → Task 3.4 (both involve event handling patterns)
 Task 5.* → All implementation tasks (tests validate fixes)
 ```
@@ -720,6 +744,8 @@ const debouncedUpdate = async (eventType, filePath) => {
 
 ---
 
-*Document Version: 1.0*
+*Document Version: 1.1*
 *Created: 2026-01-29*
+*Last Validated: 2026-01-29*
 *Author: Claude Code Analysis*
+*Validator: Claude Code (Opus 4.5)*

@@ -1,13 +1,16 @@
 /**
  * useNotifications Hook
  *
- * Core notification hook for browser desktop notifications.
+ * Core notification hook for browser notifications (desktop and mobile).
+ * Uses Service Worker-based notifications for cross-platform compatibility.
  * Handles permission management, settings persistence, and notification sending.
  *
  * @module hooks/useNotifications
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import BrowserNotificationService, { notificationService } from '../services/browserNotificationService';
+import { getNotificationSupport, detectPlatform } from '../utils/platformDetection';
 
 const NOTIFICATION_SETTINGS_KEY = 'notification-settings';
 
@@ -27,9 +30,12 @@ const defaultSettings = {
  * @property {Object} settings - User notification settings
  * @property {boolean} isSupported - Whether the browser supports notifications
  * @property {boolean} isTabVisible - Whether the current tab is visible
+ * @property {boolean} swRegistered - Whether the Service Worker is registered
+ * @property {Object} platformSupport - Platform support information
+ * @property {Object} platform - Platform detection results
  * @property {Function} requestPermission - Request notification permission from user
  * @property {Function} updateSettings - Update notification settings
- * @property {Function} sendNotification - Send a desktop notification
+ * @property {Function} sendNotification - Send a browser notification
  */
 export const useNotifications = () => {
   // Initialize permission state
@@ -58,6 +64,21 @@ export const useNotifications = () => {
     return true;
   });
 
+  // Service Worker registration state
+  const [swRegistered, setSwRegistered] = useState(false);
+
+  // Platform support information
+  const [platformSupport, setPlatformSupport] = useState(null);
+
+  // Platform detection results
+  const [platform, setPlatform] = useState(null);
+
+  // Check platform support on mount
+  useEffect(() => {
+    setPlatformSupport(getNotificationSupport());
+    setPlatform(detectPlatform());
+  }, []);
+
   // Track document visibility changes
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -75,6 +96,23 @@ export const useNotifications = () => {
       console.warn('Failed to save notification settings:', error);
     }
   }, [settings]);
+
+  // Register SW when notifications are enabled and permission is granted
+  useEffect(() => {
+    if (settings.enabled && permission === 'granted' && BrowserNotificationService.isSupported()) {
+      notificationService.register()
+        .then(() => {
+          setSwRegistered(true);
+          console.log('[Notifications] Service Worker registered');
+          return true;
+        })
+        .catch((error) => {
+          setSwRegistered(false);
+          console.error('[Notifications] Failed to register Service Worker:', error);
+          return false;
+        });
+    }
+  }, [settings.enabled, permission]);
 
   // Check if Notification API is supported
   const isSupported = useMemo(() => {
@@ -116,26 +154,29 @@ export const useNotifications = () => {
   }, []);
 
   /**
-   * Send a desktop notification
+   * Send a browser notification
+   * Uses Service Worker when available for cross-platform compatibility
+   * Falls back to legacy Notification API for non-Safari desktop browsers
+   *
    * @param {string} title - Notification title
    * @param {Object} options - Notification options (body, icon, tag, etc.)
-   * @returns {Notification|null} The notification instance or null if not sent
+   * @returns {Promise<boolean>} True if notification was sent successfully
    */
-  const sendNotification = useCallback((title, options = {}) => {
+  const sendNotification = useCallback(async (title, options = {}) => {
     // Check if we should send the notification
     if (!isSupported) {
       console.log('[Notifications] Browser does not support notifications');
-      return null;
+      return false;
     }
 
     if (permission !== 'granted') {
       console.log('[Notifications] Permission not granted:', permission);
-      return null;
+      return false;
     }
 
     if (!settings.enabled) {
       console.log('[Notifications] Notifications are disabled in settings');
-      return null;
+      return false;
     }
 
     // Respect "only when unfocused" setting
@@ -143,32 +184,57 @@ export const useNotifications = () => {
     const currentlyVisible = typeof document !== 'undefined' ? !document.hidden : true;
     if (settings.onlyWhenUnfocused && currentlyVisible) {
       console.log('[Notifications] Tab is visible and onlyWhenUnfocused is enabled, skipping notification');
-      return null;
+      return false;
     }
+
+    const notificationOptions = {
+      icon: '/icons/claude-ai-icon.svg',
+      badge: '/icons/icon-128x128.png',
+      tag: 'claude-complete',
+      requireInteraction: false,
+      silent: !settings.soundEnabled,
+      ...options
+    };
 
     try {
-      const notification = new Notification(title, {
-        icon: '/icons/claude-ai-icon.svg',
-        badge: '/icons/icon-128x128.png',
-        tag: 'claude-complete',
-        requireInteraction: false,
-        silent: !settings.soundEnabled,
-        ...options
-      });
+      // Use SW-based notification (works on all browsers including Safari)
+      if (swRegistered && BrowserNotificationService.isSupported()) {
+        await notificationService.showNotification(title, notificationOptions);
+        console.log('[Notifications] Notification sent via SW:', title);
+        return true;
+      }
 
-      // Focus window when notification is clicked
-      notification.onclick = () => {
-        window.focus();
-        notification.close();
-      };
+      // Try to register SW on-the-fly if not registered
+      if (BrowserNotificationService.isSupported()) {
+        try {
+          await notificationService.register();
+          setSwRegistered(true);
+          await notificationService.showNotification(title, notificationOptions);
+          console.log('[Notifications] Notification sent via SW (on-demand registration):', title);
+          return true;
+        } catch (swError) {
+          console.warn('[Notifications] SW registration failed, trying legacy API:', swError);
+        }
+      }
 
-      console.log('[Notifications] Notification sent:', title, options.body);
-      return notification;
+      // Fallback to legacy Notification (only for non-Safari desktop)
+      if (BrowserNotificationService.canUseLegacyNotification()) {
+        const notification = new Notification(title, notificationOptions);
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+        console.log('[Notifications] Notification sent via legacy API:', title);
+        return true;
+      }
+
+      console.warn('[Notifications] No notification method available');
+      return false;
     } catch (error) {
-      console.error('Failed to send notification:', error);
-      return null;
+      console.error('[Notifications] Failed to send notification:', error);
+      return false;
     }
-  }, [isSupported, permission, settings]);
+  }, [isSupported, permission, settings, swRegistered]);
 
   return {
     // State
@@ -176,6 +242,9 @@ export const useNotifications = () => {
     settings,
     isSupported,
     isTabVisible,
+    swRegistered,
+    platformSupport,
+    platform,
 
     // Actions
     requestPermission,
