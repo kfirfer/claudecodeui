@@ -1990,9 +1990,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     restoreProcessing,
     resetForSessionSwitch,
     hasRecentlyCompleted,
-    // Legacy setters with guards for backward compatibility
-    setIsLoading,
-    setCanAbortSession,
+    // Legacy setters with guards for backward compatibility (prefixed with _ since unified handlers are preferred)
     setClaudeStatus
   } = useChatSessionState();
   const [currentSessionId, setCurrentSessionId] = useState(selectedSession?.id || null);
@@ -2034,6 +2032,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   // (prevents background sessions from streaming into a different view).
   const pendingViewSessionRef = useRef(null);
   const commandQueryTimerRef = useRef(null);
+  // Stuck detection: track last message time and show recovery option
+  const lastMessageTimeRef = useRef(Date.now());
+  const [showStuckRecovery, setShowStuckRecovery] = useState(false);
   const [_debouncedInput, setDebouncedInput] = useState('');
   const [showFileDropdown, setShowFileDropdown] = useState(false);
   const [fileList, setFileList] = useState([]);
@@ -2116,7 +2117,41 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   useEffect(() => {
     setPendingPermissionRequests(prev => prev.filter(req => !req.sessionId || req.sessionId === selectedSession?.id));
   }, [selectedSession?.id]);
-  
+
+  // Stuck session detection - show recovery option if loading for 5+ minutes without messages
+  useEffect(() => {
+    if (!isLoading) {
+      // Reset stuck recovery state when not loading
+      setShowStuckRecovery(false);
+      return;
+    }
+
+    // Check if we've been loading for too long without messages (5 minutes)
+    const STUCK_TIMEOUT_MS = 5 * 60 * 1000;
+
+    const checkStuck = () => {
+      const timeSinceLastMessage = Date.now() - lastMessageTimeRef.current;
+      if (timeSinceLastMessage >= STUCK_TIMEOUT_MS) {
+        console.warn('[ChatInterface] Session appears stuck - no messages for 5 minutes');
+        setShowStuckRecovery(true);
+      }
+    };
+
+    // Check periodically (every 30 seconds)
+    const stuckCheckInterval = setInterval(checkStuck, 30000);
+
+    // Also set a timeout for the full stuck duration
+    const stuckTimeout = setTimeout(() => {
+      console.warn('[ChatInterface] Session appears stuck, offering recovery option');
+      setShowStuckRecovery(true);
+    }, STUCK_TIMEOUT_MS);
+
+    return () => {
+      clearInterval(stuckCheckInterval);
+      clearTimeout(stuckTimeout);
+    };
+  }, [isLoading]);
+
   // Load Cursor default model from config
   useEffect(() => {
     if (provider === 'cursor') {
@@ -3418,11 +3453,86 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     };
   }, [isConnected, isLoading, connectionLost]);
 
+  // Unified completion handler for all providers
+  // This consolidates completion logic to ensure consistent behavior
+  const handleSessionCompletion = useCallback((sessionId, provider, options = {}) => {
+    const { exitCode = 0, isError = false, message = null } = options;
+
+    // 1. Atomic state update using the state machine
+    if (sessionId === currentSessionId || !currentSessionId) {
+      if (isError) {
+        sessionError(sessionId);
+      } else {
+        sessionCompleted(sessionId);
+      }
+    }
+
+    // 2. Send browser notification
+    const notificationContent = getNotificationContent(provider, message || { exitCode }, selectedProject);
+    sendNotificationRef.current(notificationContent.title, {
+      body: notificationContent.body,
+      tag: notificationContent.tag
+    });
+
+    // 3. Update session protection state
+    if (sessionId) {
+      onSessionInactive?.(sessionId);
+      onSessionNotProcessing?.(sessionId);
+    }
+
+    // 4. Handle pending session ID for new sessions
+    const pendingSessionId = sessionStorage.getItem('pendingSessionId');
+    if (pendingSessionId && !currentSessionId && exitCode === 0 && !isError) {
+      setCurrentSessionId(pendingSessionId);
+      sessionStorage.removeItem('pendingSessionId');
+      console.log(`${provider} session complete, ID set to:`, pendingSessionId);
+    }
+
+    // 5. Clear persisted chat messages after successful completion
+    if (!isError && selectedProject && exitCode === 0) {
+      safeLocalStorage.removeItem(`chat_messages_${selectedProject.name}`);
+    }
+
+    // 6. Clear permission requests
+    setPendingPermissionRequests([]);
+  }, [currentSessionId, selectedProject, sessionCompleted, sessionError, onSessionInactive, onSessionNotProcessing]);
+
+  // Unified error handler for all providers
+  const handleSessionError = useCallback((sessionId, provider, error, message = null) => {
+    // Add error message to chat
+    setChatMessages(prev => [...prev, {
+      type: 'error',
+      content: `${provider} error: ${error}`,
+      timestamp: new Date()
+    }]);
+
+    // Use unified completion handler with error flag
+    handleSessionCompletion(sessionId, provider, {
+      isError: true,
+      message
+    });
+  }, [handleSessionCompletion]);
+
   useEffect(() => {
     // Handle WebSocket messages
     if (messages.length > 0) {
       const latestMessage = messages[messages.length - 1];
       const messageData = latestMessage.data?.message || latestMessage.data;
+
+      // Track last message time for stuck detection
+      // Any message from the backend indicates the session is alive
+      const messageTypesIndicatingActivity = [
+        'claude-response', 'cursor-output', 'codex-response',
+        'claude-status', 'cursor-status', 'codex-status',
+        'session-status', 'token-budget'
+      ];
+      if (messageTypesIndicatingActivity.includes(latestMessage.type)) {
+        lastMessageTimeRef.current = Date.now();
+        // Reset stuck recovery if we're getting messages
+        if (showStuckRecovery) {
+          setShowStuckRecovery(false);
+        }
+      }
 
       // Filter messages by session ID to prevent cross-session interference
       // Skip filtering for global messages that apply to all sessions
@@ -3854,23 +3964,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           // Get session ID from message or fall back to current session
           const errorSessionId = latestMessage.sessionId || currentSessionId;
 
-          setChatMessages(prev => [...prev, {
-            type: 'error',
-            content: `Error: ${latestMessage.error}`,
-            timestamp: new Date()
-          }]);
-
-          // Reset loading state if this error is for the current session
-          if (errorSessionId === currentSessionId || !currentSessionId) {
-            setIsLoading(false);
-            setCanAbortSession(false);
-            setClaudeStatus(null);
-          }
-
-          // Mark the session as no longer processing
-          if (errorSessionId) {
-            onSessionNotProcessing?.(errorSessionId);
-          }
+          // Use unified error handler for consistent behavior
+          handleSessionError(errorSessionId, 'Claude', latestMessage.error, latestMessage);
           break;
         }
           
@@ -3927,23 +4022,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           // Get session ID from message or fall back to current session
           const cursorErrorSessionId = latestMessage.sessionId || currentSessionId;
 
-          // Show Cursor errors as error messages in chat
-          setChatMessages(prev => [...prev, {
-            type: 'error',
-            content: `Cursor error: ${latestMessage.error || 'Unknown error'}`,
-            timestamp: new Date()
-          }]);
-
-          // Reset loading state if this error is for the current session
-          // Using atomic sessionError() to prevent race conditions and flickering
-          if (cursorErrorSessionId === currentSessionId || !currentSessionId) {
-            sessionError(cursorErrorSessionId);
-          }
-
-          // Mark the session as no longer processing
-          if (cursorErrorSessionId) {
-            onSessionNotProcessing?.(cursorErrorSessionId);
-          }
+          // Use unified error handler for consistent behavior
+          handleSessionError(cursorErrorSessionId, 'Cursor', latestMessage.error || 'Unknown error', latestMessage);
           break;
         }
 
@@ -3951,30 +4031,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           // Get session ID from message or fall back to current session
           const cursorCompletedSessionId = latestMessage.sessionId || currentSessionId;
 
-          // Only update UI state if this is the current session
-          // Using atomic sessionCompleted() to prevent race conditions and flickering
-          if (cursorCompletedSessionId === currentSessionId) {
-            sessionCompleted(cursorCompletedSessionId);
-          }
-
-          // Send browser notification for task completion
-          const cursorNotificationContent = getNotificationContent('cursor', latestMessage, selectedProject);
-          sendNotificationRef.current(cursorNotificationContent.title, {
-            body: cursorNotificationContent.body,
-            tag: cursorNotificationContent.tag
-          });
-
-          // Always mark the completed session as inactive and not processing
-          if (cursorCompletedSessionId) {
-            if (onSessionInactive) {
-              onSessionInactive(cursorCompletedSessionId);
-            }
-            if (onSessionNotProcessing) {
-              onSessionNotProcessing(cursorCompletedSessionId);
-            }
-          }
-
-          // Only process result for current session
+          // Process Cursor-specific result content for current session
           if (cursorCompletedSessionId === currentSessionId) {
             try {
               const r = latestMessage.data || {};
@@ -4006,21 +4063,20 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             }
           }
 
-          // Store session ID for future use and trigger refresh (for new sessions)
-          {
-          const pendingCursorSessionId = sessionStorage.getItem('pendingSessionId');
-          if (cursorCompletedSessionId && !currentSessionId && cursorCompletedSessionId === pendingCursorSessionId) {
-            setCurrentSessionId(cursorCompletedSessionId);
-            sessionStorage.removeItem('pendingSessionId');
+          // Use unified completion handler for consistent behavior
+          handleSessionCompletion(cursorCompletedSessionId, 'cursor', {
+            exitCode: 0,
+            message: latestMessage
+          });
 
-            // Trigger a project refresh to update the sidebar with the new session
+          // Trigger a project refresh for new sessions (Cursor-specific)
+          if (!currentSessionId && cursorCompletedSessionId) {
             if (window.refreshProjects) {
               setTimeout(() => window.refreshProjects(), 500);
             }
           }
-          }
-          }
           break;
+        }
 
         case 'cursor-output':
           // Handle Cursor raw terminal output; strip ANSI and ignore empty control-only payloads
@@ -4058,46 +4114,11 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           // Get session ID from message or fall back to current session
           const completedSessionId = latestMessage.sessionId || currentSessionId || sessionStorage.getItem('pendingSessionId');
 
-          // Update UI state if this is the current session OR if we don't have a session ID yet (new session)
-          // Using atomic sessionCompleted() to prevent race conditions and flickering
-          if (completedSessionId === currentSessionId || !currentSessionId) {
-            sessionCompleted(completedSessionId);
-          }
-
-          // Send browser notification for task completion
-          const notificationContent = getNotificationContent('claude', latestMessage, selectedProject);
-          sendNotificationRef.current(notificationContent.title, {
-            body: notificationContent.body,
-            tag: notificationContent.tag
+          // Use unified completion handler for consistent behavior
+          handleSessionCompletion(completedSessionId, 'claude', {
+            exitCode: latestMessage.exitCode || 0,
+            message: latestMessage
           });
-
-          // Always mark the completed session as inactive and not processing
-          if (completedSessionId) {
-            if (onSessionInactive) {
-              onSessionInactive(completedSessionId);
-            }
-            if (onSessionNotProcessing) {
-              onSessionNotProcessing(completedSessionId);
-            }
-          }
-
-          // If we have a pending session ID and the conversation completed successfully, use it
-          const pendingSessionId = sessionStorage.getItem('pendingSessionId');
-          if (pendingSessionId && !currentSessionId && latestMessage.exitCode === 0) {
-                setCurrentSessionId(pendingSessionId);
-            sessionStorage.removeItem('pendingSessionId');
-
-            // No need to manually refresh - projects_updated WebSocket message will handle it
-            console.log('New session complete, ID set to:', pendingSessionId);
-          }
-
-          // Clear persisted chat messages after successful completion
-          if (selectedProject && latestMessage.exitCode === 0) {
-            safeLocalStorage.removeItem(`chat_messages_${selectedProject.name}`);
-          }
-          // Conversation finished; clear any stale permission prompts.
-          // This does not remove saved permissions; it only resets transient UI state.
-          setPendingPermissionRequests([]);
           break;
         }
 
@@ -4217,27 +4238,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           // Handle Codex session completion
           const codexCompletedSessionId = latestMessage.sessionId || currentSessionId || sessionStorage.getItem('pendingSessionId');
 
-          // Using atomic sessionCompleted() to prevent race conditions and flickering
-          if (codexCompletedSessionId === currentSessionId || !currentSessionId) {
-            sessionCompleted(codexCompletedSessionId);
-          }
-
-          // Send browser notification for task completion
-          const codexNotificationContent = getNotificationContent('codex', latestMessage, selectedProject);
-          sendNotificationRef.current(codexNotificationContent.title, {
-            body: codexNotificationContent.body,
-            tag: codexNotificationContent.tag
-          });
-
-          if (codexCompletedSessionId) {
-            if (onSessionInactive) {
-              onSessionInactive(codexCompletedSessionId);
-            }
-            if (onSessionNotProcessing) {
-              onSessionNotProcessing(codexCompletedSessionId);
-            }
-          }
-
+          // Handle Codex-specific session navigation for new sessions
           const codexPendingSessionId = sessionStorage.getItem('pendingSessionId');
           const codexActualSessionId = latestMessage.actualSessionId || codexPendingSessionId;
           if (codexPendingSessionId && !currentSessionId) {
@@ -4250,9 +4251,11 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             console.log('Codex session complete, ID set to:', codexPendingSessionId);
           }
 
-          if (selectedProject) {
-            safeLocalStorage.removeItem(`chat_messages_${selectedProject.name}`);
-          }
+          // Use unified completion handler for consistent behavior
+          handleSessionCompletion(codexCompletedSessionId, 'codex', {
+            exitCode: 0,
+            message: latestMessage
+          });
           break;
         }
 
@@ -4260,23 +4263,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           // Get session ID from message or fall back to current session
           const codexErrorSessionId = latestMessage.sessionId || currentSessionId;
 
-          // Handle Codex errors
-          setChatMessages(prev => [...prev, {
-            type: 'error',
-            content: latestMessage.error || 'An error occurred with Codex',
-            timestamp: new Date()
-          }]);
-
-          // Reset loading state if this error is for the current session
-          // Using atomic sessionError() to prevent race conditions and flickering
-          if (codexErrorSessionId === currentSessionId || !currentSessionId) {
-            sessionError(codexErrorSessionId);
-          }
-
-          // Mark the session as no longer processing
-          if (codexErrorSessionId) {
-            onSessionNotProcessing?.(codexErrorSessionId);
-          }
+          // Use unified error handler for consistent behavior
+          handleSessionError(codexErrorSessionId, 'Codex', latestMessage.error || 'An error occurred with Codex', latestMessage);
           break;
         }
 
@@ -4284,31 +4272,18 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           // Get session ID from message or fall back to current session
           const abortedSessionId = latestMessage.sessionId || currentSessionId;
 
-          // Only update UI state if this is the current session
-          // Using atomic sessionError() to prevent race conditions and flickering
-          if (abortedSessionId === currentSessionId) {
-            sessionError(abortedSessionId);
-          }
-
-          // Always mark the aborted session as inactive and not processing
-          if (abortedSessionId) {
-            if (onSessionInactive) {
-              onSessionInactive(abortedSessionId);
-            }
-            if (onSessionNotProcessing) {
-              onSessionNotProcessing(abortedSessionId);
-            }
-          }
-
-          // Abort ends the run; clear permission prompts to avoid dangling UI state.
-          // This does not change allowlists; it only clears the current banner.
-          setPendingPermissionRequests([]);
-
+          // Add abort message to chat
           setChatMessages(prev => [...prev, {
             type: 'assistant',
             content: 'Session interrupted by user.',
             timestamp: new Date()
           }]);
+
+          // Use unified completion handler with error flag for aborts
+          handleSessionCompletion(abortedSessionId, 'claude', {
+            isError: true,
+            message: latestMessage
+          });
           break;
         }
 
@@ -5223,6 +5198,29 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     }
   };
 
+  // Force reset for stuck sessions - resets all loading state unconditionally
+  const handleForceReset = useCallback(() => {
+    console.log('[ChatInterface] Force resetting stuck session');
+
+    // Reset all session state
+    sessionCompleted(currentSessionId);
+
+    // Clear the stuck recovery UI
+    setShowStuckRecovery(false);
+
+    // Reset the last message time
+    lastMessageTimeRef.current = Date.now();
+
+    // Try to abort the session on the backend as well
+    if (currentSessionId) {
+      sendMessage({
+        type: 'abort-session',
+        sessionId: currentSessionId,
+        provider: provider
+      });
+    }
+  }, [currentSessionId, provider, sendMessage, sessionCompleted]);
+
   const handleModeSwitch = () => {
     // Codex doesn't support plan mode
     const modes = provider === 'codex'
@@ -5582,6 +5580,37 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                 showThinking={showThinking}
               />
               </div>
+
+        {/* Stuck Session Recovery UI */}
+        {showStuckRecovery && isLoading && (
+          <div className="max-w-4xl mx-auto mb-3">
+            <div className="rounded-lg border border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/30 p-3 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-orange-800 dark:text-orange-200">
+                      Session appears stuck
+                    </p>
+                    <p className="text-xs text-orange-600 dark:text-orange-400">
+                      No response received for 5+ minutes
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleForceReset}
+                  className="px-3 py-1.5 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-md transition-colors"
+                >
+                  Force Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Permission Mode Selector with scroll to bottom button - Above input, clickable for mobile */}
         <div ref={inputContainerRef} className="max-w-4xl mx-auto mb-3">
           {pendingPermissionRequests.length > 0 && (

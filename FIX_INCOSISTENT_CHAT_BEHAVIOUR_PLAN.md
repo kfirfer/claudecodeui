@@ -392,7 +392,7 @@ useEffect(() => {
 - [ ] 3.1.3: Add visual indicator for "reconnecting" state
 
 #### Task 3.2: Implement Message Queue Cleanup
-**Status:** [ ]
+**Status:** [DONE]
 **File:** `src/utils/websocket.js`
 
 ```javascript
@@ -419,8 +419,8 @@ websocket.onmessage = (event) => {
 ```
 
 **Subtasks:**
-- [ ] 3.2.1: Add message queue size limit
-- [ ] 3.2.2: Implement periodic cleanup of old messages
+- [x] 3.2.1: Add message queue size limit
+- [x] 3.2.2: Implement periodic cleanup of old messages
 - [ ] 3.2.3: Add message filtering by session ID
 
 ---
@@ -429,7 +429,7 @@ websocket.onmessage = (event) => {
 **Goal:** Ensure consistent behavior across all providers.
 
 #### Task 4.1: Create Unified Completion Handler
-**Status:** [ ]
+**Status:** [DONE]
 **File:** `src/components/ChatInterface.jsx`
 
 Extract completion logic into a single reusable function:
@@ -475,14 +475,14 @@ const handleSessionCompletion = useCallback((sessionId, provider, options = {}) 
 ```
 
 **Subtasks:**
-- [ ] 4.1.1: Create `handleSessionCompletion` function
-- [ ] 4.1.2: Refactor `claude-complete` to use unified handler
-- [ ] 4.1.3: Refactor `cursor-result` to use unified handler
-- [ ] 4.1.4: Refactor `codex-complete` to use unified handler
-- [ ] 4.1.5: Refactor `session-aborted` to use unified handler
+- [x] 4.1.1: Create `handleSessionCompletion` function
+- [x] 4.1.2: Refactor `claude-complete` to use unified handler
+- [x] 4.1.3: Refactor `cursor-result` to use unified handler
+- [x] 4.1.4: Refactor `codex-complete` to use unified handler
+- [x] 4.1.5: Refactor `session-aborted` to use unified handler
 
 #### Task 4.2: Create Unified Error Handler
-**Status:** [ ]
+**Status:** [DONE]
 **File:** `src/components/ChatInterface.jsx`
 
 ```javascript
@@ -501,10 +501,10 @@ const handleSessionError = useCallback((sessionId, provider, error) => {
 ```
 
 **Subtasks:**
-- [ ] 4.2.1: Create `handleSessionError` function
-- [ ] 4.2.2: Refactor `claude-error` to use unified handler
-- [ ] 4.2.3: Refactor `cursor-error` to use unified handler
-- [ ] 4.2.4: Refactor `codex-error` to use unified handler
+- [x] 4.2.1: Create `handleSessionError` function
+- [x] 4.2.2: Refactor `claude-error` to use unified handler
+- [x] 4.2.3: Refactor `cursor-error` to use unified handler
+- [x] 4.2.4: Refactor `codex-error` to use unified handler
 
 ---
 
@@ -634,7 +634,7 @@ function ClaudeStatus({ status, onAbort, isLoading, provider }) {
 - [x] 6.1.3: Preserve elapsed time across brief state changes
 
 #### Task 6.2: Add "Stuck" Detection and Recovery
-**Status:** [ ]
+**Status:** [DONE]
 **File:** `src/components/ChatInterface.jsx`
 
 Add detection for sessions that appear stuck:
@@ -654,10 +654,10 @@ useEffect(() => {
 ```
 
 **Subtasks:**
-- [ ] 6.2.1: Track last message timestamp
-- [ ] 6.2.2: Add 5-minute timeout for stuck detection
-- [ ] 6.2.3: Add UI for "Force Reset" option
-- [ ] 6.2.4: Implement force reset functionality
+- [x] 6.2.1: Track last message timestamp
+- [x] 6.2.2: Add 5-minute timeout for stuck detection
+- [x] 6.2.3: Add UI for "Force Reset" option
+- [x] 6.2.4: Implement force reset functionality
 
 ---
 

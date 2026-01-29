@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 
+// Maximum number of messages to keep in the queue to prevent memory issues
+const MAX_MESSAGES = 1000;
+
 export function useWebSocket() {
   const [ws, setWs] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -53,7 +56,14 @@ export function useWebSocket() {
       websocket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          setMessages(prev => [...prev, data]);
+          setMessages(prev => {
+            const updated = [...prev, data];
+            // Keep only the most recent messages to prevent memory issues
+            if (updated.length > MAX_MESSAGES) {
+              return updated.slice(-MAX_MESSAGES);
+            }
+            return updated;
+          });
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
         }
