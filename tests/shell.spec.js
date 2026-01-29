@@ -13,11 +13,17 @@ test.describe('Server Health', () => {
 });
 
 test.describe('Shell WebSocket Connection', () => {
-  test('should show login page when not authenticated', async ({ page }) => {
+  test('should show login page when not authenticated', async ({ page, context }) => {
+    // Navigate first, then clear storage to test unauthenticated experience
     await page.goto('/');
+    await context.clearCookies();
+    await page.evaluate(() => localStorage.clear());
+
+    // Reload to see unauthenticated state
+    await page.reload();
     await page.waitForLoadState('networkidle');
 
-    // Should show login/registration form
+    // Should show login/registration form (password field indicates auth form)
     const loginForm = page.locator('input#password');
     await expect(loginForm).toBeVisible({ timeout: 10000 });
   });

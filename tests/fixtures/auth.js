@@ -58,7 +58,7 @@ export async function authenticate(page, options = {}) {
   const submitButton = page.locator('button[type="submit"]');
   const errorMessage = page.locator('text=/error|failed|invalid/i');
   const nextButton = page.getByRole('button', { name: /next/i });
-  const finishButton = page.getByRole('button', { name: /finish|complete|done|get started/i });
+  const finishButton = page.getByRole('button', { name: /finish|complete setup|complete|done|get started/i });
 
   // Wait for one of the possible states to appear
   const stateDetected = await Promise.race([

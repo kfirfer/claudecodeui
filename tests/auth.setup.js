@@ -37,7 +37,7 @@ setup('authenticate', async ({ page }) => {
   const passwordInput = page.locator('input#password');
   const confirmPasswordInput = page.locator('input#confirmPassword');
   const nextButton = page.getByRole('button', { name: /next/i });
-  const finishButton = page.getByRole('button', { name: /finish|complete|done|get started/i });
+  const finishButton = page.getByRole('button', { name: /finish|complete setup|complete|done|get started/i });
 
   // Wait for either logged in state, onboarding wizard, or auth form
   const initialState = await Promise.race([
