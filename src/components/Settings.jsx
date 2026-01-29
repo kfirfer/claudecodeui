@@ -927,11 +927,11 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
         <div className="flex-1 overflow-y-auto">
           {/* Tab Navigation */}
           <div className="border-b border-border">
-            <div className="flex px-4 md:px-6">
+            <div className="flex px-4 md:px-6 overflow-x-auto scrollbar-hide">
               <button
                 type="button"
                 onClick={() => setActiveTab('agents')}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
                   activeTab === 'agents'
                     ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -942,7 +942,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
               <button
                 type="button"
                 onClick={() => setActiveTab('appearance')}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
                   activeTab === 'appearance'
                     ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -953,7 +953,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
               <button
                 type="button"
                 onClick={() => setActiveTab('git')}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
                   activeTab === 'git'
                     ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -965,7 +965,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
               <button
                 type="button"
                 onClick={() => setActiveTab('api')}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
                   activeTab === 'api'
                     ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -977,7 +977,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
               <button
                 type="button"
                 onClick={() => setActiveTab('tasks')}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
                   activeTab === 'tasks'
                     ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -988,7 +988,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
               <button
                 type="button"
                 onClick={() => setActiveTab('notifications')}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
                   activeTab === 'notifications'
                     ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
