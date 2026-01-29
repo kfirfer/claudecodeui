@@ -2006,6 +2006,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   const pendingScrollRestoreRef = useRef(null);
   // Track when we're restoring scroll position after pagination to prevent auto-scroll interference
   const isPaginationScrollRestoreRef = useRef(false);
+  // Track the last processed external message update to prevent duplicate reloads
+  const lastProcessedExternalUpdateRef = useRef(0);
   // Streaming throttle buffers
   const streamBufferRef = useRef('');
   const streamTimerRef = useRef(null);
@@ -3267,7 +3269,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   // This triggers when App.jsx detects a JSONL file change for the currently-viewed session
   // Only reloads if the session is NOT active (respecting Session Protection System)
   useEffect(() => {
-    if (externalMessageUpdate > 0 && selectedSession && selectedProject) {
+    // Only process NEW external updates, not when other dependencies change
+    if (externalMessageUpdate > 0 && externalMessageUpdate !== lastProcessedExternalUpdateRef.current && selectedSession && selectedProject) {
+      lastProcessedExternalUpdateRef.current = externalMessageUpdate;
       const reloadExternalMessages = async () => {
         try {
           const provider = localStorage.getItem('selected-provider') || 'claude';

@@ -213,7 +213,14 @@ async function createProject(page, projectPath) {
     }
   }
 
-  // Wait for project to be visible
+  // Wait for project to be visible (may need to scroll the project list)
+  // Try scrolling the project list to find the project
+  const projectList = page.locator('.overflow-y-auto').first();
+  const hasProjectList = await projectList.count() > 0;
+  if (hasProjectList) {
+    await projectList.evaluate(el => el.scrollTo(0, el.scrollHeight));
+  }
+
   await expect(projectButton).toBeVisible({ timeout: 15000 });
 
   return projectName;
@@ -535,6 +542,9 @@ test.describe('Notification Trigger', () => {
     !process.env.TEST_USERNAME || !process.env.TEST_PASSWORD,
     'Skipping tests - set TEST_USERNAME and TEST_PASSWORD env vars'
   );
+
+  // Run trigger tests serially to avoid parallel project creation conflicts
+  test.describe.configure({ mode: 'serial' });
 
   test.use({
     viewport: { width: 1400, height: 900 }
