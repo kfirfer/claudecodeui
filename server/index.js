@@ -1648,6 +1648,7 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
     const parsedContextWindow = parseInt(process.env.CONTEXT_WINDOW, 10);
     const contextWindow = Number.isFinite(parsedContextWindow) ? parsedContextWindow : 160000;
     let inputTokens = 0;
+    let outputTokens = 0;
     let cacheCreationTokens = 0;
     let cacheReadTokens = 0;
 
@@ -1662,6 +1663,7 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
 
           // Use token counts from latest assistant message only
           inputTokens = usage.input_tokens || 0;
+          outputTokens = usage.output_tokens || 0;
           cacheCreationTokens = usage.cache_creation_input_tokens || 0;
           cacheReadTokens = usage.cache_read_input_tokens || 0;
 
@@ -1673,14 +1675,17 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
       }
     }
 
-    // Calculate total context usage (excluding output_tokens, as per ccusage)
-    const totalUsed = inputTokens + cacheCreationTokens + cacheReadTokens;
+    // Context window usage = input + output + cache tokens
+    // The context window is a shared limit for both input and output tokens
+    // See: https://platform.claude.com/docs/en/build-with-claude/context-windows
+    const totalUsed = inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens;
 
     res.json({
       used: totalUsed,
       total: contextWindow,
       breakdown: {
         input: inputTokens,
+        output: outputTokens,
         cacheCreation: cacheCreationTokens,
         cacheRead: cacheReadTokens
       }
