@@ -304,6 +304,31 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
       await expect(userMessage).toBeVisible();
 
       // ==========================================
+      // Step 4.5: Validate token usage percentage
+      // ==========================================
+      // Wait for Claude's response (look for Claude message indicator)
+      const claudeResponse = page.locator('[class*="Claude"], [data-role="assistant"]').first();
+      await expect(claudeResponse).toBeVisible({ timeout: 60000 });
+
+      // Wait for token usage to be updated (the percentage indicator)
+      // The token usage is displayed as "X.X%" near the bottom of the chat
+      const tokenUsageIndicator = page.locator('text=/\\d+\\.\\d+%/').first();
+      await expect(tokenUsageIndicator).toBeVisible({ timeout: 10000 });
+
+      // Get the percentage value and validate it's reasonable
+      const percentageText = await tokenUsageIndicator.textContent();
+      const percentage = parseFloat(percentageText.replace('%', ''));
+
+      // For a simple "Hello" message in a clean project (no CLAUDE.md):
+      // - System prompt + tools: unavoidable baseline
+      // - User message + response: minimal tokens
+      // The percentage should be LOW (under 5%) for just conversation tokens
+      // If it's high (>15%), something is wrong with the calculation
+      console.log(`Token usage percentage: ${percentage}%`);
+      expect(percentage).toBeGreaterThan(0); // Should have some usage
+      expect(percentage).toBeLessThan(5); // Should be very low for a simple message
+
+      // ==========================================
       // Step 5: Delete the session (optional - may not be visible)
       // ==========================================
       // Re-click the project to ensure it's expanded
