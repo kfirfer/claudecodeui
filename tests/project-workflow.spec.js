@@ -304,25 +304,30 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
       await expect(userMessage).toBeVisible();
 
       // ==========================================
-      // Step 4.5: Validate token usage percentage
+      // Step 4.5: Wait for Claude to complete and validate token usage
       // ==========================================
-      // Wait for Claude's response (look for the text "Claude" as the assistant name)
-      const claudeResponse = page.getByText('Claude', { exact: true }).first();
-      await expect(claudeResponse).toBeVisible({ timeout: 60000 });
+      // Wait for the processing bar to disappear (contains "Processing..." text and Stop button)
+      const processingBar = page.locator('button:has-text("Stop")').first();
+      await expect(processingBar).toBeHidden({ timeout: 120000 });
 
-      // Wait for token usage to be updated (the percentage indicator shows "X.X%")
-      // The token usage pie is displayed near the bottom of the chat interface
+      // Wait for token usage to show a non-zero value (real data from WebSocket)
       const tokenUsageIndicator = page.locator('span:has-text("%")').filter({ hasText: /^\d+\.\d+%$/ }).first();
-      await expect(tokenUsageIndicator).toBeVisible({ timeout: 10000 });
+      await expect(tokenUsageIndicator).toBeVisible({ timeout: 15000 });
 
-      // Get the percentage value and validate it's reasonable
+      // Wait until we get a real percentage (not 0.0%)
+      await expect(async () => {
+        const text = await tokenUsageIndicator.textContent();
+        const value = parseFloat(text.replace('%', ''));
+        expect(value).toBeGreaterThan(0);
+      }).toPass({ timeout: 30000 });
+
       const percentageText = await tokenUsageIndicator.textContent();
       const percentage = parseFloat(percentageText.replace('%', ''));
 
-      // For a simple "Hello" message in a clean project (no CLAUDE.md):
-      // Context usage should be very low (under 5%) for just the conversation
-      console.log(`Token usage percentage (initial): ${percentage}%`);
-      expect(percentage).toBeGreaterThanOrEqual(0);
+      console.log(`Token usage percentage (initial after response): ${percentage}%`);
+
+      // For a simple "Hello" message, context usage should be low (under 5%)
+      expect(percentage).toBeGreaterThan(0);
       expect(percentage).toBeLessThan(5);
 
       // ==========================================
@@ -332,49 +337,43 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
       await page.reload();
       await page.waitForLoadState('networkidle');
 
-      // Re-authenticate if needed (page refresh may require re-login)
+      // Re-authenticate if needed
       const loginForm = page.locator('input[type="password"]').first();
       const needsLogin = await loginForm.isVisible().catch(() => false);
       if (needsLogin) {
         await performLogin(page);
       }
 
-      // Navigate back to the session - click on the project first to expand it
+      // Navigate back to the session
       const projectAfterRefresh = page.locator(`button:has-text("${renamedProjectName}")`).first();
       await expect(projectAfterRefresh).toBeVisible({ timeout: 15000 });
       await projectAfterRefresh.click();
 
-      // Wait for sessions to load (skeleton loaders disappear)
-      await page.waitForTimeout(2000);
+      // Wait for sessions to load
+      await page.waitForTimeout(3000);
 
-      // Click on the first session under the project (it should be our test session)
-      // Sessions are shown as items with a clock icon and message preview
-      const sessionAfterRefresh = page.locator(`button:has-text("${renamedProjectName}")`).first()
-        .locator('..').locator('button').filter({ hasText: /Hello|test/i }).first();
-
-      // If the session selector doesn't work, try clicking on any visible session item
+      // Click on the session with our test message
+      const sessionAfterRefresh = page.locator('button').filter({ hasText: /Hello.*test|test.*Hello/i }).first();
       const sessionVisible = await sessionAfterRefresh.isVisible().catch(() => false);
       if (sessionVisible) {
         await sessionAfterRefresh.click();
-      } else {
-        // Try alternative: look for any session item in the expanded project
-        const anySession = page.locator('button[class*="session"], button:has(.lucide-message-square)').first();
-        const anySessionVisible = await anySession.isVisible().catch(() => false);
-        if (anySessionVisible) {
-          await anySession.click();
-        }
       }
 
-      // Wait for chat to reload - look for the token percentage indicator
+      // Wait for the token percentage to be visible after refresh
       const tokenUsageAfterRefresh = page.locator('span:has-text("%")').filter({ hasText: /^\d+\.\d+%$/ }).first();
       await expect(tokenUsageAfterRefresh).toBeVisible({ timeout: 15000 });
+
+      // Wait for the percentage to stabilize
+      await page.waitForTimeout(2000);
+
       const percentageAfterRefresh = await tokenUsageAfterRefresh.textContent();
       const percentageValueAfterRefresh = parseFloat(percentageAfterRefresh.replace('%', ''));
 
       console.log(`Token usage percentage (after page refresh): ${percentageValueAfterRefresh}%`);
 
-      // The percentage should remain low and consistent after page refresh
-      // This validates that the REST API endpoint returns the same value as WebSocket
+      // CRITICAL: The percentage after refresh should remain LOW (under 5%)
+      // It might be 0% if the JSONL doesn't have data yet, or a small value
+      // The key is that it should NOT jump to 16%+ which would indicate a bug
       expect(percentageValueAfterRefresh).toBeGreaterThanOrEqual(0);
       expect(percentageValueAfterRefresh).toBeLessThan(5);
 
