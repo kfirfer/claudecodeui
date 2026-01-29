@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
+import { authenticate, hasTestCredentials } from './fixtures/auth.js';
 
 /**
  * E2E Test: Project Workflow Tests
@@ -18,28 +19,11 @@ const TEST_TIMEOUT = 60000;
 
 /**
  * Helper function to perform login and wait for app to be ready
+ * Uses shared auth fixture for robust login/account creation handling
  * @param {import('@playwright/test').Page} page
  */
 async function performLogin(page) {
-  const username = process.env.TEST_USERNAME;
-  const password = process.env.TEST_PASSWORD;
-
-  // Wait for login form to be ready
-  const usernameInput = page.locator('input[type="text"], input[name="username"]').first();
-  await expect(usernameInput).toBeVisible();
-  await usernameInput.fill(username);
-
-  const passwordInput = page.locator('input[type="password"]');
-  await expect(passwordInput).toBeVisible();
-  await passwordInput.fill(password);
-
-  const submitButton = page.locator('button[type="submit"]');
-  await expect(submitButton).toBeVisible();
-  await submitButton.click();
-
-  // Wait for successful login by checking for New Project button
-  const newProjectButton = page.locator('button:has-text("New Project")').first();
-  await expect(newProjectButton).toBeVisible({ timeout: 30000 });
+  await authenticate(page);
 }
 
 /**

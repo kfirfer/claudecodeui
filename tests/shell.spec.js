@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { authenticate, hasTestCredentials } from './fixtures/auth.js';
 
 test.describe('Server Health', () => {
   test('health endpoint should return ok status', async ({ request }) => {
@@ -16,8 +17,8 @@ test.describe('Shell WebSocket Connection', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // Should show login form
-    const loginForm = page.locator('input[type="password"]');
+    // Should show login/registration form
+    const loginForm = page.locator('input#password');
     await expect(loginForm).toBeVisible({ timeout: 10000 });
   });
 
@@ -71,24 +72,14 @@ test.describe('Shell PTY Configuration', () => {
 // Authenticated tests - require TEST_USERNAME and TEST_PASSWORD env vars
 test.describe('Authenticated Shell Tests', () => {
   test.skip(
-    !process.env.TEST_USERNAME || !process.env.TEST_PASSWORD,
+    !hasTestCredentials(),
     'Skipping authenticated tests - set TEST_USERNAME and TEST_PASSWORD env vars'
   );
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
-
-    // Login
-    const username = process.env.TEST_USERNAME;
-    const password = process.env.TEST_PASSWORD;
-
-    await page.locator('input[type="text"], input[name="username"]').first().fill(username);
-    await page.locator('input[type="password"]').fill(password);
-    await page.locator('button[type="submit"]').click();
-
-    // Wait for login to complete
-    await page.waitForTimeout(2000);
+    // Use shared auth fixture for robust login/account creation handling
+    await authenticate(page);
   });
 
   test('should connect to shell WebSocket after authentication', async ({ page }) => {
