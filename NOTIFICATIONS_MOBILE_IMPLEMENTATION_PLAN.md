@@ -28,11 +28,14 @@ The application currently has a desktop notification system implemented using th
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| `useNotifications` | `src/hooks/useNotifications.js` | Core hook for notification logic |
+| `useNotifications` | `src/hooks/useNotifications.js` | Core hook for notification logic (186 lines) |
 | `NotificationContext` | `src/contexts/NotificationContext.jsx` | Global notification state provider |
-| `NotificationSettings` | `src/components/settings/NotificationSettings.jsx` | Settings UI component |
-| `notificationContent` | `src/utils/notificationContent.js` | Notification content formatter |
-| `sw.js` | `public/sw.js` | Service worker (PWA caching only) |
+| `NotificationSettings` | `src/components/settings/NotificationSettings.jsx` | Settings UI component (277 lines) |
+| `notificationContent` | `src/utils/notificationContent.js` | Notification content formatter for Claude/Cursor/Codex |
+| `sw.js` | `public/sw.js` | Service worker (PWA caching only, 49 lines) |
+| `notifications.spec.js` | `tests/notifications.spec.js` | Comprehensive E2E tests (847 lines) |
+
+**Verified:** All components exist and function as documented.
 
 ### 1.2 Current Settings
 
@@ -61,6 +64,47 @@ ChatInterface.jsx → getNotificationContent() → sendNotification()
 - No PWA installation prompts for mobile users
 - No Web Push API integration for true push notifications
 - Service worker only handles caching, not notifications
+
+### 1.5 Existing i18n Structure (Important for Additions)
+
+The current notification translations exist at:
+- **English**: `src/i18n/locales/en/settings.json` (lines 94-113)
+- **Chinese**: `src/i18n/locales/zh-CN/settings.json` (lines 94-113)
+
+**Current structure** (new translations must extend, not replace):
+```json
+{
+  "notifications": {
+    "title": "Desktop Notifications",
+    "description": "...",
+    "permissionStatus": "...",
+    "permissionGranted": "Granted",
+    "permissionDenied": "Denied",
+    "permissionDefault": "Not Set",
+    "enableNotifications": "Enable Notifications",
+    "notificationsBlocked": "...",
+    "browserNotSupported": "...",
+    "toggles": {
+      "enableDesktop": "Enable desktop notifications",
+      "onlyWhenUnfocused": "...",
+      "onlyWhenUnfocusedDescription": "...",
+      "playSound": "Play notification sound"
+    },
+    "testButton": "Send Test Notification",
+    "testTitle": "Test Notification",
+    "testBody": "Notifications are working correctly!"
+  }
+}
+```
+
+### 1.6 Existing Database Schema
+
+Current tables in `server/database/init.sql`:
+- `users` - User accounts
+- `api_keys` - External API access tokens
+- `user_credentials` - GitHub/GitLab tokens
+
+**Note**: No `push_subscriptions` table exists yet.
 
 ---
 
@@ -199,10 +243,11 @@ ChatInterface.jsx → getNotificationContent() → sendNotification()
 
 #### 4.1.2 Database Schema
 - [ ] **Task**: Add push_subscriptions table
-  - [ ] Subtask: Create migration script
+  - [ ] Subtask: Add schema to `server/database/init.sql`
+  - [ ] Subtask: Add migration in `server/database/db.js` runMigrations()
   - [ ] Subtask: Implement `push_subscriptions` table schema
   - [ ] Subtask: Add indexes for efficient queries
-  - [ ] Subtask: Update `server/database/db.js`
+  - [ ] Subtask: Add pushDb operations object in `server/database/db.js`
 
 ```sql
 CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -223,13 +268,19 @@ CREATE INDEX idx_push_subscriptions_endpoint ON push_subscriptions(endpoint);
 
 #### 4.1.3 Push API Routes
 - [ ] **Task**: Create push notification API endpoints
-  - [ ] Subtask: Create `server/routes/push.js`
+  - [ ] Subtask: Create `server/routes/push.js` (follow pattern of existing routes like `server/routes/auth.js`)
   - [ ] Subtask: Implement `POST /api/push/subscribe`
   - [ ] Subtask: Implement `DELETE /api/push/unsubscribe`
   - [ ] Subtask: Implement `GET /api/push/status`
   - [ ] Subtask: Implement `GET /api/push/vapid-public-key`
-  - [ ] Subtask: Add request validation
+  - [ ] Subtask: Implement `POST /api/push/test` (send test notification)
+  - [ ] Subtask: Add request validation using existing middleware patterns
   - [ ] Subtask: Add rate limiting
+
+**Existing route files for reference:**
+- `server/routes/auth.js` - Authentication routes
+- `server/routes/settings.js` - Settings routes
+- `server/routes/git.js` - Git operations
 
 #### 4.1.4 Push Service
 - [ ] **Task**: Create push notification service
@@ -440,10 +491,25 @@ test.describe('Mobile notification behavior', () => {
 
 ```
 tests/
-├── notifications.spec.js          # Existing tests (to be extended)
-├── notifications-mobile.spec.js   # New mobile-specific tests
-└── notifications-push.spec.js     # New push notification tests
+├── notifications.spec.js          # Existing tests (847 lines) - EXTEND with new tests
+│   ├── Notification Settings (8 tests) ✓
+│   │   ├── Display UI correctly
+│   │   ├── Permission status and UI state
+│   │   ├── Display all toggles
+│   │   ├── Persist settings in localStorage
+│   │   ├── Maintain settings after reload
+│   │   ├── Sub-toggles disabled state
+│   │   ├── Load settings from localStorage
+│   │   └── Navigate between tabs
+│   └── Notification Trigger (3 tests) ✓
+│       ├── Send when unfocused
+│       ├── NOT send when focused (onlyWhenUnfocused=true)
+│       └── Send when focused (onlyWhenUnfocused=false)
+├── notifications-mobile.spec.js   # NEW: Mobile-specific tests
+└── notifications-push.spec.js     # NEW: Push notification tests
 ```
+
+**Note**: Per CLAUDE.md guidelines, new test logic should be added to existing test files where relevant, or create new files for distinctly different test categories.
 
 ### 5.4 Test Coverage Matrix
 
@@ -468,32 +534,47 @@ tests/
 | File | Phase | Description |
 |------|-------|-------------|
 | `src/utils/mobileDetection.js` | 1 | Mobile/PWA detection utilities |
-| `src/components/common/PWAInstallPrompt.jsx` | 1 | PWA install prompt |
+| `src/components/common/PWAInstallPrompt.jsx` | 1 | PWA install prompt component |
 | `src/hooks/usePushNotifications.js` | 2 | Push subscription hook |
-| `src/components/settings/PushNotificationSettings.jsx` | 2 | Push settings UI |
+| `src/components/settings/PushNotificationSettings.jsx` | 2 | Push settings UI component |
 | `server/routes/push.js` | 2 | Push API endpoints |
 | `server/services/pushService.js` | 2 | Push notification service |
 | `server/utils/vapidKeys.js` | 2 | VAPID key management |
+| `scripts/generate-vapid-keys.js` | 2 | CLI script to generate VAPID keys |
 | `tests/notifications-mobile.spec.js` | 3 | Mobile E2E tests |
 | `tests/notifications-push.spec.js` | 3 | Push E2E tests |
+
+**Verified non-existent (need to be created):**
+- ✗ `src/utils/mobileDetection.js` - does not exist
+- ✗ `src/components/common/PWAInstallPrompt.jsx` - does not exist
+- ✗ `server/routes/push.js` - does not exist
+- ✗ `server/services/` directory - does not exist (needs to be created)
 
 ### 6.2 Modified Files
 
 | File | Phase | Changes |
 |------|-------|---------|
 | `src/hooks/useNotifications.js` | 1, 2 | Add mobile-aware logic, push integration |
-| `src/components/settings/NotificationSettings.jsx` | 1, 2 | Add mobile section, push section |
+| `src/components/settings/NotificationSettings.jsx` | 1, 2 | Add mobile section, integrate PushNotificationSettings |
 | `src/contexts/NotificationContext.jsx` | 2 | Add push notification state |
-| `public/sw.js` | 1, 2 | Add notification click handler, push handler |
-| `src/i18n/locales/en/settings.json` | 1, 2 | Add translation strings |
-| `src/i18n/locales/zh-CN/settings.json` | 1, 2 | Add Chinese translations |
-| `server/index.js` | 2 | Register push routes |
-| `server/database/db.js` | 2 | Add push_subscriptions table |
+| `public/sw.js` | 1, 2 | Add notification click handler, push handler (currently 49 lines) |
+| `src/i18n/locales/en/settings.json` | 1, 2 | Add mobile.* and push.* translation keys |
+| `src/i18n/locales/zh-CN/settings.json` | 1, 2 | Add Chinese translations for mobile/push |
+| `server/index.js` | 2 | Register push routes (`/api/push/*`) |
+| `server/database/init.sql` | 2 | Add push_subscriptions table schema |
+| `server/database/db.js` | 2 | Add migration + pushDb operations object |
 | `server/claude-sdk.js` | 2 | Trigger push on completion |
 | `server/cursor-cli.js` | 2 | Trigger push on completion |
 | `server/openai-codex.js` | 2 | Trigger push on completion |
-| `tests/notifications.spec.js` | 3 | Extend existing tests |
+| `tests/notifications.spec.js` | 3 | Extend existing tests (currently 847 lines) |
 | `package.json` | 2 | Add web-push dependency |
+| `.env.example` | 2 | Add VAPID_* environment variables |
+
+**Verified existing (will be modified):**
+- ✓ `src/hooks/useNotifications.js` - exists (186 lines)
+- ✓ `src/components/settings/NotificationSettings.jsx` - exists (277 lines)
+- ✓ `public/sw.js` - exists (49 lines, caching only)
+- ✓ `tests/notifications.spec.js` - exists (847 lines, comprehensive)
 
 ---
 
@@ -507,6 +588,11 @@ tests/
     "web-push": "^3.6.7"
   }
 }
+```
+
+**Note**: The server uses ES modules (`import`/`export`). Import web-push as:
+```javascript
+import webpush from 'web-push';
 ```
 
 ### 7.2 Environment Variables
@@ -609,13 +695,17 @@ console.log('\nAdd these to your .env file');
 
 ## Appendix A: Translation Strings
 
-### English (`src/i18n/locales/en/settings.json`)
+**IMPORTANT**: These translations should be ADDED to the existing `notifications` object in the settings.json files, not replace it. The existing keys must be preserved.
+
+### English Additions (`src/i18n/locales/en/settings.json`)
+
+Add the following keys inside the existing `notifications` object:
 
 ```json
 {
   "notifications": {
-    "title": "Notifications",
-    "description": "Get notified when Claude, Cursor, or Codex finishes processing your request.",
+    // ... EXISTING KEYS PRESERVED (title, description, permissionStatus, toggles, etc.) ...
+
     "mobile": {
       "title": "Mobile Notifications",
       "description": "Receive notifications on your mobile device.",
@@ -623,7 +713,9 @@ console.log('\nAdd these to your .env file');
       "iosInstructions": "Tap the Share button, then 'Add to Home Screen'",
       "androidInstructions": "Tap the menu button, then 'Install app' or 'Add to Home Screen'",
       "iosVersionRequired": "iOS 16.4 or later required for notifications",
-      "browserNotSupported": "Your mobile browser does not support notifications"
+      "browserNotSupported": "Your mobile browser does not support notifications",
+      "installPwa": "Install App",
+      "alreadyInstalled": "App is installed"
     },
     "push": {
       "title": "Push Notifications",
@@ -634,19 +726,23 @@ console.log('\nAdd these to your .env file');
       "subscribe": "Subscribe",
       "unsubscribe": "Unsubscribe",
       "testButton": "Send Test Push",
-      "subscriptionError": "Failed to subscribe to push notifications"
+      "subscriptionError": "Failed to subscribe to push notifications",
+      "deviceCount": "{{count}} device(s) registered",
+      "requiresPwa": "Requires app to be installed on home screen"
     }
   }
 }
 ```
 
-### Chinese (`src/i18n/locales/zh-CN/settings.json`)
+### Chinese Additions (`src/i18n/locales/zh-CN/settings.json`)
+
+Add the following keys inside the existing `notifications` object:
 
 ```json
 {
   "notifications": {
-    "title": "通知",
-    "description": "当 Claude、Cursor 或 Codex 完成处理您的请求时获得通知。",
+    // ... EXISTING KEYS PRESERVED (title, description, permissionStatus, toggles, etc.) ...
+
     "mobile": {
       "title": "移动端通知",
       "description": "在您的移动设备上接收通知。",
@@ -654,7 +750,9 @@ console.log('\nAdd these to your .env file');
       "iosInstructions": "点击分享按钮，然后选择"添加到主屏幕"",
       "androidInstructions": "点击菜单按钮，然后选择"安装应用"或"添加到主屏幕"",
       "iosVersionRequired": "需要 iOS 16.4 或更高版本才能使用通知功能",
-      "browserNotSupported": "您的移动浏览器不支持通知功能"
+      "browserNotSupported": "您的移动浏览器不支持通知功能",
+      "installPwa": "安装应用",
+      "alreadyInstalled": "应用已安装"
     },
     "push": {
       "title": "推送通知",
@@ -665,7 +763,9 @@ console.log('\nAdd these to your .env file');
       "subscribe": "订阅",
       "unsubscribe": "取消订阅",
       "testButton": "发送测试推送",
-      "subscriptionError": "订阅推送通知失败"
+      "subscriptionError": "订阅推送通知失败",
+      "deviceCount": "已注册 {{count}} 台设备",
+      "requiresPwa": "需要将应用安装到主屏幕"
     }
   }
 }
@@ -881,22 +981,29 @@ export function supportsPushNotifications() {
 }
 
 /**
- * Get iOS version number
- * @returns {number|null}
+ * Get iOS version as object with major and minor
+ * @returns {{ major: number, minor: number } | null}
  */
 export function getIOSVersion() {
   if (!isIOS()) return null;
-  const match = navigator.userAgent.match(/OS (\d+)_/);
-  return match ? parseInt(match[1], 10) : null;
+  const match = navigator.userAgent.match(/OS (\d+)_(\d+)/);
+  if (!match) return null;
+  return {
+    major: parseInt(match[1], 10),
+    minor: parseInt(match[2], 10)
+  };
 }
 
 /**
  * Check if iOS version supports notifications (16.4+)
+ * iOS 16.4 introduced Web Push API support for PWAs
  * @returns {boolean}
  */
 export function iosSupportsNotifications() {
   const version = getIOSVersion();
-  return version !== null && version >= 16;
+  if (!version) return false;
+  // iOS 16.4+ required for Web Push in PWAs
+  return version.major > 16 || (version.major === 16 && version.minor >= 4);
 }
 
 /**
@@ -927,6 +1034,51 @@ export function getDeviceInfo() {
 
 ---
 
-*Document Version: 1.0*
+## Appendix E: Plan Validation Log
+
+### Validation Date: 2026-01-29
+
+#### Files Verified to Exist:
+| File | Status | Notes |
+|------|--------|-------|
+| `src/hooks/useNotifications.js` | ✓ Exists | 186 lines, fully functional |
+| `src/contexts/NotificationContext.jsx` | ✓ Exists | Provider pattern implemented |
+| `src/components/settings/NotificationSettings.jsx` | ✓ Exists | 277 lines, data-testid attributes |
+| `src/utils/notificationContent.js` | ✓ Exists | Handles Claude/Cursor/Codex |
+| `public/sw.js` | ✓ Exists | 49 lines, caching only |
+| `tests/notifications.spec.js` | ✓ Exists | 847 lines, 11 tests |
+| `src/i18n/locales/en/settings.json` | ✓ Exists | notifications section lines 94-113 |
+| `src/i18n/locales/zh-CN/settings.json` | ✓ Exists | notifications section lines 94-113 |
+| `server/database/db.js` | ✓ Exists | Uses better-sqlite3 |
+| `server/database/init.sql` | ✓ Exists | users, api_keys, user_credentials tables |
+
+#### Files Verified NOT to Exist (Need Creation):
+| File | Status | Phase |
+|------|--------|-------|
+| `src/utils/mobileDetection.js` | ✗ Missing | Phase 1 |
+| `src/components/common/PWAInstallPrompt.jsx` | ✗ Missing | Phase 1 |
+| `src/hooks/usePushNotifications.js` | ✗ Missing | Phase 2 |
+| `server/routes/push.js` | ✗ Missing | Phase 2 |
+| `server/services/pushService.js` | ✗ Missing | Phase 2 |
+| `server/utils/vapidKeys.js` | ✗ Missing | Phase 2 |
+
+#### Technical Validation:
+- **Web Push API Best Practices**: Validated against W3C Push API spec and web-push library docs
+- **iOS Support**: Confirmed iOS 16.4+ requirement for PWA push notifications
+- **VAPID Keys**: Confirmed web-push@^3.6.7 library for Node.js implementation
+- **Database**: Confirmed SQLite with better-sqlite3, migration pattern exists in db.js
+
+#### Corrections Made:
+1. Added existing test coverage details (11 tests across 2 describe blocks)
+2. Fixed iOS version detection to check major.minor (16.4+) not just major
+3. Clarified i18n additions should extend existing structure, not replace
+4. Added `server/database/init.sql` to modified files list
+5. Added verification status for all referenced files
+6. Updated test file structure to show existing test organization
+
+---
+
+*Document Version: 1.1*
 *Last Updated: 2026-01-29*
+*Last Validated: 2026-01-29*
 *Author: Claude Code AI Assistant*
