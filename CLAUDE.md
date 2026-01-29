@@ -111,6 +111,7 @@ This applies to all code changes, including bug fixes, new features, and refacto
 
 ### Test Guidelines
 - All test files are located in the `tests/` directory.
+- Test credentials are obtained from environment variables: `TEST_USERNAME` and `TEST_PASSWORD`.
 - The testing framework used is Playwright, so write all test cases using Playwright's syntax and best practices.
 - Execute all tests against the application at `http://localhost:3001`.
 - When developing a new feature or addressing a bug fix, incorporate the relevant test logic directly into the corresponding existing test files rather than creating separate new tests.
