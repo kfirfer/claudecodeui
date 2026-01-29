@@ -328,39 +328,36 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
       // ==========================================
       // Step 4.6: Navigate away and back - verify percentage stays consistent
       // ==========================================
-      // Click on a different project to navigate away
-      const otherProject = page.locator('button:has-text("Movies")').first();
-      const otherProjectVisible = await otherProject.isVisible().catch(() => false);
+      // Click on "New Session" to create a new empty session (navigates away from current chat)
+      const newSessionBtn = page.locator('button:has-text("New Session")').first();
+      await expect(newSessionBtn).toBeVisible({ timeout: 5000 });
+      await newSessionBtn.click();
 
-      if (otherProjectVisible) {
-        await otherProject.click();
+      // Wait for new session screen to appear (shows AI provider selection)
+      await page.waitForTimeout(1000);
 
-        // Wait a moment for the navigation
-        await page.waitForTimeout(1000);
+      // Navigate back to the previous session by clicking on it in the sidebar
+      // The session shows a preview of the message "Hello! This is a test..."
+      const sessionInSidebar = page.locator('button').filter({ hasText: /Hello.*test/i }).first();
+      await expect(sessionInSidebar).toBeVisible({ timeout: 10000 });
+      await sessionInSidebar.click();
 
-        // Navigate back to our test project
-        await renamedProjectButton.click();
+      // Wait for chat to reload with the previous conversation
+      await expect(userMessage).toBeVisible({ timeout: 10000 });
 
-        // Click on the session to go back to the chat
-        const sessionItem = page.locator(`text=/Hello.*test message/i`).first();
-        await expect(sessionItem).toBeVisible({ timeout: 5000 });
-        await sessionItem.click();
+      // Check the token percentage again after navigation
+      // This validates that the REST API endpoint returns consistent values
+      const tokenUsageAfterNav = page.locator('span:has-text("%")').filter({ hasText: /^\d+\.\d+%$/ }).first();
+      await expect(tokenUsageAfterNav).toBeVisible({ timeout: 10000 });
+      const percentageAfterNav = await tokenUsageAfterNav.textContent();
+      const percentageValueAfterNav = parseFloat(percentageAfterNav.replace('%', ''));
 
-        // Wait for chat to load
-        await expect(chatTextarea).toBeVisible({ timeout: 10000 });
+      console.log(`Token usage percentage (after navigation): ${percentageValueAfterNav}%`);
 
-        // Check the token percentage again after navigation
-        await expect(tokenUsageIndicator).toBeVisible({ timeout: 10000 });
-        const percentageAfterNav = await tokenUsageIndicator.textContent();
-        const percentageValueAfterNav = parseFloat(percentageAfterNav.replace('%', ''));
-
-        console.log(`Token usage percentage (after navigation): ${percentageValueAfterNav}%`);
-
-        // The percentage should remain low and consistent after navigation
-        // This validates that the REST API endpoint returns the same value as WebSocket
-        expect(percentageValueAfterNav).toBeGreaterThanOrEqual(0);
-        expect(percentageValueAfterNav).toBeLessThan(5);
-      }
+      // The percentage should remain low and consistent after navigation
+      // This validates that the REST API endpoint returns the same value as WebSocket
+      expect(percentageValueAfterNav).toBeGreaterThanOrEqual(0);
+      expect(percentageValueAfterNav).toBeLessThan(5);
 
       // ==========================================
       // Step 5: Delete the session (optional - may not be visible)
