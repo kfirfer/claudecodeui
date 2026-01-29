@@ -133,3 +133,6 @@ tasks/
 # Tests
 test-results/
 playwright-report/
+
+# Playwright auth state
+tests/.auth/
