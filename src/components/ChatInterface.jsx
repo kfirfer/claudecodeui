@@ -30,8 +30,10 @@ import CursorLogo from './CursorLogo.jsx';
 import CodexLogo from './CodexLogo.jsx';
 import NextTaskBanner from './NextTaskBanner.jsx';
 import { useTasksSettings } from '../contexts/TasksSettingsContext';
+import { useNotificationContext } from '../contexts/NotificationContext';
 import { useTranslation } from 'react-i18next';
 import { useConfirm } from './ui/confirm-dialog';
+import { getNotificationContent } from '../utils/notificationContent';
 
 import ClaudeStatus from './ClaudeStatus';
 import TokenUsagePie from './TokenUsagePie';
@@ -1951,6 +1953,7 @@ const ImageAttachment = ({ file, onRemove, uploadProgress, error }) => {
 // This ensures uninterrupted chat experience by pausing sidebar refreshes during conversations.
 function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick: _onTaskClick, onShowAllTasks }) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
+  const { sendNotification } = useNotificationContext();
   const { t } = useTranslation('chat');
   const confirm = useConfirm();
   const [input, setInput] = useState(() => {
@@ -3830,6 +3833,13 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             setClaudeStatus(null);
           }
 
+          // Send browser notification for task completion
+          const cursorNotificationContent = getNotificationContent('cursor', latestMessage, selectedProject);
+          sendNotification(cursorNotificationContent.title, {
+            body: cursorNotificationContent.body,
+            tag: cursorNotificationContent.tag
+          });
+
           // Always mark the completed session as inactive and not processing
           if (cursorCompletedSessionId) {
             if (onSessionInactive) {
@@ -3930,6 +3940,13 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             setCanAbortSession(false);
             setClaudeStatus(null);
           }
+
+          // Send browser notification for task completion
+          const notificationContent = getNotificationContent('claude', latestMessage, selectedProject);
+          sendNotification(notificationContent.title, {
+            body: notificationContent.body,
+            tag: notificationContent.tag
+          });
 
           // Always mark the completed session as inactive and not processing
           if (completedSessionId) {
@@ -4076,6 +4093,13 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             setCanAbortSession(false);
             setClaudeStatus(null);
           }
+
+          // Send browser notification for task completion
+          const codexNotificationContent = getNotificationContent('codex', latestMessage, selectedProject);
+          sendNotification(codexNotificationContent.title, {
+            body: codexNotificationContent.body,
+            tag: codexNotificationContent.tag
+          });
 
           if (codexCompletedSessionId) {
             if (onSessionInactive) {

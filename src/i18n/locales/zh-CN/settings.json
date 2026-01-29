@@ -88,7 +88,28 @@
     "appearance": "外观",
     "git": "Git",
     "apiTokens": "API 和令牌",
-    "tasks": "任务"
+    "tasks": "任务",
+    "notifications": "通知"
+  },
+  "notifications": {
+    "title": "桌面通知",
+    "description": "当 Claude、Cursor 或 Codex 完成处理您的请求时获得通知。",
+    "permissionStatus": "权限状态",
+    "permissionGranted": "已授权",
+    "permissionDenied": "已拒绝",
+    "permissionDefault": "未设置",
+    "enableNotifications": "启用通知",
+    "notificationsBlocked": "通知已被阻止。请在浏览器设置中启用。",
+    "browserNotSupported": "您的浏览器不支持桌面通知。",
+    "toggles": {
+      "enableDesktop": "启用桌面通知",
+      "onlyWhenUnfocused": "仅在标签页失焦时通知",
+      "onlyWhenUnfocusedDescription": "仅在浏览器标签页不活动时显示通知",
+      "playSound": "播放通知声音"
+    },
+    "testButton": "发送测试通知",
+    "testTitle": "测试通知",
+    "testBody": "通知功能正常工作！"
   },
   "appearanceSettings": {
     "darkMode": {

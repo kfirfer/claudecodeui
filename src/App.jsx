@@ -32,6 +32,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { TaskMasterProvider } from './contexts/TaskMasterContext';
 import { TasksSettingsProvider } from './contexts/TasksSettingsContext';
 import { WebSocketProvider, useWebSocketContext } from './contexts/WebSocketContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { ToastProvider } from './components/ui/toast';
 import { ConfirmProvider } from './components/ui/confirm-dialog';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -1020,8 +1021,9 @@ function App() {
           <WebSocketProvider>
             <ToastProvider>
               <ConfirmProvider>
-                <TasksSettingsProvider>
-                  <TaskMasterProvider>
+                <NotificationProvider>
+                  <TasksSettingsProvider>
+                    <TaskMasterProvider>
                     <ProtectedRoute>
                       <Router basename={window.__ROUTER_BASENAME__ || ''} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                         <Routes>
@@ -1030,8 +1032,9 @@ function App() {
                         </Routes>
                       </Router>
                     </ProtectedRoute>
-                  </TaskMasterProvider>
-                </TasksSettingsProvider>
+                    </TaskMasterProvider>
+                  </TasksSettingsProvider>
+                </NotificationProvider>
               </ConfirmProvider>
             </ToastProvider>
           </WebSocketProvider>

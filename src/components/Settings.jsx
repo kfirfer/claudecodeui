@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { X, Settings as SettingsIcon, Moon, Sun, Globe, FolderOpen, Key, GitBranch } from 'lucide-react';
+import { X, Settings as SettingsIcon, Moon, Sun, Globe, FolderOpen, Key, GitBranch, Bell } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import CredentialsSettings from './CredentialsSettings';
@@ -17,6 +17,7 @@ import AgentListItem from './settings/AgentListItem';
 import AccountContent from './settings/AccountContent';
 import PermissionsContent from './settings/PermissionsContent';
 import McpServersContent from './settings/McpServersContent';
+import NotificationSettings from './settings/NotificationSettings';
 import LanguageSelector from './LanguageSelector';
 
 function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
@@ -984,6 +985,18 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
               >
                 {t('mainTabs.tasks')}
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('notifications')}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'notifications'
+                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Bell className="w-4 h-4 inline mr-2" />
+                {t('mainTabs.notifications')}
+              </button>
             </div>
           </div>
 
@@ -1880,6 +1893,13 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
             {activeTab === 'api' && (
               <div className="space-y-6 md:space-y-8">
                 <CredentialsSettings />
+              </div>
+            )}
+
+            {/* Notifications Tab */}
+            {activeTab === 'notifications' && (
+              <div className="space-y-6 md:space-y-8">
+                <NotificationSettings />
               </div>
             )}
           </div>
