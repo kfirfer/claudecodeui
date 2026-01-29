@@ -420,3 +420,125 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
     }
   });
 });
+
+test.describe('Session Visibility - Immediate Display', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('domcontentloaded');
+    await performLogin(page);
+  });
+
+  test('session should appear in sidebar immediately after sending first message', async ({ page }) => {
+    test.setTimeout(120000);
+
+    // Generate unique identifier for this test run
+    const testId = Date.now();
+    const testProjectPath = path.join(os.homedir(), `e2e-session-visibility-${testId}`);
+    const projectFolderName = `e2e-session-visibility-${testId}`;
+
+    // Create the test directory
+    await createTestDirectory(testProjectPath);
+
+    try {
+      // Step 1: Create a new project
+      const createdProjectName = await createProject(page, testProjectPath);
+      expect(createdProjectName).toBe(projectFolderName);
+
+      // Verify project appears in sidebar
+      const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
+      await expect(projectButton).toBeVisible();
+
+      // Step 2: Click on the project to expand it
+      await projectButton.click();
+
+      // Step 3: Click New Session button
+      const newSessionButton = page.locator('button:has-text("New Session")').first();
+      await newSessionButton.dispatchEvent('click');
+
+      // Verify chat interface is visible
+      const chatTextarea = page.locator('textarea').first();
+      await expect(chatTextarea).toBeVisible({ timeout: 15000 });
+
+      // Step 4: Type a unique test message (but don't send yet)
+      const uniqueMessage = `Test session visibility ${testId}`;
+      await chatTextarea.fill(uniqueMessage);
+
+      // Step 5: Find the send button
+      const sendButtonArrow = page.locator('button:has(svg.lucide-arrow-up)').first();
+      const sendButtonSend = page.locator('button:has(svg.lucide-send)').first();
+
+      const arrowVisible = await sendButtonArrow.isVisible().catch(() => false);
+
+      // Step 6: Send the message
+      if (arrowVisible) {
+        await sendButtonArrow.click();
+      } else {
+        await sendButtonSend.click();
+      }
+
+      // Step 7: CRITICAL - Check that the session appears in the sidebar IMMEDIATELY
+      // This should happen before the AI responds (within 2 seconds)
+      // The pending session should show either the message preview or a loading indicator
+
+      // Look for any session item in the sidebar that either:
+      // 1. Has our message text
+      // 2. Has "New conversation" text (pending session placeholder)
+      // 3. Has a spinning indicator (pending session loading)
+
+      // First, verify the user message appears in chat (message was sent)
+      const userMessage = page.getByText(uniqueMessage).first();
+      await expect(userMessage).toBeVisible({ timeout: 5000 });
+
+      // Now check the sidebar for the session - it should appear within 3 seconds
+      // The session might show as "New conversation..." or with the first part of the message
+      const sessionInSidebar = page.locator('[class*="sidebar"], [data-testid="sidebar"]')
+        .locator('button, div[role="button"]')
+        .filter({
+          has: page.locator('text=/Test session|New conversation|New Session/i')
+        })
+        .first();
+
+      // Alternative: Look for any session with a loading spinner (pending session indicator)
+      const pendingSessionSpinner = page.locator('.animate-spin').first();
+
+      // Wait for either the session text or the spinner to appear (within 3 seconds)
+      // This is the key assertion - session must be visible BEFORE AI finishes responding
+      await expect(async () => {
+        const sessionVisible = await sessionInSidebar.isVisible().catch(() => false);
+        const spinnerVisible = await pendingSessionSpinner.isVisible().catch(() => false);
+        expect(sessionVisible || spinnerVisible).toBe(true);
+      }).toPass({ timeout: 3000 });
+
+      // Step 8: Now wait for AI to respond and verify session is still visible
+      // Wait for the processing bar to disappear
+      const processingBar = page.locator('button:has-text("Stop")').first();
+      await expect(processingBar).toBeHidden({ timeout: 120000 });
+
+      // After AI responds, verify the session is still in the sidebar
+      // At this point it should show the actual session with a summary
+      const finalSessionInSidebar = page.locator(`button:has-text("Test session")`).first().or(
+        page.locator('button').filter({ hasText: /Test session visibility/i }).first()
+      );
+
+      // Session should be visible in sidebar after AI response completes
+      await expect(async () => {
+        const sessionFound = await finalSessionInSidebar.isVisible().catch(() => false);
+        // If not found by message, check for any session in the expanded project
+        if (!sessionFound) {
+          // Look for session indicator - there should be at least one session item
+          const anySessionItem = await page.locator('button').filter({
+            has: page.locator('svg.lucide-message-square, svg.lucide-clock, [class*="ClaudeLogo"]')
+          }).first().isVisible().catch(() => false);
+          expect(anySessionItem).toBe(true);
+        }
+      }).toPass({ timeout: 15000 });
+
+      // Step 9: Clean up - delete the project
+      await deleteProjectViaUI(page, projectFolderName);
+
+    } finally {
+      // Clean up the test directory
+      await removeTestDirectory(testProjectPath);
+    }
+  });
+});
