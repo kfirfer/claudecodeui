@@ -8,6 +8,8 @@ import os from 'os';
 const spawnFunction = process.platform === 'win32' ? crossSpawn : spawn;
 
 let activeCursorProcesses = new Map(); // Track active processes by session ID
+// Track completed sessions to prevent stale status messages from re-enabling loading
+const completedCursorSessions = new Set();
 
 async function spawnCursor(command, options = {}, ws) {
   return new Promise(async (resolve, reject) => {
@@ -207,10 +209,14 @@ async function spawnCursor(command, options = {}, ws) {
     // Handle process completion
     cursorProcess.on('close', async (code) => {
       console.log(`Cursor CLI process exited with code ${code}`);
-      
+
       // Clean up process reference
       const finalSessionId = capturedSessionId || sessionId || processKey;
       activeCursorProcesses.delete(finalSessionId);
+      // Mark as completed to prevent stale status messages from re-enabling loading
+      completedCursorSessions.add(finalSessionId);
+      // Schedule cleanup after 30 seconds to prevent memory growth
+      setTimeout(() => completedCursorSessions.delete(finalSessionId), 30000);
 
       ws.send({
         type: 'claude-complete',
@@ -229,10 +235,14 @@ async function spawnCursor(command, options = {}, ws) {
     // Handle process errors
     cursorProcess.on('error', (error) => {
       console.error('Cursor CLI process error:', error);
-      
+
       // Clean up process reference on error
       const finalSessionId = capturedSessionId || sessionId || processKey;
       activeCursorProcesses.delete(finalSessionId);
+      // Mark as completed to prevent stale status messages from re-enabling loading
+      completedCursorSessions.add(finalSessionId);
+      // Schedule cleanup after 30 seconds to prevent memory growth
+      setTimeout(() => completedCursorSessions.delete(finalSessionId), 30000);
 
       ws.send({
         type: 'cursor-error',
@@ -254,12 +264,20 @@ function abortCursorSession(sessionId) {
     console.log(`🛑 Aborting Cursor session: ${sessionId}`);
     process.kill('SIGTERM');
     activeCursorProcesses.delete(sessionId);
+    // Mark as completed to prevent stale status messages from re-enabling loading
+    completedCursorSessions.add(sessionId);
+    // Schedule cleanup after 30 seconds to prevent memory growth
+    setTimeout(() => completedCursorSessions.delete(sessionId), 30000);
     return true;
   }
   return false;
 }
 
 function isCursorSessionActive(sessionId) {
+  // Check if session was recently completed (prevents race conditions)
+  if (completedCursorSessions.has(sessionId)) {
+    return false;
+  }
   return activeCursorProcesses.has(sessionId);
 }
 

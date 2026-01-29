@@ -23,6 +23,9 @@ import { CLAUDE_MODELS } from '../shared/modelConstants.js';
 
 // Session tracking: Map of session IDs to active query instances
 const activeSessions = new Map();
+// Track completed sessions to prevent stale status messages from re-enabling loading
+// This is a Set for O(1) lookup without Map iteration
+const completedSessions = new Set();
 // In-memory registry of pending tool approvals keyed by requestId.
 // This does not persist approvals or share across processes; it exists so the
 // SDK can pause tool execution while the UI decides what to do.
@@ -624,6 +627,10 @@ async function queryClaudeSDK(command, options = {}, ws) {
     // Clean up session on completion
     if (capturedSessionId) {
       removeSession(capturedSessionId);
+      // Mark as completed to prevent stale status messages from re-enabling loading
+      completedSessions.add(capturedSessionId);
+      // Schedule cleanup after 30 seconds to prevent memory growth
+      setTimeout(() => completedSessions.delete(capturedSessionId), 30000);
     }
 
     // Clean up temporary image files
@@ -645,6 +652,10 @@ async function queryClaudeSDK(command, options = {}, ws) {
     // Clean up session on error
     if (capturedSessionId) {
       removeSession(capturedSessionId);
+      // Mark as completed to prevent stale status messages from re-enabling loading
+      completedSessions.add(capturedSessionId);
+      // Schedule cleanup after 30 seconds to prevent memory growth
+      setTimeout(() => completedSessions.delete(capturedSessionId), 30000);
     }
 
     // Clean up temporary image files on error
@@ -688,6 +699,10 @@ async function abortClaudeSDKSession(sessionId) {
 
     // Clean up session
     removeSession(sessionId);
+    // Mark as completed to prevent stale status messages from re-enabling loading
+    completedSessions.add(sessionId);
+    // Schedule cleanup after 30 seconds to prevent memory growth
+    setTimeout(() => completedSessions.delete(sessionId), 30000);
 
     return true;
   } catch (error) {
@@ -702,6 +717,10 @@ async function abortClaudeSDKSession(sessionId) {
  * @returns {boolean} True if session is active
  */
 function isClaudeSDKSessionActive(sessionId) {
+  // Check if session was recently completed (prevents race conditions)
+  if (completedSessions.has(sessionId)) {
+    return false;
+  }
   const session = getSession(sessionId);
   return session && session.status === 'active';
 }

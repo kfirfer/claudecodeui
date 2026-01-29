@@ -17,6 +17,8 @@ import { Codex } from '@openai/codex-sdk';
 
 // Track active sessions
 const activeCodexSessions = new Map();
+// Track completed sessions to prevent stale status messages from re-enabling loading
+const completedCodexSessions = new Set();
 
 /**
  * Transform Codex SDK event to WebSocket message format
@@ -301,6 +303,10 @@ export async function queryCodex(command, options = {}, ws) {
       if (session) {
         session.status = 'completed';
       }
+      // Mark as completed to prevent stale status messages from re-enabling loading
+      completedCodexSessions.add(currentSessionId);
+      // Schedule cleanup after 30 seconds to prevent memory growth
+      setTimeout(() => completedCodexSessions.delete(currentSessionId), 30000);
     }
   }
 }
@@ -318,6 +324,10 @@ export function abortCodexSession(sessionId) {
   }
 
   session.status = 'aborted';
+  // Mark as completed to prevent stale status messages from re-enabling loading
+  completedCodexSessions.add(sessionId);
+  // Schedule cleanup after 30 seconds to prevent memory growth
+  setTimeout(() => completedCodexSessions.delete(sessionId), 30000);
 
   // The SDK doesn't have a direct abort method, but marking status
   // will cause the streaming loop to exit
@@ -331,6 +341,10 @@ export function abortCodexSession(sessionId) {
  * @returns {boolean} - Whether session is active
  */
 export function isCodexSessionActive(sessionId) {
+  // Check if session was recently completed (prevents race conditions)
+  if (completedCodexSessions.has(sessionId)) {
+    return false;
+  }
   const session = activeCodexSessions.get(sessionId);
   return session?.status === 'running';
 }

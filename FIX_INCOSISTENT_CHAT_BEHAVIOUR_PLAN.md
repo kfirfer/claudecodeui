@@ -512,8 +512,8 @@ const handleSessionError = useCallback((sessionId, provider, error) => {
 **Goal:** Improve message reliability and ordering.
 
 #### Task 5.1: Add Session Status Tracking on Backend
-**Status:** [ ]
-**Files:** `server/index.js`, `server/claude-sdk.js`
+**Status:** [DONE]
+**Files:** `server/index.js`, `server/claude-sdk.js`, `server/cursor-cli.js`, `server/openai-codex.js`
 
 Track session completion state on backend to avoid sending stale status messages.
 
@@ -543,10 +543,10 @@ function isClaudeSDKSessionActive(sessionId) {
 ```
 
 **Subtasks:**
-- [ ] 5.1.1: Track completed sessions in claude-sdk.js
-- [ ] 5.1.2: Track completed sessions in cursor-cli.js
-- [ ] 5.1.3: Track completed sessions in openai-codex.js
-- [ ] 5.1.4: Update `isXXXSessionActive` functions to check completion status
+- [x] 5.1.1: Track completed sessions in claude-sdk.js
+- [x] 5.1.2: Track completed sessions in cursor-cli.js
+- [x] 5.1.3: Track completed sessions in openai-codex.js
+- [x] 5.1.4: Update `isXXXSessionActive` functions to check completion status
 
 #### Task 5.2: Implement Message Ordering
 **Status:** [ ]
