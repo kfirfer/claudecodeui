@@ -1,5 +1,21 @@
 # Mobile Browser Notifications Implementation Plan
 
+## Validation Status
+
+**Last Validated**: 2026-01-29
+**Validated Against Codebase**: Yes ✓
+
+### Key Findings from Validation:
+1. ✅ Current `useNotifications.js` uses `new Notification()` constructor (line 150)
+2. ✅ Current `NotificationSettings.jsx` uses `new Notification()` directly in test button (line 51)
+3. ✅ Current `main.jsx` unregisters ALL service workers (lines 11-20)
+4. ✅ Current i18n key is `toggles.enableDesktop` (not `toggles.enable`)
+5. ✅ Tests reference "Desktop Notifications" heading (lines 278, 507, 515, 526)
+6. ✅ `src/services/` directory does not exist (will be created)
+7. ✅ ChatInterface uses `sendNotificationRef` pattern for notifications
+
+---
+
 ## Executive Summary
 
 This plan details the implementation of unified browser notifications that work consistently across desktop and mobile browsers. The current implementation uses the native `new Notification()` constructor which works on desktop browsers but fails silently on mobile browsers (especially Safari). The solution involves using `ServiceWorkerRegistration.showNotification()` as the primary notification method, which is the universal standard supported by all modern browsers.
@@ -25,17 +41,18 @@ This plan details the implementation of unified browser notifications that work 
 
 ### Existing Implementation
 
-| File | Purpose | Status |
-|------|---------|--------|
-| `src/hooks/useNotifications.js` | Core notification hook | Uses `new Notification()` - desktop only |
-| `src/contexts/NotificationContext.jsx` | React context provider | No changes needed |
-| `src/components/settings/NotificationSettings.jsx` | Settings UI | Needs renaming + mobile guidance |
-| `src/utils/notificationContent.js` | Notification content formatting | No changes needed |
-| `src/i18n/locales/en/settings.json` | English translations | Needs updates |
-| `src/i18n/locales/zh-CN/settings.json` | Chinese translations | Needs updates |
-| `public/sw.js` | Existing service worker (caching) | Will be extended |
-| `public/manifest.json` | PWA manifest | Already configured correctly |
-| `src/main.jsx` | App entry point | Currently unregisters SW - needs modification |
+| File | Purpose | Current Status | Changes Needed |
+|------|---------|----------------|----------------|
+| `src/hooks/useNotifications.js` | Core notification hook | Uses `new Notification()` at line 150 | Add SW registration, update sendNotification |
+| `src/contexts/NotificationContext.jsx` | React context provider | Simple pass-through | No changes needed |
+| `src/components/settings/NotificationSettings.jsx` | Settings UI | Uses `new Notification()` at line 51 for test | Update test button + mobile guidance UI |
+| `src/utils/notificationContent.js` | Notification content formatting | Formats title/body/tag | No changes needed |
+| `src/i18n/locales/en/settings.json` | English translations | Uses `enableDesktop` key | Rename key, add mobile strings |
+| `src/i18n/locales/zh-CN/settings.json` | Chinese translations | Uses `enableDesktop` key | Rename key, add mobile strings |
+| `public/sw.js` | Existing service worker (caching) | Caching only, no notifications | Keep separate (no changes) |
+| `public/manifest.json` | PWA manifest | Already configured correctly | No changes needed |
+| `src/main.jsx` | App entry point | Unregisters ALL SWs (lines 11-20) | Filter to preserve notification SW |
+| `tests/notifications.spec.js` | Playwright tests | Checks "Desktop Notifications" heading | Update heading assertions |
 
 ### Current Notification Flow
 
@@ -78,9 +95,10 @@ Notification displayed (desktop only)
 
 1. **Use `ServiceWorkerRegistration.showNotification()`** as the primary method
 2. **Create a dedicated notification service worker** separate from caching
-3. **Conditional SW registration** - only when notifications are enabled
-4. **Platform detection** - show appropriate guidance per platform
-5. **Graceful degradation** - clear messaging when not supported
+3. **Separate notification SW** - keep `notification-sw.js` separate from existing `sw.js` (caching)
+4. **Conditional SW registration** - only when notifications are enabled
+5. **Platform detection** - show appropriate guidance per platform
+6. **Graceful degradation** - clear messaging when not supported
 
 ---
 
@@ -194,6 +212,8 @@ self.addEventListener('message', (event) => {
 
 #### [ ] Task 1.2: Create Browser Notification Service
 **File**: `src/services/browserNotificationService.js`
+
+**Note**: The `src/services/` directory does not exist and will be created.
 
 **Description**: Create a service module that handles Service Worker registration and provides a unified API for sending notifications across all browsers.
 
@@ -459,9 +479,9 @@ export const useNotifications = () => {
 - [ ] 3.1.2: Add platform detection display
 - [ ] 3.1.3: Add iOS Safari "Add to Home Screen" instructions
 - [ ] 3.1.4: Add mobile browser capability indicators
-- [ ] 3.1.5: Update toggle labels
+- [ ] 3.1.5: Update toggle labels (change `toggles.enableDesktop` to `toggles.enable` in component)
 - [ ] 3.1.6: Add Service Worker registration status indicator
-- [ ] 3.1.7: Add test notification logic for SW-based notifications
+- [ ] 3.1.7: Update `handleTestNotification()` to use SW-based `notificationService.showNotification()` instead of `new Notification()`
 - [ ] 3.1.8: Add troubleshooting section for common issues
 
 **New UI Elements**:
@@ -505,12 +525,16 @@ const PlatformGuidance = ({ platform, platformSupport }) => {
 **Description**: Update notification-related translation strings to use "Browser Notifications" instead of "Desktop Notifications" and add mobile-specific strings.
 
 **Subtasks**:
-- [ ] 3.2.1: Rename "Desktop Notifications" to "Browser Notifications"
-- [ ] 3.2.2: Update description text
-- [ ] 3.2.3: Add iOS Safari setup instructions
-- [ ] 3.2.4: Add mobile browser guidance strings
-- [ ] 3.2.5: Add Service Worker status strings
-- [ ] 3.2.6: Add troubleshooting strings
+- [ ] 3.2.1: Rename "Desktop Notifications" to "Browser Notifications" (key: `notifications.title`)
+- [ ] 3.2.2: Update description text (key: `notifications.description`)
+- [ ] 3.2.3: Rename `toggles.enableDesktop` to `toggles.enable`
+- [ ] 3.2.4: Add iOS Safari setup instructions (new keys under `notifications.mobile.*`)
+- [ ] 3.2.5: Add mobile browser guidance strings
+- [ ] 3.2.6: Add Service Worker status strings (new keys under `notifications.status.*`)
+- [ ] 3.2.7: Add troubleshooting strings (new keys under `notifications.troubleshooting.*`)
+
+**Current Keys (for reference)**:
+- `toggles.enableDesktop` → will be renamed to `toggles.enable`
 
 **Updated Strings**:
 ```json
@@ -570,11 +594,12 @@ const PlatformGuidance = ({ platform, platformSupport }) => {
 **Description**: Add corresponding Chinese translations for all new notification strings.
 
 **Subtasks**:
-- [ ] 3.3.1: Translate "Browser Notifications" title and description
-- [ ] 3.3.2: Translate iOS Safari setup instructions
-- [ ] 3.3.3: Translate mobile browser guidance
-- [ ] 3.3.4: Translate status messages
-- [ ] 3.3.5: Translate troubleshooting strings
+- [ ] 3.3.1: Translate "Browser Notifications" title and description (update `notifications.title` and `notifications.description`)
+- [ ] 3.3.2: Rename `toggles.enableDesktop` to `toggles.enable` with translation "启用浏览器通知"
+- [ ] 3.3.3: Translate iOS Safari setup instructions
+- [ ] 3.3.4: Translate mobile browser guidance
+- [ ] 3.3.5: Translate status messages
+- [ ] 3.3.6: Translate troubleshooting strings
 
 ---
 
@@ -618,11 +643,17 @@ if ('serviceWorker' in navigator) {
 
 **Description**: Verify that the ChatInterface correctly uses the updated notification system. No major changes expected as it uses the context.
 
+**Current Implementation Details**:
+- ChatInterface uses `sendNotificationRef` pattern (useRef) to always have latest sendNotification function
+- Notifications are triggered at lines: 3437, 3536, 4212 (fire-and-forget, no await needed)
+- ChatInterface does NOT await sendNotification results, so async change is backward compatible
+- No changes required to ChatInterface if useNotifications hook maintains same API
+
 **Subtasks**:
-- [ ] 4.2.1: Review sendNotification usage in ChatInterface
-- [ ] 4.2.2: Verify notification content formatting still works
+- [ ] 4.2.1: Review sendNotification usage in ChatInterface (uses ref pattern at line 1957-1963)
+- [ ] 4.2.2: Verify notification content formatting still works (uses `getNotificationContent` from utils)
 - [ ] 4.2.3: Test claude-complete, cursor-complete, codex-complete handlers
-- [ ] 4.2.4: Add additional logging if needed for debugging
+- [ ] 4.2.4: Verify async/await compatibility (sendNotification will become async with SW)
 
 ---
 
@@ -636,8 +667,8 @@ if ('serviceWorker' in navigator) {
 
 **Subtasks**:
 - [ ] 5.1.1: Update test setup to handle SW registration
-- [ ] 5.1.2: Update console log patterns for SW notifications
-- [ ] 5.1.3: Update settings UI tests for new "Browser" naming
+- [ ] 5.1.2: Update console log patterns for SW notifications (currently checks for `[Notifications] Notification sent`)
+- [ ] 5.1.3: Update heading assertions from "Desktop Notifications" to "Browser Notifications" (lines 278, 507, 515, 526)
 - [ ] 5.1.4: Add SW registration verification tests
 - [ ] 5.1.5: Update permission flow tests
 
@@ -751,14 +782,15 @@ test.describe('Mobile Browser Notifications', () => {
 | File | Action | Description |
 |------|--------|-------------|
 | `public/notification-sw.js` | **CREATE** | Dedicated notification service worker |
+| `src/services/` | **CREATE DIR** | New directory for services (does not exist) |
 | `src/services/browserNotificationService.js` | **CREATE** | SW registration and notification service |
 | `src/utils/platformDetection.js` | **CREATE** | Device/browser detection utilities |
 | `src/hooks/useNotifications.js` | **MODIFY** | Use SW-based notifications |
-| `src/components/settings/NotificationSettings.jsx` | **MODIFY** | Rename to "Browser", add mobile guidance |
-| `src/i18n/locales/en/settings.json` | **MODIFY** | Update notification strings |
-| `src/i18n/locales/zh-CN/settings.json` | **MODIFY** | Update Chinese translations |
-| `src/main.jsx` | **MODIFY** | Selective SW unregistration |
-| `tests/notifications.spec.js` | **MODIFY** | Add mobile and SW tests |
+| `src/components/settings/NotificationSettings.jsx` | **MODIFY** | Rename to "Browser", add mobile guidance, update test button |
+| `src/i18n/locales/en/settings.json` | **MODIFY** | Update notification strings, rename `enableDesktop` → `enable` |
+| `src/i18n/locales/zh-CN/settings.json` | **MODIFY** | Update Chinese translations, rename key |
+| `src/main.jsx` | **MODIFY** | Selective SW unregistration (preserve notification-sw.js) |
+| `tests/notifications.spec.js` | **MODIFY** | Update heading assertions, add mobile and SW tests |
 
 ---
 
