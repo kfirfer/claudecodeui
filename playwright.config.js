@@ -5,10 +5,12 @@ dotenv.config();
 
 export default defineConfig({
   testDir: './tests',
+  globalSetup: './tests/global-setup.js',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // Use 4 workers as specified in CLAUDE.md
+  workers: 4,
   reporter: 'html',
   use: {
     baseURL: 'http://localhost:3008',
@@ -16,6 +18,12 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
+    // Setup project - runs first to create account and save auth state
+    {
+      name: 'setup',
+      testMatch: /auth\.setup\.js/,
+    },
+    // Main tests - depend on setup being complete
     {
       name: 'chromium',
       use: {
@@ -23,8 +31,11 @@ export default defineConfig({
         // Use new headless mode for better web API support (including notifications)
         launchOptions: {
           args: ['--headless=new']
-        }
+        },
+        // Use stored auth state from setup
+        storageState: './tests/.auth/user.json',
       },
+      dependencies: ['setup'],
     },
   ],
   webServer: {
