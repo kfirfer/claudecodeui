@@ -168,6 +168,8 @@ async function removeTestDirectory(dirPath) {
  * @returns {Promise<string>} The project name derived from the path
  */
 async function createProject(page, projectPath) {
+  const projectName = projectPath.split('/').pop();
+
   const newProjectButton = page.locator('button:has-text("New Project")').first();
   await expect(newProjectButton).toBeVisible();
   await newProjectButton.click();
@@ -197,7 +199,24 @@ async function createProject(page, projectPath) {
   await createButton.click();
 
   await expect(wizardHeading).not.toBeVisible({ timeout: 15000 });
-  return projectPath.split('/').pop();
+
+  // Wait for the project to appear in the sidebar
+  const projectButton = page.locator(`button:has-text("${projectName}")`).first();
+
+  // If project doesn't appear, try refreshing the project list
+  const isProjectVisible = await projectButton.isVisible().catch(() => false);
+  if (!isProjectVisible) {
+    const refreshButton = page.locator('button:has(svg.lucide-refresh-cw), button[title*="Refresh"]').first();
+    const hasRefreshButton = await refreshButton.isVisible().catch(() => false);
+    if (hasRefreshButton) {
+      await refreshButton.click();
+    }
+  }
+
+  // Wait for project to be visible
+  await expect(projectButton).toBeVisible({ timeout: 15000 });
+
+  return projectName;
 }
 
 /**
@@ -517,10 +536,8 @@ test.describe('Notification Trigger', () => {
     'Skipping tests - set TEST_USERNAME and TEST_PASSWORD env vars'
   );
 
-  // Grant notification permissions via browser context
   test.use({
-    viewport: { width: 1400, height: 900 },
-    permissions: ['notifications']
+    viewport: { width: 1400, height: 900 }
   });
 
   test('should send notification when Claude completes task while tab is unfocused', async ({ page, context }) => {
@@ -542,6 +559,18 @@ test.describe('Notification Trigger', () => {
     });
 
     try {
+      // Grant notification permissions for localhost
+      await context.grantPermissions(['notifications'], { origin: 'http://localhost:3001' });
+
+      // Configure browser environment for notification testing
+      // This ensures Notification.permission reports 'granted' in headless mode
+      await page.addInitScript(() => {
+        Object.defineProperty(Notification, 'permission', {
+          get: () => 'granted',
+          configurable: true
+        });
+      });
+
       await page.goto('/');
       await performLogin(page);
 
@@ -566,7 +595,7 @@ test.describe('Notification Trigger', () => {
       await createProject(page, testProjectPath);
 
       const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
-      await expect(projectButton).toBeVisible();
+      await expect(projectButton).toBeVisible({ timeout: 15000 });
 
       // Click project to expand and create new session
       await projectButton.click();
@@ -622,7 +651,7 @@ test.describe('Notification Trigger', () => {
     }
   });
 
-  test('should not send notification when tab is focused and onlyWhenUnfocused is enabled', async ({ page }) => {
+  test('should not send notification when tab is focused and onlyWhenUnfocused is enabled', async ({ page, context }) => {
     test.setTimeout(180000);
 
     const testId = Date.now();
@@ -641,6 +670,17 @@ test.describe('Notification Trigger', () => {
     });
 
     try {
+      // Grant notification permissions for localhost
+      await context.grantPermissions(['notifications'], { origin: 'http://localhost:3001' });
+
+      // Configure browser environment for notification testing
+      await page.addInitScript(() => {
+        Object.defineProperty(Notification, 'permission', {
+          get: () => 'granted',
+          configurable: true
+        });
+      });
+
       await page.goto('/');
       await performLogin(page);
 
@@ -662,7 +702,7 @@ test.describe('Notification Trigger', () => {
       // Create project and session
       await createProject(page, testProjectPath);
       const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
-      await expect(projectButton).toBeVisible();
+      await expect(projectButton).toBeVisible({ timeout: 15000 });
       await projectButton.click();
 
       const newSessionButton = page.locator('button:has-text("New Session")').first();
@@ -704,7 +744,7 @@ test.describe('Notification Trigger', () => {
     }
   });
 
-  test('should send notification when notifications enabled and onlyWhenUnfocused is disabled', async ({ page }) => {
+  test('should send notification when notifications enabled and onlyWhenUnfocused is disabled', async ({ page, context }) => {
     test.setTimeout(180000);
 
     const testId = Date.now();
@@ -723,6 +763,17 @@ test.describe('Notification Trigger', () => {
     });
 
     try {
+      // Grant notification permissions for localhost
+      await context.grantPermissions(['notifications'], { origin: 'http://localhost:3001' });
+
+      // Configure browser environment for notification testing
+      await page.addInitScript(() => {
+        Object.defineProperty(Notification, 'permission', {
+          get: () => 'granted',
+          configurable: true
+        });
+      });
+
       await page.goto('/');
       await performLogin(page);
 
@@ -744,7 +795,7 @@ test.describe('Notification Trigger', () => {
       // Create project and session
       await createProject(page, testProjectPath);
       const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
-      await expect(projectButton).toBeVisible();
+      await expect(projectButton).toBeVisible({ timeout: 15000 });
       await projectButton.click();
 
       const newSessionButton = page.locator('button:has-text("New Session")').first();

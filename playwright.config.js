@@ -18,7 +18,13 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // Use new headless mode for better web API support (including notifications)
+        launchOptions: {
+          args: ['--headless=new']
+        }
+      },
     },
   ],
   webServer: {
