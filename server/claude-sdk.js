@@ -320,22 +320,23 @@ function extractTokenBudget(resultMessage) {
     return null;
   }
 
-  // Use cumulative tokens if available (tracks total for the session)
-  // Otherwise fall back to per-request tokens
-  const inputTokens = modelData.cumulativeInputTokens || modelData.inputTokens || 0;
-  const outputTokens = modelData.cumulativeOutputTokens || modelData.outputTokens || 0;
-  const cacheReadTokens = modelData.cumulativeCacheReadInputTokens || modelData.cacheReadInputTokens || 0;
-  const cacheCreationTokens = modelData.cumulativeCacheCreationInputTokens || modelData.cacheCreationInputTokens || 0;
+  // SDK modelUsage provides cumulative token counts for the conversation
+  const inputTokens = modelData.inputTokens || 0;
+  const cacheReadTokens = modelData.cacheReadInputTokens || 0;
+  const cacheCreationTokens = modelData.cacheCreationInputTokens || 0;
 
-  // Context window usage = input + output + cache tokens
-  // The context window is a shared limit for both input and output tokens
-  // See: https://platform.claude.com/docs/en/build-with-claude/context-windows
-  const totalUsed = inputTokens + outputTokens + cacheReadTokens + cacheCreationTokens;
+  // Context usage = input_tokens + cache_creation_input_tokens + cache_read_input_tokens
+  // All of these represent tokens processed as part of the context:
+  // - inputTokens: Cumulative user/assistant message content
+  // - cacheCreationInputTokens: System prompt (first time, creates cache)
+  // - cacheReadInputTokens: System prompt (subsequent, reads from cache)
+  // Output tokens are NOT included (they don't persist in context)
+  const totalUsed = inputTokens + cacheCreationTokens + cacheReadTokens;
 
   // Get context window based on the model being used
   const contextWindow = getModelContextWindow(modelKey);
 
-  console.log(`Token calculation [${modelKey}]: input=${inputTokens}, output=${outputTokens}, cache=${cacheReadTokens + cacheCreationTokens}, total=${totalUsed}/${contextWindow}`);
+  console.log(`Token calculation [${modelKey}]: input=${inputTokens}, cacheRead=${cacheReadTokens}, cacheCreate=${cacheCreationTokens}, used=${totalUsed}/${contextWindow}`);
 
   return {
     used: totalUsed,
@@ -648,6 +649,26 @@ async function queryClaudeSDK(command, options = {}, ws) {
             sessionId: capturedSessionId || sessionId || null
           });
         }
+      }
+
+      // Also extract usage from assistant messages (SDK may send usage here)
+      if (message.type === 'assistant' && message.message?.usage) {
+        const usage = message.message.usage;
+        const inputTokens = usage.input_tokens || 0;
+        const cacheReadTokens = usage.cache_read_input_tokens || 0;
+        const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
+        const totalUsed = inputTokens + cacheCreationTokens + cacheReadTokens;
+
+        console.log(`Token budget from assistant message: input=${inputTokens}, cacheRead=${cacheReadTokens}, cacheCreate=${cacheCreationTokens}, used=${totalUsed}`);
+
+        ws.send({
+          type: 'token-budget',
+          data: {
+            used: totalUsed,
+            total: 200000 // Default context window
+          },
+          sessionId: capturedSessionId || sessionId || null
+        });
       }
     }
 

@@ -1633,18 +1633,6 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
       return res.status(400).json({ error: 'Invalid path' });
     }
 
-    // Read and parse the JSONL file
-    let fileContent;
-    try {
-      fileContent = await fsPromises.readFile(jsonlPath, 'utf8');
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        return res.status(404).json({ error: 'Session file not found', path: jsonlPath });
-      }
-      throw error; // Re-throw other errors to be caught by outer try-catch
-    }
-    const lines = fileContent.trim().split('\n');
-
     const parsedContextWindow = parseInt(process.env.CONTEXT_WINDOW, 10);
     // Default to 200K (standard Claude model context window)
     // See: https://platform.claude.com/docs/en/build-with-claude/context-windows
@@ -1653,32 +1641,93 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
     let cacheCreationTokens = 0;
     let cacheReadTokens = 0;
 
-    // Find the latest assistant message with usage data (scan from end)
-    for (let i = lines.length - 1; i >= 0; i--) {
-      try {
-        const entry = JSON.parse(lines[i]);
-
-        // Only count assistant messages which have usage data
-        if (entry.type === 'assistant' && entry.message?.usage) {
-          const usage = entry.message.usage;
-
-          // Context usage = input_tokens + cache_creation_input_tokens + cache_read_input_tokens
-          // Output tokens are NOT included (they don't persist in context)
-          inputTokens = usage.input_tokens || 0;
-          cacheCreationTokens = usage.cache_creation_input_tokens || 0;
-          cacheReadTokens = usage.cache_read_input_tokens || 0;
-
-          break; // Stop after finding the latest assistant message
+    // Helper function to extract token usage from JSONL lines
+    const extractUsageFromLines = (lines) => {
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const entry = JSON.parse(lines[i]);
+          // Only count assistant messages which have usage data
+          if (entry.type === 'assistant' && entry.message?.usage) {
+            const usage = entry.message.usage;
+            return {
+              inputTokens: usage.input_tokens || 0,
+              cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+              cacheReadTokens: usage.cache_read_input_tokens || 0
+            };
+          }
+        } catch {
+          continue;
         }
-      } catch (parseError) {
-        // Skip lines that can't be parsed
-        continue;
+      }
+      return null;
+    };
+
+    // Try to read from main session file first
+    let fileContent = '';
+    try {
+      fileContent = await fsPromises.readFile(jsonlPath, 'utf8');
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        throw error;
+      }
+      // File doesn't exist, will try agent files below
+    }
+
+    let lines = fileContent.trim().split('\n').filter(line => line.length > 0);
+    let usage = extractUsageFromLines(lines);
+
+    // If main session file is empty or has no usage, scan agent files
+    // Claude stores token data in agent-*.jsonl files with matching sessionId
+    if (!usage) {
+      try {
+        const dirEntries = await fsPromises.readdir(projectDir);
+        const agentFiles = dirEntries.filter(f => f.startsWith('agent-') && f.endsWith('.jsonl'));
+
+        for (const agentFile of agentFiles) {
+          const agentPath = path.join(projectDir, agentFile);
+          try {
+            const agentContent = await fsPromises.readFile(agentPath, 'utf8');
+            const agentLines = agentContent.trim().split('\n').filter(line => line.length > 0);
+
+            // Check if this agent file belongs to our session
+            for (const line of agentLines) {
+              try {
+                const entry = JSON.parse(line);
+                if (entry.sessionId === safeSessionId) {
+                  // This agent file is for our session, extract usage
+                  const agentUsage = extractUsageFromLines(agentLines);
+                  if (agentUsage) {
+                    usage = agentUsage;
+                    break;
+                  }
+                }
+              } catch {
+                continue;
+              }
+            }
+
+            if (usage) break; // Found usage data, stop searching
+          } catch {
+            continue; // Skip agent files we can't read
+          }
+        }
+      } catch {
+        // Can't read directory, return 0 usage
       }
     }
 
-    // Context window usage = input_tokens + cache_creation_input_tokens + cache_read_input_tokens
-    // Output tokens are NOT included in context usage (they don't persist in context)
-    // See: https://codelynx.dev/posts/calculate-claude-code-context
+    if (usage) {
+      inputTokens = usage.inputTokens;
+      cacheCreationTokens = usage.cacheCreationTokens;
+      cacheReadTokens = usage.cacheReadTokens;
+    }
+
+    // Context usage = input_tokens + cache_creation_input_tokens + cache_read_input_tokens
+    // All of these represent tokens that were processed as part of the context:
+    // - input_tokens: The user/assistant message content
+    // - cache_creation_input_tokens: System prompt (first time, creates cache)
+    // - cache_read_input_tokens: System prompt (subsequent, reads from cache)
+    // Output tokens are NOT included (they don't persist in context)
     const totalUsed = inputTokens + cacheCreationTokens + cacheReadTokens;
 
     res.json({
