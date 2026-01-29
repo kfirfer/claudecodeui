@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { X, Flag, ArrowRight, CheckCircle, Circle, AlertCircle, Pause, Edit, Save, Copy, ChevronDown, ChevronRight, Clock } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { api } from '../utils/api';
 import { useTaskMaster } from '../contexts/TaskMasterContext';
+import { useToast } from './ui/toast';
 
-const TaskDetail = ({ 
-  task, 
-  onClose, 
+const TaskDetail = ({
+  task,
+  onClose,
   onEdit,
   onStatusChange,
   onTaskClick,
   isOpen = true,
   className = ''
 }) => {
+  const { toast } = useToast();
   const [editMode, setEditMode] = useState(false);
   const [editedTask, setEditedTask] = useState(task || {});
   const [isSaving, setIsSaving] = useState(false);
@@ -44,14 +46,14 @@ const TaskDetail = ({
         } else {
           const error = await response.json();
           console.error('Failed to update task:', error);
-          alert(`Failed to update task: ${error.message}`);
+          toast.error(`Failed to update task: ${error.message}`);
         }
       } else {
         setEditMode(false);
       }
     } catch (error) {
       console.error('Error updating task:', error);
-      alert('Error updating task. Please try again.');
+      toast.error('Error updating task. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -69,11 +71,11 @@ const TaskDetail = ({
       } else {
         const error = await response.json();
         console.error('Failed to update task status:', error);
-        alert(`Failed to update task status: ${error.message}`);
+        toast.error(`Failed to update task status: ${error.message}`);
       }
     } catch (error) {
       console.error('Error updating task status:', error);
-      alert('Error updating task status. Please try again.');
+      toast.error('Error updating task status. Please try again.');
     }
   };
 

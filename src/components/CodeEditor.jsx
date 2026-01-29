@@ -13,9 +13,11 @@ import { showMinimap } from '@replit/codemirror-minimap';
 import { X, Save, Download, Maximize2, Minimize2 } from 'lucide-react';
 import { api } from '../utils/api';
 import { useTranslation } from 'react-i18next';
+import { useToast } from './ui/toast';
 
 function CodeEditor({ file, onClose, projectPath, isSidebar = false, isExpanded = false, onToggleExpand = null }) {
   const { t } = useTranslation('codeEditor');
+  const { toast } = useToast();
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -360,7 +362,7 @@ function CodeEditor({ file, onClose, projectPath, isSidebar = false, isExpanded 
 
     } catch (error) {
       console.error('Error saving file:', error);
-      alert(`Error saving file: ${error.message}`);
+      toast.error(`Error saving file: ${error.message}`);
     } finally {
       setSaving(false);
     }

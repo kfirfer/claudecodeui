@@ -16,6 +16,7 @@ import ProjectCreationWizard from './ProjectCreationWizard';
 import { api } from '../utils/api';
 import { useTaskMaster } from '../contexts/TaskMasterContext';
 import { useTasksSettings } from '../contexts/TasksSettingsContext';
+import { useToast } from './ui/toast';
 
 // Move formatTimeAgo outside component to avoid recreation on every render
 const formatTimeAgo = (dateString, currentTime, t) => {
@@ -66,6 +67,7 @@ function Sidebar({
   onToggleSidebar
 }) {
   const { t } = useTranslation('sidebar');
+  const { toast } = useToast();
   const [expandedProjects, setExpandedProjects] = useState(new Set());
   const [editingProject, setEditingProject] = useState(null);
   const [showNewProject, setShowNewProject] = useState(false);
@@ -367,11 +369,11 @@ function Sidebar({
       } else {
         const errorText = await response.text();
         console.error('[Sidebar] Failed to delete session:', { status: response.status, error: errorText });
-        alert(t('messages.deleteSessionFailed'));
+        toast.error(t('messages.deleteSessionFailed'));
       }
     } catch (error) {
       console.error('[Sidebar] Error deleting session:', error);
-      alert(t('messages.deleteSessionError'));
+      toast.error(t('messages.deleteSessionError'));
     }
   };
 
@@ -399,11 +401,11 @@ function Sidebar({
       } else {
         const error = await response.json();
         console.error('Failed to delete project');
-        alert(error.error || t('messages.deleteProjectFailed'));
+        toast.error(error.error || t('messages.deleteProjectFailed'));
       }
     } catch (error) {
       console.error('Error deleting project:', error);
-      alert(t('messages.deleteProjectError'));
+      toast.error(t('messages.deleteProjectError'));
     } finally {
       setDeletingProjects(prev => {
         const next = new Set(prev);

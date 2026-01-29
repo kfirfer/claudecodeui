@@ -32,6 +32,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import { TaskMasterProvider } from './contexts/TaskMasterContext';
 import { TasksSettingsProvider } from './contexts/TasksSettingsContext';
 import { WebSocketProvider, useWebSocketContext } from './contexts/WebSocketContext';
+import { ToastProvider } from './components/ui/toast';
+import { ConfirmProvider } from './components/ui/confirm-dialog';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useVersionCheck } from './hooks/useVersionCheck';
 import useLocalStorage from './hooks/useLocalStorage';
@@ -1016,18 +1018,22 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <WebSocketProvider>
-            <TasksSettingsProvider>
-              <TaskMasterProvider>
-                <ProtectedRoute>
-                  <Router basename={window.__ROUTER_BASENAME__ || ''}>                                                                                                      
-                    <Routes>
-                      <Route path="/" element={<AppContent />} />
-                      <Route path="/session/:sessionId" element={<AppContent />} />
-                    </Routes>
-                  </Router>
-                </ProtectedRoute>
-              </TaskMasterProvider>
-            </TasksSettingsProvider>
+            <ToastProvider>
+              <ConfirmProvider>
+                <TasksSettingsProvider>
+                  <TaskMasterProvider>
+                    <ProtectedRoute>
+                      <Router basename={window.__ROUTER_BASENAME__ || ''}>
+                        <Routes>
+                          <Route path="/" element={<AppContent />} />
+                          <Route path="/session/:sessionId" element={<AppContent />} />
+                        </Routes>
+                      </Router>
+                    </ProtectedRoute>
+                  </TaskMasterProvider>
+                </TasksSettingsProvider>
+              </ConfirmProvider>
+            </ToastProvider>
           </WebSocketProvider>
         </AuthProvider>
       </ThemeProvider>

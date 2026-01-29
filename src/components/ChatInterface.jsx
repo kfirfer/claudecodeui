@@ -16,7 +16,7 @@
  * This ensures uninterrupted chat experience by coordinating with App.jsx to pause sidebar updates.
  */
 
-import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, memo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -31,6 +31,7 @@ import CodexLogo from './CodexLogo.jsx';
 import NextTaskBanner from './NextTaskBanner.jsx';
 import { useTasksSettings } from '../contexts/TasksSettingsContext';
 import { useTranslation } from 'react-i18next';
+import { useConfirm } from './ui/confirm-dialog';
 
 import ClaudeStatus from './ClaudeStatus';
 import TokenUsagePie from './TokenUsagePie';
@@ -345,7 +346,7 @@ function grantClaudeToolPermission(entry) {
 // Common markdown components to ensure consistent rendering (tables, inline code, links, etc.)
 const CodeBlock = ({ node, inline, className, children, ...props }) => {
   const { t } = useTranslation('chat');
-  const [copied, setCopied] = React.useState(false);
+  const [copied, setCopied] = useState(false);
   const raw = Array.isArray(children) ? children.join('') : String(children ?? '');
   const looksMultiline = /[\r\n]/.test(raw);
   const inlineDetected = inline || (node && node.type === 'inlineCode');
@@ -513,18 +514,18 @@ const MessageComponent = memo(({ message, index: _index, prevMessage, createDiff
                     (prevMessage.type === 'user') ||
                     (prevMessage.type === 'tool') ||
                     (prevMessage.type === 'error'));
-  const messageRef = React.useRef(null);
-  const [isExpanded, setIsExpanded] = React.useState(false);
+  const messageRef = useRef(null);
+  const [isExpanded, setIsExpanded] = useState(false);
   const permissionSuggestion = getClaudePermissionSuggestion(message, provider);
-  const [permissionGrantState, setPermissionGrantState] = React.useState('idle');
+  const [permissionGrantState, setPermissionGrantState] = useState('idle');
 
-  React.useEffect(() => {
+  useEffect(() => {
     setPermissionGrantState('idle');
   }, [permissionSuggestion?.entry, message.toolId]);
 
-  const [isCopied, setIsCopied] = React.useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
-  const handleCopyMessage = React.useCallback(() => {
+  const handleCopyMessage = useCallback(() => {
     const textToCopy = message.content;
     const doSet = () => {
       setIsCopied(true);
@@ -567,7 +568,7 @@ const MessageComponent = memo(({ message, index: _index, prevMessage, createDiff
     }
   }, [message.content]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const currentRef = messageRef.current;
     if (!autoExpandTools || !currentRef || !message.isToolUse) return;
 
@@ -1951,6 +1952,7 @@ const ImageAttachment = ({ file, onRemove, uploadProgress, error }) => {
 function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick: _onTaskClick, onShowAllTasks }) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { t } = useTranslation('chat');
+  const confirm = useConfirm();
   const [input, setInput] = useState(() => {
     if (typeof window !== 'undefined' && selectedProject) {
       return safeLocalStorage.getItem(`draft_input_${selectedProject.name}`) || '';
@@ -2351,9 +2353,12 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
     // Show confirmation for bash commands
     if (hasBashCommands) {
-      const confirmed = window.confirm(
-        'This command contains bash commands that will be executed. Do you want to proceed?'
-      );
+      const confirmed = await confirm({
+        title: 'Execute Bash Commands',
+        message: 'This command contains bash commands that will be executed. Do you want to proceed?',
+        confirmText: 'Execute',
+        variant: 'destructive'
+      });
       if (!confirmed) {
         setChatMessages(prev => [...prev, {
           role: 'assistant',
@@ -2375,7 +2380,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         handleSubmitRef.current(fakeEvent);
       }
     }, 50);
-  }, []);
+  }, [confirm]);
   const executeCommand = useCallback(async (command) => {
     if (!command || !selectedProject) return;
 
@@ -5844,4 +5849,4 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   );
 }
 
-export default React.memo(ChatInterface);
+export default memo(ChatInterface);

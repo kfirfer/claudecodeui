@@ -46,7 +46,7 @@ export default defineConfig(({ command, mode }) => {
               '@codemirror/lang-python',
               '@codemirror/theme-one-dark'
             ],
-            'vendor-xterm': ['@xterm/xterm', '@xterm/addon-fit', '@xterm/addon-clipboard', '@xterm/addon-webgl']
+            'vendor-xterm': ['@xterm/xterm', '@xterm/addon-fit', '@xterm/addon-webgl']
           }
         }
       }

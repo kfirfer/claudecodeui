@@ -6,9 +6,11 @@ import { useVersionCheck } from '../hooks/useVersionCheck';
 import { version } from '../../package.json';
 import { authenticatedFetch } from '../utils/api';
 import { useTranslation } from 'react-i18next';
+import { useConfirm } from './ui/confirm-dialog';
 
 function CredentialsSettings() {
   const { t } = useTranslation('settings');
+  const confirm = useConfirm();
   const [apiKeys, setApiKeys] = useState([]);
   const [githubCredentials, setGithubCredentials] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +73,13 @@ function CredentialsSettings() {
   };
 
   const deleteApiKey = async (keyId) => {
-    if (!confirm(t('apiKeys.confirmDelete'))) return;
+    const confirmed = await confirm({
+      title: t('apiKeys.deleteTitle', 'Delete API Key'),
+      message: t('apiKeys.confirmDelete'),
+      confirmText: t('apiKeys.deleteButton', 'Delete'),
+      variant: 'destructive'
+    });
+    if (!confirmed) return;
 
     try {
       await authenticatedFetch(`/api/settings/api-keys/${keyId}`, {
@@ -123,7 +131,13 @@ function CredentialsSettings() {
   };
 
   const deleteGithubCredential = async (credentialId) => {
-    if (!confirm(t('apiKeys.github.confirmDelete'))) return;
+    const confirmed = await confirm({
+      title: t('apiKeys.github.deleteTitle', 'Delete GitHub Credential'),
+      message: t('apiKeys.github.confirmDelete'),
+      confirmText: t('apiKeys.github.deleteButton', 'Delete'),
+      variant: 'destructive'
+    });
+    if (!confirmed) return;
 
     try {
       await authenticatedFetch(`/api/settings/credentials/${credentialId}`, {

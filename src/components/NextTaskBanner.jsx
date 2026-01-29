@@ -3,6 +3,7 @@ import { ArrowRight, List, Flag, CheckCircle, Circle, Plus, FileText, Settings, 
 import { cn } from '../lib/utils';
 import { useTaskMaster } from '../contexts/TaskMasterContext';
 import { api } from '../utils/api';
+import { useToast } from './ui/toast';
 import Shell from './Shell';
 import TaskDetail from './TaskDetail';
 
@@ -324,6 +325,7 @@ const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
 
 // Simple Create Task Modal Component
 const CreateTaskModal = ({ currentProject, onClose, onTaskCreated }) => {
+  const toast = useToast();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -339,22 +341,22 @@ const CreateTaskModal = ({ currentProject, onClose, onTaskCreated }) => {
 
     setIsSubmitting(true);
     try {
-      const taskData = formData.useAI 
+      const taskData = formData.useAI
         ? { prompt: formData.prompt, priority: formData.priority }
         : { title: formData.title, description: formData.description, priority: formData.priority };
 
       const response = await api.taskmaster.addTask(currentProject.name, taskData);
-      
+
       if (response.ok) {
         onTaskCreated();
       } else {
         const error = await response.json();
         console.error('Failed to create task:', error);
-        alert(`Failed to create task: ${error.message}`);
+        toast.error(`Failed to create task: ${error.message}`);
       }
     } catch (error) {
       console.error('Error creating task:', error);
-      alert('Error creating task. Please try again.');
+      toast.error('Error creating task. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -472,6 +474,7 @@ const CreateTaskModal = ({ currentProject, onClose, onTaskCreated }) => {
 
 // Template Selector Modal Component
 const TemplateSelector = ({ currentProject, onClose, onTemplateApplied }) => {
+  const toast = useToast();
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [customizations, setCustomizations] = useState({});
@@ -549,7 +552,7 @@ const TemplateSelector = ({ currentProject, onClose, onTemplateApplied }) => {
 
     } catch (error) {
       console.error('Error applying template:', error);
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
       setIsApplying(false);
     }
   };

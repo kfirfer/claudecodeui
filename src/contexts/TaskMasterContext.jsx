@@ -300,5 +300,3 @@ export const TaskMasterProvider = ({ children }) => {
     </TaskMasterContext.Provider>
   );
 };
-
-export default TaskMasterContext;

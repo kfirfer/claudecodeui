@@ -6,10 +6,13 @@ import { EditorView } from '@codemirror/view';
 import { X, Save, Download, Maximize2, Minimize2, Eye, FileText, Sparkles, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { api, authenticatedFetch } from '../utils/api';
+import { useToast } from './ui/toast';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
-const PRDEditor = ({ 
-  file, 
-  onClose, 
+const PRDEditor = ({
+  file,
+  onClose,
   projectPath,
   // Project object
   project,
@@ -17,6 +20,7 @@ const PRDEditor = ({
   isNewFile = false,
   onSave
 }) => {
+  const { toast } = useToast();
   const [content, setContent] = useState(initialContent);
   const [loading, setLoading] = useState(!isNewFile);
   const [saving, setSaving] = useState(false);
@@ -373,12 +377,12 @@ This document outlines the requirements for building an AI-powered task manageme
 
   const handleSave = async () => {
     if (!content.trim()) {
-      alert('Please add content before saving.');
+      toast.warning('Please add content before saving.');
       return;
     }
 
     if (!fileName.trim()) {
-      alert('Please provide a filename for the PRD.');
+      toast.warning('Please provide a filename for the PRD.');
       return;
     }
 
@@ -442,7 +446,7 @@ This document outlines the requirements for building an AI-powered task manageme
       
     } catch (error) {
       console.error('Error saving PRD:', error);
-      alert(`Error saving PRD: ${error.message}`);
+      toast.error(`Error saving PRD: ${error.message}`);
     } finally {
       setSaving(false);
     }
@@ -463,7 +467,7 @@ This document outlines the requirements for building an AI-powered task manageme
 
   const handleGenerateTasks = async () => {
     if (!content.trim()) {
-      alert('Please add content to the PRD before generating tasks.');
+      toast.warning('Please add content to the PRD before generating tasks.');
       return;
     }
 
@@ -495,20 +499,6 @@ This document outlines the requirements for building an AI-powered task manageme
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Only re-subscribe when content changes; handleSave and onClose are stable callbacks
   }, [content]);
 
-  // Simple markdown to HTML converter for preview
-  const renderMarkdown = (markdown) => {
-    return markdown
-      .replaceAll(/^### (.*$)/gim, '<h3>$1</h3>')
-      .replaceAll(/^## (.*$)/gim, '<h2>$1</h2>')
-      .replaceAll(/^# (.*$)/gim, '<h1>$1</h1>')
-      .replaceAll(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
-      .replaceAll(/\*(.*)\*/gim, '<em>$1</em>')
-      .replaceAll(/^- (.*$)/gim, '<li>$1</li>')
-      .replaceAll(/(<li>.*<\/li>)/gims, '<ul>$1</ul>')
-      .replaceAll('\n\n', '</p><p>')
-      .replaceAll(/^(?!<[h|u|l])(.*$)/gim, '<p>$1</p>')
-      .replaceAll(/<\/ul>\s*<ul>/gim, '');
-  };
 
   if (loading) {
     return (
@@ -707,10 +697,9 @@ This document outlines the requirements for building an AI-powered task manageme
         <div className="flex-1 overflow-hidden">
           {previewMode ? (
             <div className="h-full overflow-y-auto p-6 prose prose-gray dark:prose-invert max-w-none">
-              <div
-                className="markdown-preview"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-              />
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {content}
+              </ReactMarkdown>
             </div>
           ) : (
             <CodeMirror

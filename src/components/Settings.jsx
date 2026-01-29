@@ -9,6 +9,8 @@ import GitSettings from './GitSettings';
 import TasksSettings from './TasksSettings';
 import LoginModal from './LoginModal';
 import { authenticatedFetch } from '../utils/api';
+import { useToast } from './ui/toast';
+import { useConfirm } from './ui/confirm-dialog';
 
 // Settings components
 import AgentListItem from './settings/AgentListItem';
@@ -20,6 +22,8 @@ import LanguageSelector from './LanguageSelector';
 function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
   const { isDarkMode, toggleDarkMode } = useTheme();
   const { t } = useTranslation('settings');
+  const { toast } = useToast();
+  const confirm = useConfirm();
   const [allowedTools, setAllowedTools] = useState([]);
   const [disallowedTools, setDisallowedTools] = useState([]);
   const [newAllowedTool, setNewAllowedTool] = useState('');
@@ -446,7 +450,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
       resetCodexMcpForm();
       setSaveStatus('success');
     } catch (error) {
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
       setSaveStatus('error');
     } finally {
       setCodexMcpLoading(false);
@@ -454,12 +458,18 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
   };
 
   const handleCodexMcpDelete = async (serverName) => {
-    if (confirm('Are you sure you want to delete this MCP server?')) {
+    const confirmed = await confirm({
+      title: 'Delete MCP Server',
+      message: 'Are you sure you want to delete this MCP server?',
+      confirmText: 'Delete',
+      variant: 'destructive'
+    });
+    if (confirmed) {
       try {
         await deleteCodexMcpServer(serverName);
         setSaveStatus('success');
       } catch (error) {
-        alert(`Error: ${error.message}`);
+        toast.error(`Error: ${error.message}`);
         setSaveStatus('error');
       }
     }
@@ -819,7 +829,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
         setSaveStatus('success');
       }
     } catch (error) {
-      alert(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
       setSaveStatus('error');
     } finally {
       setMcpLoading(false);
@@ -827,12 +837,18 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
   };
 
   const handleMcpDelete = async (serverId, scope) => {
-    if (confirm('Are you sure you want to delete this MCP server?')) {
+    const confirmed = await confirm({
+      title: 'Delete MCP Server',
+      message: 'Are you sure you want to delete this MCP server?',
+      confirmText: 'Delete',
+      variant: 'destructive'
+    });
+    if (confirmed) {
       try {
         await deleteMcpServer(serverId, scope);
         setSaveStatus('success');
       } catch (error) {
-        alert(`Error: ${error.message}`);
+        toast.error(`Error: ${error.message}`);
         setSaveStatus('error');
       }
     }

@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { GitBranch, GitCommit, Plus, RefreshCw, Check, ChevronDown, ChevronRight, Info, History, FileText, Sparkles, Download, Trash2, AlertTriangle, Upload } from 'lucide-react';
 import { MicButton } from './MicButton.jsx';
 import { authenticatedFetch } from '../utils/api';
+import { useToast } from './ui/toast';
 import DiffViewer from './DiffViewer.jsx';
 
 function GitPanel({ selectedProject, isMobile, onFileOpen }) {
+  const toast = useToast();
   const [gitStatus, setGitStatus] = useState(null);
   const [gitDiff, setGitDiff] = useState({});
   const [isLoading, setIsLoading] = useState(false);
@@ -603,11 +605,11 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
         fetchRemoteStatus();
       } else {
         console.error('Initial commit failed:', data.error);
-        alert(data.error || 'Failed to create initial commit');
+        toast.error(data.error || 'Failed to create initial commit');
       }
     } catch (error) {
       console.error('Error creating initial commit:', error);
-      alert('Failed to create initial commit');
+      toast.error('Failed to create initial commit');
     } finally {
       setIsCreatingInitialCommit(false);
     }
