@@ -5,6 +5,7 @@ dotenv.config();
 
 export default defineConfig({
   testDir: './tests',
+  globalSetup: './tests/global-setup.js',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -28,7 +29,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'PORT=3008 npm run dev',
+    command: 'PORT=3008 DATABASE_PATH=./server/database/test-auth.db npm run dev',
     url: 'http://localhost:3008/health',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
