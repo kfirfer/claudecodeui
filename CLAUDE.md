@@ -82,7 +82,7 @@ npm run type-check     # Run TypeScript compiler (tsc --noEmit)
 Environment variables (`.env`):
 - `PORT` - Backend server port (default: 3001)
 - `VITE_PORT` - Frontend dev server port (default: 5173)
-- `CONTEXT_WINDOW` - Claude context window size (default: 160000)
+- `CONTEXT_WINDOW` - Claude context window size (default: 200000)
 - `DATABASE_PATH` - Custom auth database location
 
 ## Key Patterns

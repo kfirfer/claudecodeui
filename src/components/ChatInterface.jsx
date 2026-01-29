@@ -5770,7 +5770,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             {/* Token usage pie chart - positioned next to mode indicator */}
             <TokenUsagePie
               used={tokenBudget?.used || 0}
-              total={tokenBudget?.total || parseInt(import.meta.env.VITE_CONTEXT_WINDOW, 10) || 160000}
+              total={tokenBudget?.total || parseInt(import.meta.env.VITE_CONTEXT_WINDOW, 10) || 200000}
             />
 
             {/* Slash commands button */}

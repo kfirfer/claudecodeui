@@ -277,6 +277,32 @@ function transformMessage(sdkMessage) {
 }
 
 /**
+ * Gets the context window size for a given model
+ * @param {string} modelKey - The model identifier from modelUsage
+ * @returns {number} Context window size in tokens
+ */
+function getModelContextWindow(modelKey) {
+  // Check for environment override first
+  const envContextWindow = parseInt(process.env.CONTEXT_WINDOW);
+  if (envContextWindow && envContextWindow > 0) {
+    return envContextWindow;
+  }
+
+  // Model-specific context windows
+  // See: https://platform.claude.com/docs/en/build-with-claude/context-windows
+  const modelLower = (modelKey || '').toLowerCase();
+
+  // 1M context window models (extended context)
+  if (modelLower.includes('1m') || modelLower.includes('1000k')) {
+    return 1000000;
+  }
+
+  // All Claude models (Sonnet, Opus, Haiku) have 200K context window by default
+  // This includes: claude-sonnet-4, claude-opus-4, claude-3.5-sonnet, etc.
+  return 200000;
+}
+
+/**
  * Extracts token usage from SDK result messages
  * @param {Object} resultMessage - SDK result message
  * @returns {Object|null} Token budget object or null
@@ -306,11 +332,10 @@ function extractTokenBudget(resultMessage) {
   // See: https://platform.claude.com/docs/en/build-with-claude/context-windows
   const totalUsed = inputTokens + outputTokens + cacheReadTokens + cacheCreationTokens;
 
-  // Use configured context window budget from environment (default 160000)
-  // This is the user's budget limit, not the model's context window
-  const contextWindow = parseInt(process.env.CONTEXT_WINDOW) || 160000;
+  // Get context window based on the model being used
+  const contextWindow = getModelContextWindow(modelKey);
 
-  console.log(`Token calculation: input=${inputTokens}, output=${outputTokens}, cache=${cacheReadTokens + cacheCreationTokens}, total=${totalUsed}/${contextWindow}`);
+  console.log(`Token calculation [${modelKey}]: input=${inputTokens}, output=${outputTokens}, cache=${cacheReadTokens + cacheCreationTokens}, total=${totalUsed}/${contextWindow}`);
 
   return {
     used: totalUsed,

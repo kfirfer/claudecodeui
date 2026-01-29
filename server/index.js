@@ -1646,7 +1646,9 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
     const lines = fileContent.trim().split('\n');
 
     const parsedContextWindow = parseInt(process.env.CONTEXT_WINDOW, 10);
-    const contextWindow = Number.isFinite(parsedContextWindow) ? parsedContextWindow : 160000;
+    // Default to 200K (standard Claude model context window)
+    // See: https://platform.claude.com/docs/en/build-with-claude/context-windows
+    const contextWindow = Number.isFinite(parsedContextWindow) ? parsedContextWindow : 200000;
     let inputTokens = 0;
     let outputTokens = 0;
     let cacheCreationTokens = 0;
