@@ -113,7 +113,7 @@ This applies to all code changes, including bug fixes, new features, and refacto
 - All test files are located in the `tests/` directory.
 - Test user credentials are obtained from environment variables: `TEST_USERNAME` and `TEST_PASSWORD`, or from `.env` file.
 - The testing framework used is Playwright, so write all test cases using Playwright's syntax and best practices.
-- Execute all tests against the application at `http://localhost:3001`.
+- Execute all tests against the application at `http://localhost:3008`.
 - When developing a new feature or addressing a bug fix, incorporate the relevant test logic directly into the corresponding existing test files rather than creating separate new tests.
 - For any code change whether adding new functionality, refactoring, or fixing bugs, run E2E tests to confirm that previous behavior is preserved and that no regressions have been introduced. To do this, execute the following command: `npm run test:e2e`.
 - Carefully review test outputs after running, ensuring that all tests pass without failures or errors. If any regressions or unexpected errors occur, address them before considering the task complete.
