@@ -283,7 +283,12 @@ function Sidebar({
     }
 
     // Add pending session if it matches this project
-    if (pendingSession && pendingSession.projectName === project.name) {
+    // Handle both dash-separated paths (e.g., -Users-dev345-project) and folder names (e.g., project)
+    const pendingSessionMatchesProject = pendingSession && (
+      pendingSession.projectName === project.name ||
+      pendingSession.projectName.endsWith(`-${project.name}`)
+    );
+    if (pendingSessionMatchesProject) {
       const pendingSessionObj = {
         id: pendingSession.id,
         name: pendingSession.firstMessage || 'New conversation...',
@@ -1239,25 +1244,40 @@ function Sidebar({
                   {/* Sessions List */}
                   {isExpanded && (
                     <div className="ml-3 space-y-1 border-l border-border pl-3">
-                      {!initialSessionsLoaded.has(project.name) ? (
-                        // Loading skeleton for sessions
-                        Array.from({ length: 3 }).map((_, i) => (
-                          <div key={i} className="p-2 rounded-md">
-                            <div className="flex items-start gap-2">
-                              <div className="w-3 h-3 bg-muted rounded-full animate-pulse mt-0.5" />
-                              <div className="flex-1 space-y-1">
-                                <div className="h-3 bg-muted rounded animate-pulse" style={{ width: `${60 + i * 15}%` }} />
-                                <div className="h-2 bg-muted rounded animate-pulse w-1/2" />
+                      {(() => {
+                        // Check if we have a pending session for this project
+                        // Handle both dash-separated paths (e.g., -Users-dev345-project) and folder names (e.g., project)
+                        const hasPendingSessionForProject = pendingSession && (
+                          pendingSession.projectName === project.name ||
+                          pendingSession.projectName.endsWith(`-${project.name}`)
+                        );
+
+                        // Show loading skeleton only if sessions haven't loaded AND there's no pending session
+                        if (!initialSessionsLoaded.has(project.name) && !hasPendingSessionForProject) {
+                          return Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="p-2 rounded-md">
+                              <div className="flex items-start gap-2">
+                                <div className="w-3 h-3 bg-muted rounded-full animate-pulse mt-0.5" />
+                                <div className="flex-1 space-y-1">
+                                  <div className="h-3 bg-muted rounded animate-pulse" style={{ width: `${60 + i * 15}%` }} />
+                                  <div className="h-2 bg-muted rounded animate-pulse w-1/2" />
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))
-                      ) : getAllSessions(project).length === 0 && !loadingSessions[project.name] ? (
-                        <div className="py-2 px-3 text-left">
-                          <p className="text-xs text-muted-foreground">{t('sessions.noSessions')}</p>
-                        </div>
-                      ) : (
-                        getAllSessions(project).map((session) => {
+                          ));
+                        }
+
+                        // Show "no sessions" message if empty and not loading
+                        if (getAllSessions(project).length === 0 && !loadingSessions[project.name]) {
+                          return (
+                            <div className="py-2 px-3 text-left">
+                              <p className="text-xs text-muted-foreground">{t('sessions.noSessions')}</p>
+                            </div>
+                          );
+                        }
+
+                        // Render sessions list
+                        return getAllSessions(project).map((session) => {
                           // Handle Claude, Cursor, and Codex session formats
                           const isCursorSession = session.__provider === 'cursor';
                           const isCodexSession = session.__provider === 'codex';
@@ -1503,8 +1523,8 @@ function Sidebar({
                             </div>
                           </div>
                           );
-                        })
-                      )}
+                        });
+                      })()}
 
                       {/* Show More Sessions Button */}
                       {getAllSessions(project).length > 0 && project.sessionMeta?.hasMore !== false && (
