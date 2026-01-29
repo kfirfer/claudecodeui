@@ -12,6 +12,7 @@
  * BrowserNotificationService class
  * Manages Service Worker registration and notification sending
  */
+/* eslint-disable unicorn/prefer-class-fields -- ESLint parser doesn't support class fields in .js files */
 class BrowserNotificationService {
   constructor() {
     this.registration = null;
@@ -77,8 +78,8 @@ class BrowserNotificationService {
     this.isRegistering = true;
 
     // Create a timeout promise for registration
-    const timeoutPromise = new Promise((resolve, reject) => {
-      void resolve; // unused but required by eslint
+    // eslint-disable-next-line promise/avoid-new -- Timeout promises require explicit Promise construction
+    const timeoutPromise = new Promise((_resolve, reject) => {
       setTimeout(() => reject(new Error('SW registration timeout')), timeout);
     });
 
