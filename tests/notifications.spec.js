@@ -1,12 +1,16 @@
 import { test, expect } from '@playwright/test';
+import fs from 'fs/promises';
+import path from 'path';
+import os from 'os';
 
 /**
- * E2E Test: Notification Settings
+ * E2E Test: Notification Settings and Triggers
  *
  * Tests browser notification settings functionality including:
  * - Settings panel UI and toggles
  * - Permission status display
  * - Settings persistence in localStorage
+ * - Real notification triggers when Claude completes a task
  *
  * NOTE: These are true E2E tests without mocks. The tests adapt to the
  * actual browser notification permission state.
@@ -139,6 +143,86 @@ async function getPermissionState(page) {
     }
     return 'unsupported';
   });
+}
+
+/**
+ * Helper function to create a test directory
+ * @param {string} dirPath - Path to create
+ */
+async function createTestDirectory(dirPath) {
+  await fs.mkdir(dirPath, { recursive: true });
+}
+
+/**
+ * Helper function to remove a test directory
+ * @param {string} dirPath - Path to remove
+ */
+async function removeTestDirectory(dirPath) {
+  await fs.rm(dirPath, { recursive: true, force: true }).catch(() => {});
+}
+
+/**
+ * Helper function to create a project via the wizard
+ * @param {import('@playwright/test').Page} page
+ * @param {string} projectPath
+ * @returns {Promise<string>} The project name derived from the path
+ */
+async function createProject(page, projectPath) {
+  const newProjectButton = page.locator('button:has-text("New Project")').first();
+  await expect(newProjectButton).toBeVisible();
+  await newProjectButton.click();
+
+  const wizardHeading = page.getByRole('heading', { name: 'Create New Project' });
+  await expect(wizardHeading).toBeVisible();
+
+  const existingWorkspaceButton = page.locator('button:has-text("Existing Workspace")').first();
+  const isExistingWorkspaceVisible = await existingWorkspaceButton.isVisible();
+  if (isExistingWorkspaceVisible) {
+    await existingWorkspaceButton.click();
+  }
+
+  const nextButton = page.locator('button:has-text("Next")');
+  await expect(nextButton).toBeVisible();
+  await nextButton.click();
+
+  const pathInput = page.locator('input[placeholder*="/path"]').first();
+  await expect(pathInput).toBeVisible();
+  await pathInput.fill(projectPath);
+
+  await expect(nextButton).toBeVisible();
+  await nextButton.click();
+
+  const createButton = page.getByRole('button', { name: /Create Project/i });
+  await expect(createButton).toBeVisible();
+  await createButton.click();
+
+  await expect(wizardHeading).not.toBeVisible({ timeout: 15000 });
+  return projectPath.split('/').pop();
+}
+
+/**
+ * Helper function to delete a project via the UI
+ * @param {import('@playwright/test').Page} page
+ * @param {string} projectName
+ */
+async function deleteProjectViaUI(page, projectName) {
+  const projectButton = page.locator(`button:has-text("${projectName}")`).first();
+  const isProjectVisible = await projectButton.isVisible().catch(() => false);
+
+  if (!isProjectVisible) {
+    return;
+  }
+
+  await projectButton.hover();
+  const deleteButton = projectButton.locator('[title*="Delete" i]').first();
+  await expect(deleteButton).toBeVisible({ timeout: 5000 });
+  await deleteButton.click();
+
+  const confirmDeleteButton = page.getByRole('button', { name: /Delete/i }).last();
+  await expect(confirmDeleteButton).toBeVisible({ timeout: 5000 });
+  await confirmDeleteButton.click();
+
+  await expect(projectButton).not.toBeVisible({ timeout: 10000 });
 }
 
 // Skip all tests if no credentials provided
@@ -414,5 +498,288 @@ test.describe('Notification Settings', () => {
 
     // Verify notifications content is visible again
     await expect(desktopNotificationsHeading).toBeVisible();
+  });
+});
+
+/**
+ * E2E Test: Notification Trigger on Claude Completion
+ *
+ * Tests that notifications are actually sent when Claude completes a task.
+ * This test creates a real project, sends a real prompt, and verifies
+ * the notification system works end-to-end.
+ *
+ * Uses console message monitoring to verify notifications are sent -
+ * the app logs "[Notifications] Notification sent:" when sending.
+ */
+test.describe('Notification Trigger', () => {
+  test.skip(
+    !process.env.TEST_USERNAME || !process.env.TEST_PASSWORD,
+    'Skipping tests - set TEST_USERNAME and TEST_PASSWORD env vars'
+  );
+
+  // Grant notification permissions via browser context
+  test.use({
+    viewport: { width: 1400, height: 900 },
+    permissions: ['notifications']
+  });
+
+  test('should send notification when Claude completes task while tab is unfocused', async ({ page, context }) => {
+    test.setTimeout(180000); // 3 minutes for Claude to respond
+
+    const testId = Date.now();
+    const testProjectPath = path.join(os.homedir(), `e2e-notif-test-${testId}`);
+    const projectFolderName = `e2e-notif-test-${testId}`;
+
+    await createTestDirectory(testProjectPath);
+
+    // Track console messages for notification logs
+    const notificationLogs = [];
+    page.on('console', msg => {
+      const text = msg.text();
+      if (text.includes('[Notifications]')) {
+        notificationLogs.push(text);
+      }
+    });
+
+    try {
+      await page.goto('/');
+      await performLogin(page);
+
+      // Verify notification permission is granted
+      const permissionState = await getPermissionState(page);
+      expect(permissionState).toBe('granted');
+
+      // Enable notifications via localStorage with onlyWhenUnfocused: true
+      await setNotificationSettings(page, {
+        enabled: true,
+        soundEnabled: false,
+        onlyWhenUnfocused: true,
+        permissionRequested: true,
+        lastUpdated: new Date().toISOString()
+      });
+
+      // Reload to apply notification settings
+      await page.reload();
+      await performLogin(page);
+
+      // Create the test project
+      await createProject(page, testProjectPath);
+
+      const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
+      await expect(projectButton).toBeVisible();
+
+      // Click project to expand and create new session
+      await projectButton.click();
+      const newSessionButton = page.locator('button:has-text("New Session")').first();
+      await newSessionButton.dispatchEvent('click');
+
+      const chatTextarea = page.locator('textarea').first();
+      await expect(chatTextarea).toBeVisible({ timeout: 15000 });
+
+      // Fill the prompt
+      await chatTextarea.fill('Say "Hello E2E Test" and nothing else.');
+
+      // Open a new tab to make the original tab unfocused
+      const newPage = await context.newPage();
+      await newPage.goto('about:blank');
+      await newPage.bringToFront();
+
+      // Switch back to send the message
+      await page.bringToFront();
+
+      // Send the message
+      const sendButton = page.locator('button:has(svg.lucide-arrow-up)').first();
+      const sendButtonVisible = await sendButton.isVisible().catch(() => false);
+      if (sendButtonVisible) {
+        await sendButton.click();
+      } else {
+        await chatTextarea.press('Control+Enter');
+      }
+
+      // Immediately switch to new tab to trigger unfocused state
+      await newPage.bringToFront();
+
+      // Wait for notification log to appear (polling the collected logs)
+      await expect.poll(
+        () => notificationLogs.some(log => log.includes('Notification sent')),
+        { timeout: 120000, intervals: [1000] }
+      ).toBe(true);
+
+      // Verify notification was logged
+      const sentLog = notificationLogs.find(log => log.includes('Notification sent'));
+      expect(sentLog).toBeDefined();
+      expect(sentLog).toContain('Claude');
+
+      // Close extra tab
+      await newPage.close();
+
+      // Clean up
+      await page.bringToFront();
+      await deleteProjectViaUI(page, projectFolderName);
+
+    } finally {
+      await removeTestDirectory(testProjectPath);
+    }
+  });
+
+  test('should not send notification when tab is focused and onlyWhenUnfocused is enabled', async ({ page }) => {
+    test.setTimeout(180000);
+
+    const testId = Date.now();
+    const testProjectPath = path.join(os.homedir(), `e2e-notif-focused-${testId}`);
+    const projectFolderName = `e2e-notif-focused-${testId}`;
+
+    await createTestDirectory(testProjectPath);
+
+    // Track console messages for notification logs
+    const notificationLogs = [];
+    page.on('console', msg => {
+      const text = msg.text();
+      if (text.includes('[Notifications]')) {
+        notificationLogs.push(text);
+      }
+    });
+
+    try {
+      await page.goto('/');
+      await performLogin(page);
+
+      const permissionState = await getPermissionState(page);
+      expect(permissionState).toBe('granted');
+
+      // Enable notifications with onlyWhenUnfocused: true
+      await setNotificationSettings(page, {
+        enabled: true,
+        soundEnabled: false,
+        onlyWhenUnfocused: true,
+        permissionRequested: true,
+        lastUpdated: new Date().toISOString()
+      });
+
+      await page.reload();
+      await performLogin(page);
+
+      // Create project and session
+      await createProject(page, testProjectPath);
+      const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
+      await expect(projectButton).toBeVisible();
+      await projectButton.click();
+
+      const newSessionButton = page.locator('button:has-text("New Session")').first();
+      await newSessionButton.dispatchEvent('click');
+
+      const chatTextarea = page.locator('textarea').first();
+      await expect(chatTextarea).toBeVisible({ timeout: 15000 });
+
+      // Send prompt while tab stays focused (do NOT switch tabs)
+      await chatTextarea.fill('Say "Focused Test" and nothing else.');
+
+      const sendButton = page.locator('button:has(svg.lucide-arrow-up)').first();
+      const sendButtonVisible = await sendButton.isVisible().catch(() => false);
+      if (sendButtonVisible) {
+        await sendButton.click();
+      } else {
+        await chatTextarea.press('Control+Enter');
+      }
+
+      // Wait for Claude response to appear (completion indicator)
+      const responseIndicator = page.locator('[data-message-role="assistant"]').first();
+      await expect(responseIndicator).toBeVisible({ timeout: 120000 });
+
+      // Verify the skip log was recorded (tab visible, so notification skipped)
+      const skippedLog = notificationLogs.find(log =>
+        log.includes('Tab is visible') || log.includes('skipping notification')
+      );
+      expect(skippedLog).toBeDefined();
+
+      // Verify NO "Notification sent" log
+      const sentLog = notificationLogs.find(log => log.includes('Notification sent'));
+      expect(sentLog).toBeUndefined();
+
+      // Clean up
+      await deleteProjectViaUI(page, projectFolderName);
+
+    } finally {
+      await removeTestDirectory(testProjectPath);
+    }
+  });
+
+  test('should send notification when notifications enabled and onlyWhenUnfocused is disabled', async ({ page }) => {
+    test.setTimeout(180000);
+
+    const testId = Date.now();
+    const testProjectPath = path.join(os.homedir(), `e2e-notif-always-${testId}`);
+    const projectFolderName = `e2e-notif-always-${testId}`;
+
+    await createTestDirectory(testProjectPath);
+
+    // Track console messages for notification logs
+    const notificationLogs = [];
+    page.on('console', msg => {
+      const text = msg.text();
+      if (text.includes('[Notifications]')) {
+        notificationLogs.push(text);
+      }
+    });
+
+    try {
+      await page.goto('/');
+      await performLogin(page);
+
+      const permissionState = await getPermissionState(page);
+      expect(permissionState).toBe('granted');
+
+      // Enable notifications with onlyWhenUnfocused: false (always notify)
+      await setNotificationSettings(page, {
+        enabled: true,
+        soundEnabled: false,
+        onlyWhenUnfocused: false,
+        permissionRequested: true,
+        lastUpdated: new Date().toISOString()
+      });
+
+      await page.reload();
+      await performLogin(page);
+
+      // Create project and session
+      await createProject(page, testProjectPath);
+      const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
+      await expect(projectButton).toBeVisible();
+      await projectButton.click();
+
+      const newSessionButton = page.locator('button:has-text("New Session")').first();
+      await newSessionButton.dispatchEvent('click');
+
+      const chatTextarea = page.locator('textarea').first();
+      await expect(chatTextarea).toBeVisible({ timeout: 15000 });
+
+      // Send prompt while tab is focused
+      await chatTextarea.fill('Say "Always Notify Test" and nothing else.');
+
+      const sendButton = page.locator('button:has(svg.lucide-arrow-up)').first();
+      const sendButtonVisible = await sendButton.isVisible().catch(() => false);
+      if (sendButtonVisible) {
+        await sendButton.click();
+      } else {
+        await chatTextarea.press('Control+Enter');
+      }
+
+      // Wait for notification log to appear
+      await expect.poll(
+        () => notificationLogs.some(log => log.includes('Notification sent')),
+        { timeout: 120000, intervals: [1000] }
+      ).toBe(true);
+
+      // Verify notification was sent even though tab was focused
+      const sentLog = notificationLogs.find(log => log.includes('Notification sent'));
+      expect(sentLog).toBeDefined();
+      expect(sentLog).toContain('Claude');
+
+      // Clean up
+      await deleteProjectViaUI(page, projectFolderName);
+
+    } finally {
+      await removeTestDirectory(testProjectPath);
+    }
   });
 });
