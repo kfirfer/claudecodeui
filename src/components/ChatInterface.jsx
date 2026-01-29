@@ -3418,8 +3418,24 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         !pendingViewSessionRef.current.sessionId &&
         (latestMessage.type === 'claude-error' || latestMessage.type === 'cursor-error' || latestMessage.type === 'codex-error');
 
-      const handleBackgroundLifecycle = (sessionId) => {
+      const handleBackgroundLifecycle = (sessionId, messageType, message) => {
         if (!sessionId) return;
+
+        // Send notification for background session completions
+        const completionTypes = {
+          'claude-complete': 'claude',
+          'cursor-result': 'cursor',
+          'codex-complete': 'codex'
+        };
+        const agentType = completionTypes[messageType];
+        if (agentType) {
+          const notificationContent = getNotificationContent(agentType, message, selectedProject);
+          sendNotificationRef.current(notificationContent.title, {
+            body: notificationContent.body,
+            tag: notificationContent.tag
+          });
+        }
+
         if (onSessionInactive) {
           onSessionInactive(sessionId);
         }
@@ -3432,7 +3448,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         if (!activeViewSessionId) {
           // No session in view; ignore session-scoped traffic.
           if (latestMessage.sessionId && lifecycleMessageTypes.has(latestMessage.type)) {
-            handleBackgroundLifecycle(latestMessage.sessionId);
+            handleBackgroundLifecycle(latestMessage.sessionId, latestMessage.type, latestMessage);
           }
           if (!isUnscopedError) {
             return;
@@ -3444,7 +3460,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         }
         if (latestMessage.sessionId !== activeViewSessionId) {
           if (latestMessage.sessionId && lifecycleMessageTypes.has(latestMessage.type)) {
-            handleBackgroundLifecycle(latestMessage.sessionId);
+            handleBackgroundLifecycle(latestMessage.sessionId, latestMessage.type, latestMessage);
           }
           // Message is for a different session, ignore it
           console.log('??-?,? Skipping message for different session:', latestMessage.sessionId, 'current:', activeViewSessionId);
@@ -3767,13 +3783,29 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           break;
         }
 
-        case 'claude-error':
+        case 'claude-error': {
+          // Get session ID from message or fall back to current session
+          const errorSessionId = latestMessage.sessionId || currentSessionId;
+
           setChatMessages(prev => [...prev, {
             type: 'error',
             content: `Error: ${latestMessage.error}`,
             timestamp: new Date()
           }]);
+
+          // Reset loading state if this error is for the current session
+          if (errorSessionId === currentSessionId || !currentSessionId) {
+            setIsLoading(false);
+            setCanAbortSession(false);
+            setClaudeStatus(null);
+          }
+
+          // Mark the session as no longer processing
+          if (errorSessionId) {
+            onSessionNotProcessing?.(errorSessionId);
+          }
           break;
+        }
           
         case 'cursor-system':
           // Handle Cursor system/init messages similar to Claude
@@ -3824,14 +3856,30 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           }]);
           break;
         
-        case 'cursor-error':
+        case 'cursor-error': {
+          // Get session ID from message or fall back to current session
+          const cursorErrorSessionId = latestMessage.sessionId || currentSessionId;
+
           // Show Cursor errors as error messages in chat
           setChatMessages(prev => [...prev, {
             type: 'error',
             content: `Cursor error: ${latestMessage.error || 'Unknown error'}`,
             timestamp: new Date()
           }]);
+
+          // Reset loading state if this error is for the current session
+          if (cursorErrorSessionId === currentSessionId || !currentSessionId) {
+            setIsLoading(false);
+            setCanAbortSession(false);
+            setClaudeStatus(null);
+          }
+
+          // Mark the session as no longer processing
+          if (cursorErrorSessionId) {
+            onSessionNotProcessing?.(cursorErrorSessionId);
+          }
           break;
+        }
           
         case 'cursor-result': {
           // Get session ID from message or fall back to current session
@@ -4139,16 +4187,30 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           break;
         }
 
-        case 'codex-error':
+        case 'codex-error': {
+          // Get session ID from message or fall back to current session
+          const codexErrorSessionId = latestMessage.sessionId || currentSessionId;
+
           // Handle Codex errors
-          setIsLoading(false);
-          setCanAbortSession(false);
           setChatMessages(prev => [...prev, {
             type: 'error',
             content: latestMessage.error || 'An error occurred with Codex',
             timestamp: new Date()
           }]);
+
+          // Reset loading state if this error is for the current session
+          if (codexErrorSessionId === currentSessionId || !currentSessionId) {
+            setIsLoading(false);
+            setCanAbortSession(false);
+            setClaudeStatus(null);
+          }
+
+          // Mark the session as no longer processing
+          if (codexErrorSessionId) {
+            onSessionNotProcessing?.(codexErrorSessionId);
+          }
           break;
+        }
 
         case 'session-aborted': {
           // Get session ID from message or fall back to current session
