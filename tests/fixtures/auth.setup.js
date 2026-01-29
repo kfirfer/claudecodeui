@@ -11,7 +11,7 @@
  */
 
 import { test as setup, expect } from '@playwright/test';
-import { getTestCredentials, completeOnboarding } from './fixtures/auth.js';
+import { getTestCredentials, completeOnboarding } from './auth.js';
 import fs from 'fs';
 import path from 'path';
 

@@ -5,7 +5,7 @@ dotenv.config();
 
 export default defineConfig({
   testDir: './tests',
-  globalSetup: './tests/global-setup.js',
+  globalSetup: './tests/fixtures/global-setup.js',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -21,7 +21,7 @@ export default defineConfig({
     // Setup project - runs first to create account and save auth state
     {
       name: 'setup',
-      testMatch: /auth\.setup\.js/,
+      testMatch: /fixtures\/auth\.setup\.js/,
     },
     // Main tests - depend on setup being complete
     {

@@ -15,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default async function globalSetup() {
   // Clean up auth state for fresh login (but keep database persistent)
-  const authDir = path.join(__dirname, '.auth');
+  const authDir = path.join(__dirname, '..', '.auth');
   if (fs.existsSync(authDir)) {
     fs.rmSync(authDir, { recursive: true, force: true });
     console.log('Deleted auth state directory');

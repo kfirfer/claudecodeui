@@ -204,28 +204,33 @@ export const useNotifications = () => {
         return true;
       }
 
-      // Try to register SW on-the-fly if not registered
+      // Try to register SW on-the-fly if not registered (with short timeout)
       if (BrowserNotificationService.isSupported()) {
         try {
-          await notificationService.register();
+          // 3 second timeout for on-demand registration
+          await notificationService.register(3000);
           setSwRegistered(true);
           await notificationService.showNotification(title, notificationOptions);
           console.log('[Notifications] Notification sent via SW (on-demand registration):', title);
           return true;
         } catch (swError) {
-          console.warn('[Notifications] SW registration failed, trying legacy API:', swError);
+          console.warn('[Notifications] SW registration failed, trying legacy API:', swError.message);
         }
       }
 
       // Fallback to legacy Notification (only for non-Safari desktop)
       if (BrowserNotificationService.canUseLegacyNotification()) {
-        const notification = new Notification(title, notificationOptions);
-        notification.onclick = () => {
-          window.focus();
-          notification.close();
-        };
-        console.log('[Notifications] Notification sent via legacy API:', title);
-        return true;
+        try {
+          const notification = new Notification(title, notificationOptions);
+          notification.onclick = () => {
+            window.focus();
+            notification.close();
+          };
+          console.log('[Notifications] Notification sent via legacy API:', title);
+          return true;
+        } catch (legacyError) {
+          console.warn('[Notifications] Legacy API failed:', legacyError.message);
+        }
       }
 
       console.warn('[Notifications] No notification method available');

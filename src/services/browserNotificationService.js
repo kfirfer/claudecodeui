@@ -59,10 +59,11 @@ class BrowserNotificationService {
   }
 
   /**
-   * Register the notification service worker
+   * Register the notification service worker with timeout
+   * @param {number} timeout - Timeout in milliseconds (default 5000)
    * @returns {Promise<ServiceWorkerRegistration>} The service worker registration
    */
-  async register() {
+  async register(timeout = 5000) {
     // Return existing registration if available
     if (this.registration) {
       return this.registration;
@@ -75,31 +76,20 @@ class BrowserNotificationService {
 
     this.isRegistering = true;
 
+    // Create a timeout promise for registration
+    const timeoutPromise = new Promise((resolve, reject) => {
+      void resolve; // unused but required by eslint
+      setTimeout(() => reject(new Error('SW registration timeout')), timeout);
+    });
+
     this.registrationPromise = (async () => {
       try {
-        // Check for existing notification SW registration first
-        const existingRegistrations = await navigator.serviceWorker.getRegistrations();
-        const existingNotificationSW = existingRegistrations.find(
-          reg => reg.active?.scriptURL.includes('notification-sw.js')
-        );
-
-        if (existingNotificationSW) {
-          this.registration = existingNotificationSW;
-          console.log('[NotificationService] Using existing SW registration');
-          return this.registration;
-        }
-
-        // Register new SW
-        this.registration = await navigator.serviceWorker.register(
-          '/notification-sw.js',
-          { scope: '/' }
-        );
-
-        // Wait for the SW to be ready
-        await navigator.serviceWorker.ready;
-
-        console.log('[NotificationService] SW registered successfully');
-        return this.registration;
+        // Race between registration and timeout
+        const result = await Promise.race([
+          this._doRegister(),
+          timeoutPromise
+        ]);
+        return result;
       } catch (error) {
         console.error('[NotificationService] Failed to register SW:', error);
         throw error;
@@ -109,6 +99,36 @@ class BrowserNotificationService {
     })();
 
     return this.registrationPromise;
+  }
+
+  /**
+   * Internal method to perform SW registration
+   * @returns {Promise<ServiceWorkerRegistration>} The service worker registration
+   */
+  async _doRegister() {
+    // Check for existing notification SW registration first
+    const existingRegistrations = await navigator.serviceWorker.getRegistrations();
+    const existingNotificationSW = existingRegistrations.find(
+      reg => reg.active?.scriptURL.includes('notification-sw.js')
+    );
+
+    if (existingNotificationSW) {
+      this.registration = existingNotificationSW;
+      console.log('[NotificationService] Using existing SW registration');
+      return this.registration;
+    }
+
+    // Register new SW
+    this.registration = await navigator.serviceWorker.register(
+      '/notification-sw.js',
+      { scope: '/' }
+    );
+
+    // Wait for the SW to be ready
+    await navigator.serviceWorker.ready;
+
+    console.log('[NotificationService] SW registered successfully');
+    return this.registration;
   }
 
   /**
