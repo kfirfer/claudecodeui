@@ -108,3 +108,21 @@ Internationalization support in `src/i18n/` with English and Chinese locales.
 2. **Playwright tests**: `npm run test:e2e` - Runs end-to-end tests to verify functionality
 
 This applies to all code changes, including bug fixes, new features, and refactoring.
+
+### Test Guidelines
+- All test files are located in the `tests/` directory.
+- The testing framework used is Playwright, so write all test cases using Playwright's syntax and best practices.
+- Execute all tests against the application at `http://localhost:3001`.
+- When developing a new feature or addressing a bug fix, incorporate the relevant test logic directly into the corresponding existing test files rather than creating separate new tests.
+- For any code change whether adding new functionality, refactoring, or fixing bugs, run E2E tests to confirm that previous behavior is preserved and that no regressions have been introduced. To do this, execute the following command: `npm run test:e2e`.
+- Carefully review test outputs after running, ensuring that all tests pass without failures or errors. If any regressions or unexpected errors occur, address them before considering the task complete.
+- All tests MUST use Playwright's auto-wait and expect assertions exclusively.
+- Playwight MUST use 4 workers for parallel execution. ALWAYS use 4 workers for parallel execution.
+- DO NOT use mocks in tests. always test the actual application behavior.
+- DO NOT skip tests.
+- DO NOT implement retry mechanism. no retry in tests and not in the application code.
+- DO NOT use try catch in tests. tests should fail if there is an error.
+- DO NOT use arbitrary timeouts in tests such as `setTimeout` or `waitForTimeout`. Instead, rely on Playwright's built-in waiting mechanisms.
+- DO NOT use conditional logic in tests. tests MUST be run as is, without any conditions.
+- DO NOT implement any workarounds in tests. If a test fails, it should be fixed properly rather than bypassed.
+
