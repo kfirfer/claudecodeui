@@ -1954,6 +1954,12 @@ const ImageAttachment = ({ file, onRemove, uploadProgress, error }) => {
 function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick: _onTaskClick, onShowAllTasks }) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { sendNotification } = useNotificationContext();
+  // Use a ref to always have the latest sendNotification function
+  // This prevents stale closure issues in the message handling useEffect
+  const sendNotificationRef = useRef(sendNotification);
+  useEffect(() => {
+    sendNotificationRef.current = sendNotification;
+  }, [sendNotification]);
   const { t } = useTranslation('chat');
   const confirm = useConfirm();
   const [input, setInput] = useState(() => {
@@ -3835,7 +3841,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
           // Send browser notification for task completion
           const cursorNotificationContent = getNotificationContent('cursor', latestMessage, selectedProject);
-          sendNotification(cursorNotificationContent.title, {
+          sendNotificationRef.current(cursorNotificationContent.title, {
             body: cursorNotificationContent.body,
             tag: cursorNotificationContent.tag
           });
@@ -3943,7 +3949,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
           // Send browser notification for task completion
           const notificationContent = getNotificationContent('claude', latestMessage, selectedProject);
-          sendNotification(notificationContent.title, {
+          sendNotificationRef.current(notificationContent.title, {
             body: notificationContent.body,
             tag: notificationContent.tag
           });
@@ -4096,7 +4102,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
           // Send browser notification for task completion
           const codexNotificationContent = getNotificationContent('codex', latestMessage, selectedProject);
-          sendNotification(codexNotificationContent.title, {
+          sendNotificationRef.current(codexNotificationContent.title, {
             body: codexNotificationContent.body,
             tag: codexNotificationContent.tag
           });
