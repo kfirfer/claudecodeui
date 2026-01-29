@@ -95,7 +95,10 @@
     "deleteProjectFailed": "删除项目失败，请重试。",
     "deleteProjectError": "删除项目时出错，请重试。",
     "createProjectFailed": "创建项目失败，请重试。",
-    "createProjectError": "创建项目时出错，请重试。"
+    "createProjectError": "创建项目时出错，请重试。",
+    "loadSessionsFailed": "加载更多会话失败，请重试。",
+    "loadSessionsTimeout": "加载会话超时，请重试。",
+    "loadSessionsError": "加载会话时出错，请重试。"
   },
   "version": {
     "updateAvailable": "有可用更新"

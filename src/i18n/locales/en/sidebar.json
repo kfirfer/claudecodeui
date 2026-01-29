@@ -95,7 +95,10 @@
     "deleteProjectFailed": "Failed to delete project. Please try again.",
     "deleteProjectError": "Error deleting project. Please try again.",
     "createProjectFailed": "Failed to create project. Please try again.",
-    "createProjectError": "Error creating project. Please try again."
+    "createProjectError": "Error creating project. Please try again.",
+    "loadSessionsFailed": "Failed to load more sessions. Please try again.",
+    "loadSessionsTimeout": "Loading sessions timed out. Please try again.",
+    "loadSessionsError": "Error loading sessions. Please try again."
   },
   "version": {
     "updateAvailable": "Update available"

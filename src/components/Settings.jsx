@@ -733,6 +733,9 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
       localStorage.setItem('cursor-tools-settings', JSON.stringify(cursorSettings));
       localStorage.setItem('codex-settings', JSON.stringify(codexSettings));
 
+      // Dispatch custom event for same-tab settings updates (more efficient than polling)
+      window.dispatchEvent(new CustomEvent('settings-changed', { detail: claudeSettings }));
+
       setSaveStatus('success');
       
       setTimeout(() => {

@@ -541,8 +541,18 @@ function AppContent() {
     );
   };
 
+  // Update project metadata (e.g., hasMore flag for session pagination)
+  // This replaces direct prop mutation in Sidebar
+  const handleUpdateProjectMeta = useCallback((projectName, metaUpdate) => {
+    setProjects(prev => prev.map(p =>
+      p.name === projectName
+        ? { ...p, sessionMeta: { ...p.sessionMeta, ...metaUpdate } }
+        : p
+    ));
+  }, []);
+
   // Session Protection Functions: Manage the lifecycle of active sessions
-  
+
   // markSessionAsActive: Called when user sends a message to mark session as protected
   // This includes both real session IDs and temporary "new-session-*" identifiers
   const markSessionAsActive = useCallback((sessionId) => {
@@ -823,6 +833,7 @@ function AppContent() {
                 onNewSession={handleNewSession}
                 onSessionDelete={handleSessionDelete}
                 onProjectDelete={handleProjectDelete}
+                onUpdateProjectMeta={handleUpdateProjectMeta}
                 isLoading={isLoadingProjects}
                 loadingProgress={loadingProgress}
                 onRefresh={handleSidebarRefresh}
@@ -922,6 +933,7 @@ function AppContent() {
               onNewSession={handleNewSession}
               onSessionDelete={handleSessionDelete}
               onProjectDelete={handleProjectDelete}
+              onUpdateProjectMeta={handleUpdateProjectMeta}
               isLoading={isLoadingProjects}
               loadingProgress={loadingProgress}
               onRefresh={handleSidebarRefresh}

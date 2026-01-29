@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
@@ -53,6 +53,7 @@ function Sidebar({
   onNewSession,
   onSessionDelete,
   onProjectDelete,
+  onUpdateProjectMeta,
   isLoading,
   loadingProgress,
   onRefresh,
@@ -92,6 +93,9 @@ function Sidebar({
   const { setCurrentProject, mcpServerStatus } = useTaskMaster();
   const { tasksEnabled } = useTasksSettings();
 
+  // Ref for tracking loading request IDs to handle concurrent requests
+  const loadingRequestIds = useRef({});
+
   
   // Starred projects state - persisted in localStorage
   const [starredProjects, setStarredProjects] = useState(() => {
@@ -127,10 +131,28 @@ function Sidebar({
     return () => clearInterval(timer);
   }, []);
 
-  // Clear additional sessions when projects list changes (e.g., after refresh)
+  // Smart cleanup: Only clear additionalSessions for projects that no longer exist
+  // This preserves "Show more sessions" data when WebSocket sends projects_updated
   useEffect(() => {
-    setAdditionalSessions({});
-    setInitialSessionsLoaded(new Set());
+    setAdditionalSessions(prev => {
+      const validProjectNames = new Set(projects.map(p => p.name));
+      const cleaned = {};
+      for (const [key, value] of Object.entries(prev)) {
+        if (validProjectNames.has(key)) {
+          cleaned[key] = value;
+        }
+      }
+      // Only update if something actually changed (prevents unnecessary re-renders)
+      const hasChanges = Object.keys(prev).length !== Object.keys(cleaned).length;
+      return hasChanges ? cleaned : prev;
+    });
+
+    // Same logic for initialSessionsLoaded
+    setInitialSessionsLoaded(prev => {
+      const validProjectNames = new Set(projects.map(p => p.name));
+      const cleaned = new Set([...prev].filter(name => validProjectNames.has(name)));
+      return cleaned.size !== prev.size ? cleaned : prev;
+    });
   }, [projects]);
 
   // Auto-expand project folder when a session is selected
@@ -145,7 +167,8 @@ function Sidebar({
     if (projects.length > 0 && !isLoading) {
       const newLoaded = new Set();
       projects.forEach(project => {
-        if (project.sessions && project.sessions.length >= 0) {
+        // Fixed: Changed from >= 0 (always true) to > 0 to only mark projects with sessions
+        if (project.sessions && project.sessions.length > 0) {
           newLoaded.add(project.name);
         }
       });
@@ -170,25 +193,26 @@ function Sidebar({
     // Load initially
     loadSortOrder();
 
-    // Listen for storage changes
+    // Listen for cross-tab storage changes
     const handleStorageChange = (e) => {
       if (e.key === 'claude-settings') {
         loadSortOrder();
       }
     };
 
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also check periodically when component is focused (for same-tab changes)
-    const checkInterval = setInterval(() => {
-      if (document.hasFocus()) {
-        loadSortOrder();
+    // Listen for same-tab settings changes via custom event (more efficient than polling)
+    const handleSettingsChange = (e) => {
+      if (e.detail?.projectSortOrder) {
+        setProjectSortOrder(e.detail.projectSortOrder);
       }
-    }, 1000);
-    
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('settings-changed', handleSettingsChange);
+
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      clearInterval(checkInterval);
+      window.removeEventListener('settings-changed', handleSettingsChange);
     };
   }, []);
 
@@ -236,13 +260,27 @@ function Sidebar({
     const claudeSessions = [...(project.sessions || []), ...(additionalSessions[project.name] || [])].map(s => ({ ...s, __provider: 'claude' }));
     const cursorSessions = (project.cursorSessions || []).map(s => ({ ...s, __provider: 'cursor' }));
     const codexSessions = (project.codexSessions || []).map(s => ({ ...s, __provider: 'codex' }));
+
     // Sort by most recent activity/date
     const normalizeDate = (s) => {
       if (s.__provider === 'cursor') return new Date(s.createdAt);
       if (s.__provider === 'codex') return new Date(s.createdAt || s.lastActivity);
       return new Date(s.lastActivity);
     };
-    return [...claudeSessions, ...cursorSessions, ...codexSessions].sort((a, b) => normalizeDate(b) - normalizeDate(a));
+
+    // Combine all sessions and deduplicate by ID (keep most recent)
+    const allSessions = [...claudeSessions, ...cursorSessions, ...codexSessions];
+    const sessionMap = new Map();
+
+    for (const session of allSessions) {
+      const existing = sessionMap.get(session.id);
+      if (!existing || normalizeDate(session) > normalizeDate(existing)) {
+        sessionMap.set(session.id, session);
+      }
+    }
+
+    return Array.from(sessionMap.values())
+      .sort((a, b) => normalizeDate(b) - normalizeDate(a));
   };
 
   // Helper function to get the last activity date for a project
@@ -419,39 +457,71 @@ function Sidebar({
   const loadMoreSessions = async (project) => {
     // Check if we can load more sessions
     const canLoadMore = project.sessionMeta?.hasMore !== false;
-    
+
     if (!canLoadMore || loadingSessions[project.name]) {
       return;
     }
 
+    // Generate request ID for staleness check
+    const requestId = Date.now();
+    loadingRequestIds.current[project.name] = requestId;
+
     setLoadingSessions(prev => ({ ...prev, [project.name]: true }));
 
     try {
+      // Create AbortController for timeout handling (10s timeout)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
       const currentSessionCount = (project.sessions?.length || 0) + (additionalSessions[project.name]?.length || 0);
-      const response = await api.sessions(project.name, 5, currentSessionCount);
-      
+      const response = await api.sessions(project.name, 5, currentSessionCount, {
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      // Check if this request is still relevant (not stale)
+      if (loadingRequestIds.current[project.name] !== requestId) {
+        // Stale request, ignore
+        return;
+      }
+
       if (response.ok) {
         const result = await response.json();
-        
-        // Store additional sessions locally
-        setAdditionalSessions(prev => ({
-          ...prev,
-          [project.name]: [
-            ...(prev[project.name] || []),
-            ...result.sessions
-          ]
-        }));
-        
-        // Update project metadata if needed
-        if (result.hasMore === false) {
-          // Mark that there are no more sessions to load
-          project.sessionMeta = { ...project.sessionMeta, hasMore: false };
+
+        // Deduplicate sessions by ID when storing
+        setAdditionalSessions(prev => {
+          const existing = prev[project.name] || [];
+          const existingIds = new Set(existing.map(s => s.id));
+          const newSessions = result.sessions.filter(s => !existingIds.has(s.id));
+
+          return {
+            ...prev,
+            [project.name]: [...existing, ...newSessions]
+          };
+        });
+
+        // Update project metadata through callback if no more sessions to load
+        if (result.hasMore === false && onUpdateProjectMeta) {
+          onUpdateProjectMeta(project.name, { hasMore: false });
         }
+      } else {
+        toast.error(t('messages.loadSessionsFailed'));
       }
     } catch (error) {
-      console.error('Error loading more sessions:', error);
+      if (error.name === 'AbortError') {
+        toast.error(t('messages.loadSessionsTimeout'));
+      } else {
+        console.error('Error loading more sessions:', error);
+        toast.error(t('messages.loadSessionsError'));
+      }
     } finally {
-      setLoadingSessions(prev => ({ ...prev, [project.name]: false }));
+      // Only clear loading state if this is still the current request
+      if (loadingRequestIds.current[project.name] === requestId) {
+        setLoadingSessions(prev => ({ ...prev, [project.name]: false }));
+        // Clear the request ID by setting to undefined (avoiding dynamic delete)
+        loadingRequestIds.current[project.name] = undefined;
+      }
     }
   };
 
