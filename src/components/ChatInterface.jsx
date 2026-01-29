@@ -1951,7 +1951,7 @@ const ImageAttachment = ({ file, onRemove, uploadProgress, error }) => {
 // - onReplaceTemporarySession: Called to replace temporary session ID with real WebSocket session ID
 //
 // This ensures uninterrupted chat experience by pausing sidebar refreshes during conversations.
-function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick: _onTaskClick, onShowAllTasks }) {
+function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, isConnected, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick: _onTaskClick, onShowAllTasks }) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { sendNotification } = useNotificationContext();
   // Use a ref to always have the latest sendNotification function
@@ -3375,6 +3375,17 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     // eslint-disable-next-line react-hooks/exhaustive-deps -- isLoading is checked inside but intentionally excluded to prevent loops
   }, [currentSessionId, processingSessions]);
 
+  // Reset loading state when WebSocket connection is lost
+  // This prevents the UI from getting stuck in "Thinking..." state if the connection drops
+  useEffect(() => {
+    if (!isConnected && isLoading) {
+      console.log('WebSocket disconnected while loading, resetting loading state');
+      setIsLoading(false);
+      setCanAbortSession(false);
+      setClaudeStatus(null);
+    }
+  }, [isConnected, isLoading]);
+
   useEffect(() => {
     // Handle WebSocket messages
     if (messages.length > 0) {
@@ -3434,6 +3445,30 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             body: notificationContent.body,
             tag: notificationContent.tag
           });
+        }
+
+        // Check if this completion is actually for the current session that's being viewed
+        // This handles edge cases where session ID matching fails due to timing issues
+        const pendingSessionId = sessionStorage.getItem('pendingSessionId');
+        const isCurrentSession = sessionId === currentSessionId ||
+                                  sessionId === pendingViewSessionRef.current?.sessionId ||
+                                  sessionId === pendingSessionId;
+
+        // Reset UI loading state if this completion is for the current session
+        if (isCurrentSession && lifecycleMessageTypes.has(messageType)) {
+          const isCompletion = messageType === 'claude-complete' ||
+                               messageType === 'cursor-result' ||
+                               messageType === 'codex-complete';
+          const isError = messageType === 'claude-error' ||
+                          messageType === 'cursor-error' ||
+                          messageType === 'codex-error' ||
+                          messageType === 'session-aborted';
+
+          if (isCompletion || isError) {
+            setIsLoading(false);
+            setCanAbortSession(false);
+            setClaudeStatus(null);
+          }
         }
 
         if (onSessionInactive) {

@@ -87,7 +87,7 @@ function AppContent() {
   // Triggers ChatInterface to reload messages without switching sessions
   const [externalMessageUpdate, setExternalMessageUpdate] = useState(0);
 
-  const { ws, sendMessage, messages } = useWebSocketContext();
+  const { ws, sendMessage, messages, isConnected } = useWebSocketContext();
 
   // Ref to track loading progress timeout for cleanup
   const loadingProgressTimeoutRef = useRef(null);
@@ -949,6 +949,7 @@ function AppContent() {
           ws={ws}
           sendMessage={sendMessage}
           messages={messages}
+          isConnected={isConnected}
           isMobile={isMobile}
           isPWA={isPWA}
           onMenuClick={() => setSidebarOpen(true)}
