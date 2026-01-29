@@ -5,6 +5,7 @@
  * - Detects whether login or account creation form is displayed
  * - Handles first-time account creation (with confirm password)
  * - Handles regular login for existing accounts
+ * - Handles race conditions when multiple workers try to create accounts
  * - Uses Playwright best practices: auto-wait, role-based selectors, proper assertions
  */
 
@@ -35,6 +36,7 @@ export function getTestCredentials() {
  * - If already logged in: returns immediately
  * - If account creation form: creates account then verifies login
  * - If login form: performs login
+ * - If error occurs during account creation: retries as login (another worker may have created the account)
  *
  * @param {import('@playwright/test').Page} page - Playwright page object
  * @param {Object} options - Optional configuration
@@ -53,6 +55,7 @@ export async function authenticate(page, options = {}) {
   const createAccountButton = page.getByRole('button', { name: /create account/i });
   const loginButton = page.getByRole('button', { name: /^(log ?in|sign ?in)$/i });
   const submitButton = page.locator('button[type="submit"]');
+  const errorMessage = page.locator('text=/error|failed|invalid/i');
 
   // Wait for one of the possible states to appear
   const stateDetected = await Promise.race([
@@ -89,6 +92,34 @@ export async function authenticate(page, options = {}) {
       ? createAccountButton
       : submitButton;
     await createBtn.click();
+
+    // Check if successful or if error occurred (another worker may have created account)
+    const result = await Promise.race([
+      newProjectButton.waitFor({ state: 'visible', timeout: 10000 }).then(() => 'success'),
+      errorMessage.waitFor({ state: 'visible', timeout: 10000 }).then(() => 'error'),
+    ]).catch(() => 'timeout');
+
+    if (result === 'error') {
+      // Account creation failed (likely another worker created it) - reload and try login
+      await page.reload();
+      await page.waitForLoadState('domcontentloaded');
+
+      // Wait for login form or logged-in state
+      const postReloadState = await Promise.race([
+        newProjectButton.waitFor({ state: 'visible', timeout: 10000 }).then(() => 'logged_in'),
+        usernameInput.waitFor({ state: 'visible', timeout: 10000 }).then(() => 'auth_form'),
+      ]).catch(() => 'unknown');
+
+      if (postReloadState === 'logged_in') {
+        return;
+      }
+
+      // Try regular login
+      await expect(usernameInput).toBeVisible({ timeout: 5000 });
+      await usernameInput.fill(username);
+      await passwordInput.fill(password);
+      await submitButton.click();
+    }
   } else {
     // Regular login - click submit/login button
     const loginBtn = await loginButton.isVisible().catch(() => false)
