@@ -326,38 +326,52 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
       expect(percentage).toBeLessThan(5);
 
       // ==========================================
-      // Step 4.6: Navigate away and back - verify percentage stays consistent
+      // Step 4.6: Refresh page and verify percentage stays consistent
       // ==========================================
-      // Click on "New Session" to create a new empty session (navigates away from current chat)
-      const newSessionBtn = page.locator('button:has-text("New Session")').first();
-      await expect(newSessionBtn).toBeVisible({ timeout: 5000 });
-      await newSessionBtn.click();
+      // Wait for Claude to finish responding (processing indicator disappears)
+      const processingIndicator = page.locator('text=/Processing|Thinking/i').first();
+      await expect(processingIndicator).toBeHidden({ timeout: 120000 });
 
-      // Wait for new session screen to appear (shows AI provider selection)
-      await page.waitForTimeout(1000);
+      // Get the current URL to navigate back after refresh
+      const currentUrl = page.url();
 
-      // Navigate back to the previous session by clicking on it in the sidebar
-      // The session shows a preview of the message "Hello! This is a test..."
-      const sessionInSidebar = page.locator('button').filter({ hasText: /Hello.*test/i }).first();
-      await expect(sessionInSidebar).toBeVisible({ timeout: 10000 });
-      await sessionInSidebar.click();
+      // Refresh the page
+      await page.reload();
+      await page.waitForLoadState('domcontentloaded');
 
-      // Wait for chat to reload with the previous conversation
-      await expect(userMessage).toBeVisible({ timeout: 10000 });
+      // Re-authenticate if needed (page refresh may require re-login)
+      const loginForm = page.locator('input[type="password"]').first();
+      const needsLogin = await loginForm.isVisible().catch(() => false);
+      if (needsLogin) {
+        await performLogin(page);
+      }
 
-      // Check the token percentage again after navigation
-      // This validates that the REST API endpoint returns consistent values
-      const tokenUsageAfterNav = page.locator('span:has-text("%")').filter({ hasText: /^\d+\.\d+%$/ }).first();
-      await expect(tokenUsageAfterNav).toBeVisible({ timeout: 10000 });
-      const percentageAfterNav = await tokenUsageAfterNav.textContent();
-      const percentageValueAfterNav = parseFloat(percentageAfterNav.replace('%', ''));
+      // Navigate back to the session - click on the project first
+      const projectAfterRefresh = page.locator(`button:has-text("${renamedProjectName}")`).first();
+      await expect(projectAfterRefresh).toBeVisible({ timeout: 10000 });
+      await projectAfterRefresh.click();
 
-      console.log(`Token usage percentage (after navigation): ${percentageValueAfterNav}%`);
+      // Click on the session to open it
+      const sessionAfterRefresh = page.locator('button').filter({ hasText: /Hello.*test/i }).first();
+      await expect(sessionAfterRefresh).toBeVisible({ timeout: 10000 });
+      await sessionAfterRefresh.click();
 
-      // The percentage should remain low and consistent after navigation
+      // Wait for chat to reload
+      await expect(page.getByText(testMessage).first()).toBeVisible({ timeout: 15000 });
+
+      // Check the token percentage after page refresh
+      // This validates that the REST API endpoint returns correct values
+      const tokenUsageAfterRefresh = page.locator('span:has-text("%")').filter({ hasText: /^\d+\.\d+%$/ }).first();
+      await expect(tokenUsageAfterRefresh).toBeVisible({ timeout: 15000 });
+      const percentageAfterRefresh = await tokenUsageAfterRefresh.textContent();
+      const percentageValueAfterRefresh = parseFloat(percentageAfterRefresh.replace('%', ''));
+
+      console.log(`Token usage percentage (after page refresh): ${percentageValueAfterRefresh}%`);
+
+      // The percentage should remain low and consistent after page refresh
       // This validates that the REST API endpoint returns the same value as WebSocket
-      expect(percentageValueAfterNav).toBeGreaterThanOrEqual(0);
-      expect(percentageValueAfterNav).toBeLessThan(5);
+      expect(percentageValueAfterRefresh).toBeGreaterThanOrEqual(0);
+      expect(percentageValueAfterRefresh).toBeLessThan(5);
 
       // ==========================================
       // Step 5: Delete the session (optional - may not be visible)
