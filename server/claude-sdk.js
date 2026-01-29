@@ -301,7 +301,9 @@ function extractTokenBudget(resultMessage) {
   const cacheReadTokens = modelData.cumulativeCacheReadInputTokens || modelData.cacheReadInputTokens || 0;
   const cacheCreationTokens = modelData.cumulativeCacheCreationInputTokens || modelData.cacheCreationInputTokens || 0;
 
-  // Total used = input + output + cache tokens
+  // Context window usage = input + output + cache tokens
+  // The context window is a shared limit for both input and output tokens
+  // See: https://platform.claude.com/docs/en/build-with-claude/context-windows
   const totalUsed = inputTokens + outputTokens + cacheReadTokens + cacheCreationTokens;
 
   // Use configured context window budget from environment (default 160000)
