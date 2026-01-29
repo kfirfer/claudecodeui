@@ -30,10 +30,11 @@ export function getTestCredentials() {
 }
 
 /**
- * Authenticate the user - handles both login and account creation
+ * Authenticate the user - handles login, account creation, and onboarding
  *
  * This function detects the current form state and performs the appropriate action:
  * - If already logged in: returns immediately
+ * - If onboarding wizard: completes the wizard
  * - If account creation form: creates account then verifies login
  * - If login form: performs login
  * - If error occurs during account creation: retries as login (another worker may have created the account)
@@ -56,10 +57,13 @@ export async function authenticate(page, options = {}) {
   const loginButton = page.getByRole('button', { name: /^(log ?in|sign ?in)$/i });
   const submitButton = page.locator('button[type="submit"]');
   const errorMessage = page.locator('text=/error|failed|invalid/i');
+  const nextButton = page.getByRole('button', { name: /next/i });
+  const finishButton = page.getByRole('button', { name: /finish|complete|done|get started/i });
 
   // Wait for one of the possible states to appear
   const stateDetected = await Promise.race([
     newProjectButton.waitFor({ state: 'visible', timeout }).then(() => 'logged_in'),
+    nextButton.waitFor({ state: 'visible', timeout }).then(() => 'onboarding'),
     createAccountButton.waitFor({ state: 'visible', timeout }).then(() => 'create_account'),
     loginButton.waitFor({ state: 'visible', timeout }).then(() => 'login'),
     usernameInput.waitFor({ state: 'visible', timeout }).then(() => 'auth_form'),
@@ -67,6 +71,12 @@ export async function authenticate(page, options = {}) {
 
   // Already logged in - nothing to do
   if (stateDetected === 'logged_in') {
+    return;
+  }
+
+  // Onboarding wizard - complete it
+  if (stateDetected === 'onboarding') {
+    await completeOnboarding(page, nextButton, finishButton, newProjectButton);
     return;
   }
 
@@ -93,11 +103,17 @@ export async function authenticate(page, options = {}) {
       : submitButton;
     await createBtn.click();
 
-    // Check if successful or if error occurred (another worker may have created account)
+    // Check if successful, onboarding, or error occurred
     const result = await Promise.race([
       newProjectButton.waitFor({ state: 'visible', timeout: 10000 }).then(() => 'success'),
+      nextButton.waitFor({ state: 'visible', timeout: 10000 }).then(() => 'onboarding'),
       errorMessage.waitFor({ state: 'visible', timeout: 10000 }).then(() => 'error'),
     ]).catch(() => 'timeout');
+
+    if (result === 'onboarding') {
+      await completeOnboarding(page, nextButton, finishButton, newProjectButton);
+      return;
+    }
 
     if (result === 'error') {
       // Account creation failed (likely another worker created it) - reload and try login
@@ -107,10 +123,16 @@ export async function authenticate(page, options = {}) {
       // Wait for login form or logged-in state
       const postReloadState = await Promise.race([
         newProjectButton.waitFor({ state: 'visible', timeout: 10000 }).then(() => 'logged_in'),
+        nextButton.waitFor({ state: 'visible', timeout: 10000 }).then(() => 'onboarding'),
         usernameInput.waitFor({ state: 'visible', timeout: 10000 }).then(() => 'auth_form'),
       ]).catch(() => 'unknown');
 
       if (postReloadState === 'logged_in') {
+        return;
+      }
+
+      if (postReloadState === 'onboarding') {
+        await completeOnboarding(page, nextButton, finishButton, newProjectButton);
         return;
       }
 
@@ -128,8 +150,54 @@ export async function authenticate(page, options = {}) {
     await loginBtn.click();
   }
 
-  // Wait for successful authentication - New Project button should appear
-  await expect(newProjectButton).toBeVisible({ timeout });
+  // After login, check for onboarding wizard or main app
+  const postLoginState = await Promise.race([
+    newProjectButton.waitFor({ state: 'visible', timeout }).then(() => 'logged_in'),
+    nextButton.waitFor({ state: 'visible', timeout }).then(() => 'onboarding'),
+  ]).catch(() => 'unknown');
+
+  if (postLoginState === 'onboarding') {
+    await completeOnboarding(page, nextButton, finishButton, newProjectButton);
+  } else {
+    await expect(newProjectButton).toBeVisible({ timeout });
+  }
+}
+
+/**
+ * Complete the onboarding wizard by clicking through all steps
+ */
+async function completeOnboarding(page, nextButton, finishButton, newProjectButton) {
+  // Click through onboarding steps (max 10 steps to prevent infinite loop)
+  for (let i = 0; i < 10; i++) {
+    // Check if we've reached the main app
+    const isMainApp = await newProjectButton.isVisible().catch(() => false);
+    if (isMainApp) {
+      return;
+    }
+
+    // Check for finish/complete button
+    const hasFinish = await finishButton.isVisible().catch(() => false);
+    if (hasFinish) {
+      await finishButton.click();
+      await expect(newProjectButton).toBeVisible({ timeout: 30000 });
+      return;
+    }
+
+    // Check for next button
+    const hasNext = await nextButton.isVisible().catch(() => false);
+    if (hasNext) {
+      await nextButton.click();
+      // Wait a moment for transition
+      await page.waitForLoadState('domcontentloaded');
+      continue;
+    }
+
+    // No buttons found, wait and check again
+    await page.waitForLoadState('domcontentloaded');
+  }
+
+  // Final check for main app
+  await expect(newProjectButton).toBeVisible({ timeout: 30000 });
 }
 
 /**
