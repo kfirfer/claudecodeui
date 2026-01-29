@@ -49,3 +49,6 @@ diff: ##
 deploy: ## Deploy to server via Ansible
 	npm run build && ansible-playbook -i ansible/inventory.ini ansible/deploy.yml
 
+deploy-local: ## Deploy locally on port 3035
+	npm run build && ansible-playbook ansible/deploy-local.yml
+
