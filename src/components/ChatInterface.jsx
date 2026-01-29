@@ -144,7 +144,7 @@ function formatUsageLimitText(text) {
       const abs = Math.abs(offsetMinutesLocal);
       const offH = Math.floor(abs / 60);
       const offM = abs % 60;
-      const gmt = `GMT${sign}${offH}${offM ? ':' + String(offM).padStart(2, '0') : ''}`;
+      const gmt = `GMT${sign}${offH}${offM ? `:${String(offM).padStart(2, '0')}` : ''}`;
       const tzId = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
       const cityRaw = tzId.split('/').pop() || '';
       const city = cityRaw
@@ -4351,7 +4351,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
 
       // Check if initially expanded
       const lineHeight = parseInt(window.getComputedStyle(textareaRef.current).lineHeight);
@@ -4411,7 +4411,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         setTimeout(() => {
           if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
-            textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
 
             // Check if expanded after transcript
             const lineHeight = parseInt(window.getComputedStyle(textareaRef.current).lineHeight);
@@ -4721,7 +4721,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     const spaceIndex = textAfterSlash.indexOf(' ');
     const textAfterQuery = spaceIndex !==-1 ? textAfterSlash.slice(spaceIndex) : '';
 
-    const newInput = textBeforeSlash + command.name + ' ' + textAfterQuery;
+    const newInput = `${textBeforeSlash}${command.name} ${textAfterQuery}`;
 
     // Update input temporarily so executeCommand can parse arguments
     setInput(newInput);
@@ -4859,7 +4859,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     const spaceIndex = textAfterAtQuery.indexOf(' ');
     const textAfterQuery = spaceIndex !== -1 ? textAfterAtQuery.slice(spaceIndex) : '';
     
-    const newInput = textBeforeAt + file.path + ' ' + textAfterQuery;
+    const newInput = `${textBeforeAt}${file.path} ${textAfterQuery}`;
     const newCursorPos = textBeforeAt.length + file.path.length + 1;
     
     // Immediately ensure focus is maintained
@@ -5707,7 +5707,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
               onInput={(e) => {
                 // Immediate resize on input for better UX
                 e.target.style.height = 'auto';
-                e.target.style.height = e.target.scrollHeight + 'px';
+                e.target.style.height = `${e.target.scrollHeight}px`;
                 setCursorPosition(e.target.selectionStart);
                 syncInputOverlayScroll(e.target);
 

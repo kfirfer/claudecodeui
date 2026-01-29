@@ -38,7 +38,7 @@ function MainContent({
   sendMessage,
   messages,
   isMobile,
-  isPWA,
+  isPWA: _isPWA,
   onMenuClick,
   isLoading,
   onInputFocusChange,
@@ -544,13 +544,14 @@ function MainContent({
                   // Reload existing PRDs
                   if (currentProject?.name) {
                     api.get(`/taskmaster/prd/${encodeURIComponent(currentProject.name)}`)
-                      .then(response => response.ok ? response.json() : Promise.reject())
+                      .then(response => response.ok ? response.json() : Promise.reject(new Error('Failed to fetch PRDs')))
                       .then(data => {
                         setExistingPRDs(data.prdFiles || []);
                         if (showNotification) {
                           setPRDNotification('PRD saved successfully!');
                           setTimeout(() => setPRDNotification(null), 3000);
                         }
+                        return data;
                       })
                       .catch(error => console.error('Failed to refresh PRDs:', error));
                   }

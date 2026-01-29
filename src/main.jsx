@@ -13,6 +13,7 @@ if ('serviceWorker' in navigator) {
     registrations.forEach(registration => {
       registration.unregister();
     });
+    return registrations;
   }).catch(err => {
     console.warn('Failed to unregister service workers:', err);
   });

@@ -108,6 +108,8 @@ export default [
 
       // React rules
       'react/react-in-jsx-scope': 'off',
+      'react/jsx-uses-vars': 'error',
+      'react/jsx-uses-react': 'error',
       'react/prop-types': 'off',
       'react/jsx-no-bind': 'off',
 

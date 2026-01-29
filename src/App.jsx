@@ -71,7 +71,8 @@ function AppContent() {
   // automatic project updates from interrupting ongoing chats. When a user sends
   // a message, the session is marked as "active" and project updates are paused
   // until the conversation completes or is aborted.
-  const [activeSessions, setActiveSessions] = useState(new Set()); // Track sessions with active conversations
+  // Track sessions with active conversations
+  const [activeSessions, setActiveSessions] = useState(new Set());
 
   // Processing Sessions: Track which sessions are currently thinking/processing
   // This allows us to restore the "Thinking..." banner when switching back to a processing session
@@ -614,7 +615,7 @@ function AppContent() {
         // Remove "Full Changelog" links
         .replace(/\*\*Full Changelog\*\*:.*$/gim, '')
         // Remove compare links (e.g., https://github.com/.../compare/v1.0.0...v1.0.1)
-        .replace(/https?:\/\/github\.com\/[^\/]+\/[^\/]+\/compare\/[^\s)]+/gi, '')
+        .replace(/https?:\/\/github\.com\/[^/]+\/[^/]+\/compare\/[^\s)]+/gi, '')
         // Clean up multiple consecutive empty lines
         .replace(/\n\s*\n\s*\n/g, '\n\n')
         // Trim whitespace
@@ -635,16 +636,16 @@ function AppContent() {
         const data = await response.json();
 
         if (response.ok) {
-          setUpdateOutput(prev => prev + data.output + '\n');
-          setUpdateOutput(prev => prev + '\n✅ Update completed successfully!\n');
-          setUpdateOutput(prev => prev + 'Please restart the server to apply changes.\n');
+          setUpdateOutput(prev => `${prev}${data.output}\n`);
+          setUpdateOutput(prev => `${prev}\n✅ Update completed successfully!\n`);
+          setUpdateOutput(prev => `${prev}Please restart the server to apply changes.\n`);
         } else {
           setUpdateError(data.error || 'Update failed');
-          setUpdateOutput(prev => prev + '\n❌ Update failed: ' + (data.error || 'Unknown error') + '\n');
+          setUpdateOutput(prev => `${prev}\n❌ Update failed: ${data.error || 'Unknown error'}\n`);
         }
       } catch (error) {
         setUpdateError(error.message);
-        setUpdateOutput(prev => prev + '\n❌ Update failed: ' + error.message + '\n');
+        setUpdateOutput(prev => `${prev}\n❌ Update failed: ${error.message}\n`);
       } finally {
         setIsUpdating(false);
       }
