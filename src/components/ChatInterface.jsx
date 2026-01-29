@@ -1952,7 +1952,7 @@ const ImageAttachment = ({ file, onRemove, uploadProgress, error }) => {
 // - onReplaceTemporarySession: Called to replace temporary session ID with real WebSocket session ID
 //
 // This ensures uninterrupted chat experience by pausing sidebar refreshes during conversations.
-function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, isConnected, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNewSessionCreating, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick: _onTaskClick, onShowAllTasks }) {
+function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, isConnected, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNewSessionCreating, clearPendingSession, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick: _onTaskClick, onShowAllTasks }) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { sendNotification } = useNotificationContext();
   // Use a ref to always have the latest sendNotification function
@@ -3679,6 +3679,12 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             // The temporary session is removed and real session is marked as active
             if (onReplaceTemporarySession) {
               onReplaceTemporarySession(latestMessage.sessionId);
+            }
+
+            // Clear the pending session from the sidebar - the real session now exists
+            // and will be loaded through the normal projects_updated flow
+            if (clearPendingSession) {
+              clearPendingSession();
             }
 
             // Attach the real session ID to any pending permission requests so they

@@ -256,23 +256,9 @@ function AppContent() {
         const updatedProjects = latestMessage.projects;
         setProjects(updatedProjects);
 
-        // Clear pending session if the real session has appeared in the project
-        if (pendingSession && pendingSession.projectName) {
-          const projectWithPending = updatedProjects.find(p => p.name === pendingSession.projectName);
-          if (projectWithPending) {
-            // Check if there's a new session in this project (the real session has been created)
-            const allSessions = [
-              ...(projectWithPending.sessions || []),
-              ...(projectWithPending.codexSessions || []),
-              ...(projectWithPending.cursorSessions || [])
-            ];
-            // If there's at least one session, the pending session can be cleared
-            // since the real session is now visible in the sidebar
-            if (allSessions.length > 0) {
-              setPendingSession(null);
-            }
-          }
-        }
+        // Note: pendingSession is cleared when 'session-created' event is received
+        // in ChatInterface, not here. This ensures the pending session remains visible
+        // until we're certain the real session exists.
 
         // Update selected project if it exists in the updated projects
         if (selectedProject) {
@@ -647,9 +633,9 @@ function AppContent() {
     }
   }, []);
 
-  // _clearPendingSession: Available for manual clearing, but currently handled
-  // automatically in the WebSocket message handler when the real session appears
-  const _clearPendingSession = useCallback(() => {
+  // clearPendingSession: Called when session-created event is received in ChatInterface
+  // This ensures the pending session is cleared only after the real session exists
+  const clearPendingSession = useCallback(() => {
     setPendingSession(null);
   }, []);
 
@@ -1018,6 +1004,7 @@ function AppContent() {
           processingSessions={processingSessions}
           onReplaceTemporarySession={replaceTemporarySession}
           onNewSessionCreating={onNewSessionCreating}
+          clearPendingSession={clearPendingSession}
           onNavigateToSession={(sessionId) => navigate(`/session/${sessionId}`)}
           onShowSettings={() => setShowSettings(true)}
           autoExpandTools={autoExpandTools}
