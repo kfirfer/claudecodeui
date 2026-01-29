@@ -993,6 +993,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
                     ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
                 }`}
+                data-testid="notifications-tab"
               >
                 <Bell className="w-4 h-4 inline mr-2" />
                 {t('mainTabs.notifications')}
