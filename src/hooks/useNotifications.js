@@ -123,12 +123,24 @@ export const useNotifications = () => {
    */
   const sendNotification = useCallback((title, options = {}) => {
     // Check if we should send the notification
-    if (!isSupported || permission !== 'granted' || !settings.enabled) {
+    if (!isSupported) {
+      console.debug('[Notifications] Browser does not support notifications');
+      return null;
+    }
+
+    if (permission !== 'granted') {
+      console.debug('[Notifications] Permission not granted:', permission);
+      return null;
+    }
+
+    if (!settings.enabled) {
+      console.debug('[Notifications] Notifications are disabled in settings');
       return null;
     }
 
     // Respect "only when unfocused" setting
     if (settings.onlyWhenUnfocused && isTabVisible) {
+      console.debug('[Notifications] Tab is visible and onlyWhenUnfocused is enabled, skipping notification');
       return null;
     }
 
@@ -148,6 +160,7 @@ export const useNotifications = () => {
         notification.close();
       };
 
+      console.debug('[Notifications] Notification sent:', title, options.body);
       return notification;
     } catch (error) {
       console.error('Failed to send notification:', error);

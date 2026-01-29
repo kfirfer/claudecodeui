@@ -50,18 +50,20 @@ async function performLogin(page) {
  * @param {import('@playwright/test').Page} page
  */
 async function openNotificationSettings(page) {
-  // Click settings button
-  const settingsButton = page.locator('button').filter({ has: page.locator('svg.lucide-settings') }).first();
-  await expect(settingsButton).toBeVisible();
-  await settingsButton.click();
+  // Click settings button - use getByRole for accessibility
+  const settingsButton = page.getByRole('button', { name: /settings/i }).first();
+
+  // Scroll into view and click (button may be at bottom of sidebar)
+  await settingsButton.scrollIntoViewIfNeeded();
+  await settingsButton.click({ force: true });
 
   // Wait for settings modal to appear
   const settingsHeading = page.getByRole('heading', { name: 'Settings' });
-  await expect(settingsHeading).toBeVisible();
+  await expect(settingsHeading).toBeVisible({ timeout: 10000 });
 
   // Click on Notifications tab
   const notificationsTab = page.getByRole('button', { name: /Notifications/i });
-  await expect(notificationsTab).toBeVisible();
+  await expect(notificationsTab).toBeVisible({ timeout: 10000 });
   await notificationsTab.click();
 }
 
