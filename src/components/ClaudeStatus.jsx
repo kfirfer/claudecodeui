@@ -1,20 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '../lib/utils';
 
 function ClaudeStatus({ status, onAbort, isLoading, provider: _provider = 'claude' }) {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [animationPhase, setAnimationPhase] = useState(0);
   const [fakeTokens, setFakeTokens] = useState(0);
+  // Debounced visibility state to prevent flickering
+  const [showIndicator, setShowIndicator] = useState(false);
+  const hideTimeoutRef = useRef(null);
+  // Preserve elapsed time during brief state changes
+  const lastElapsedTimeRef = useRef(0);
+  const lastFakeTokensRef = useRef(0);
+
+  // Debounce the visibility of the indicator
+  // Show immediately when loading starts, delay hide by 500ms when loading stops
+  useEffect(() => {
+    if (isLoading) {
+      // Show immediately when loading starts
+      setShowIndicator(true);
+      // Clear any pending hide timeout
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = null;
+      }
+    } else {
+      // Delay hiding by 500ms to prevent rapid flicker
+      hideTimeoutRef.current = setTimeout(() => {
+        setShowIndicator(false);
+        // Reset state after hide
+        lastElapsedTimeRef.current = 0;
+        lastFakeTokensRef.current = 0;
+      }, 500);
+    }
+
+    return () => {
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+      }
+    };
+  }, [isLoading]);
 
   // Update elapsed time every second
   useEffect(() => {
     if (!isLoading) {
-      setElapsedTime(0);
-      setFakeTokens(0);
+      // Store current values before clearing
+      lastElapsedTimeRef.current = elapsedTime;
+      lastFakeTokensRef.current = fakeTokens;
       return;
     }
 
-    const startTime = Date.now();
+    const startTime = Date.now() - (lastElapsedTimeRef.current * 1000);
     // Calculate random token rate once (30-50 tokens per second)
     const tokenRate = 30 + Math.random() * 20;
 
@@ -26,22 +61,23 @@ function ClaudeStatus({ status, onAbort, isLoading, provider: _provider = 'claud
     }, 1000);
 
     return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- elapsedTime/fakeTokens are read only when isLoading becomes false, intentionally excluded to prevent re-running
   }, [isLoading]);
 
   // Animate the status indicator
   useEffect(() => {
-    if (!isLoading) return;
+    if (!showIndicator) return;
 
     const timer = setInterval(() => {
       setAnimationPhase(prev => (prev + 1) % 4);
     }, 500);
 
     return () => clearInterval(timer);
-  }, [isLoading]);
+  }, [showIndicator]);
 
-  // Don't show if loading is false
+  // Don't show if showIndicator is false (debounced state)
   // Note: showThinking only controls the reasoning accordion in messages, not this processing indicator
-  if (!isLoading) return null;
+  if (!showIndicator) return null;
   
   // Clever action words that cycle
   const actionWords = ['Thinking', 'Processing', 'Analyzing', 'Working', 'Computing', 'Reasoning'];

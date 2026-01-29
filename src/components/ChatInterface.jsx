@@ -39,6 +39,7 @@ import ClaudeStatus from './ClaudeStatus';
 import TokenUsagePie from './TokenUsagePie';
 import { MicButton } from './MicButton.jsx';
 import { api, authenticatedFetch } from '../utils/api';
+import { useChatSessionState } from '../hooks/useChatSessionState';
 import ThinkingModeSelector, { thinkingModes } from './ThinkingModeSelector.jsx';
 import Fuse from 'fuse.js';
 import CommandMenu from './CommandMenu';
@@ -1975,7 +1976,25 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     }
     return [];
   });
-  const [isLoading, setIsLoading] = useState(false);
+
+  // Unified session state management - prevents flickering and race conditions
+  const {
+    isLoading,
+    canAbortSession,
+    claudeStatus,
+    startProcessing,
+    sessionCompleted,
+    sessionError,
+    updateStatus,
+    connectionLost,
+    restoreProcessing,
+    resetForSessionSwitch,
+    hasRecentlyCompleted,
+    // Legacy setters with guards for backward compatibility
+    setIsLoading,
+    setCanAbortSession,
+    setClaudeStatus
+  } = useChatSessionState();
   const [currentSessionId, setCurrentSessionId] = useState(selectedSession?.id || null);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [sessionMessages, setSessionMessages] = useState([]);
@@ -2023,7 +2042,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   const [selectedFileIndex, setSelectedFileIndex] = useState(-1);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [atSymbolPosition, setAtSymbolPosition] = useState(-1);
-  const [canAbortSession, setCanAbortSession] = useState(false);
+  // canAbortSession is now provided by useChatSessionState hook
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const scrollPositionRef = useRef({ height: 0, top: 0 });
   const [showCommandMenu, setShowCommandMenu] = useState(false);
@@ -2035,7 +2054,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(-1);
   const [slashPosition, setSlashPosition] = useState(-1);
   const [visibleMessageCount, setVisibleMessageCount] = useState(100);
-  const [claudeStatus, setClaudeStatus] = useState(null);
+  // claudeStatus is now provided by useChatSessionState hook
   const [thinkingMode, setThinkingMode] = useState('none');
   const [provider, setProvider] = useState(() => {
     return localStorage.getItem('selected-provider') || 'claude';
@@ -3164,8 +3183,6 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             pendingViewSessionRef.current = null;
             setChatMessages([]);
             setSessionMessages([]);
-            setClaudeStatus(null);
-            setCanAbortSession(false);
           }
           // Reset pagination state when switching sessions
           setMessagesOffset(0);
@@ -3174,9 +3191,10 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           // Reset token budget when switching sessions
           // It will update when user sends a message and receives new budget from WebSocket
           setTokenBudget(null);
-          // Reset loading state when switching sessions (unless the new session is processing)
+          // Atomically reset loading state when switching sessions (unless the new session is processing)
           // The restore effect will set it back to true if needed
-          setIsLoading(false);
+          // Using resetForSessionSwitch() to allow restore to work properly
+          resetForSessionSwitch();
 
           // Check if the session is currently processing on the backend
           if (ws && sendMessage) {
@@ -3242,9 +3260,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           pendingViewSessionRef.current = null;
           setChatMessages([]);
           setSessionMessages([]);
-          setClaudeStatus(null);
-          setCanAbortSession(false);
-          setIsLoading(false);
+          // Atomically reset loading state for new session view
+          resetForSessionSwitch();
         }
         setCurrentSessionId(null);
         sessionStorage.removeItem('cursorSessionId');
@@ -3363,28 +3380,43 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   }, [isLoading, currentSessionId, onSessionProcessing]);
 
   // Restore processing state when switching to a processing session
+  // Uses the state machine's restoreProcessing which has guards against recently completed sessions
   useEffect(() => {
     if (currentSessionId && processingSessions) {
       const shouldBeProcessing = processingSessions.has(currentSessionId);
       if (shouldBeProcessing && !isLoading) {
-        setIsLoading(true);
-        // Assume processing sessions can be aborted
-        setCanAbortSession(true);
+        // restoreProcessing has built-in guards - won't restore if recently completed
+        restoreProcessing(currentSessionId);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- isLoading is checked inside but intentionally excluded to prevent loops
   }, [currentSessionId, processingSessions]);
 
-  // Reset loading state when WebSocket connection is lost
-  // This prevents the UI from getting stuck in "Thinking..." state if the connection drops
+  // Debounced WebSocket disconnect ref for cleanup
+  const disconnectTimeoutRef = useRef(null);
+
+  // Reset loading state when WebSocket connection is lost (with 5-second debounce)
+  // This prevents brief disconnections from prematurely resetting state
   useEffect(() => {
     if (!isConnected && isLoading) {
-      console.log('WebSocket disconnected while loading, resetting loading state');
-      setIsLoading(false);
-      setCanAbortSession(false);
-      setClaudeStatus(null);
+      // Wait 5 seconds before resetting state to handle brief reconnection scenarios
+      disconnectTimeoutRef.current = setTimeout(() => {
+        console.log('WebSocket disconnected for 5s, resetting loading state');
+        connectionLost();
+      }, 5000);
+    } else if (isConnected) {
+      // Clear timeout if reconnected before the debounce period
+      if (disconnectTimeoutRef.current) {
+        clearTimeout(disconnectTimeoutRef.current);
+        disconnectTimeoutRef.current = null;
+      }
     }
-  }, [isConnected, isLoading]);
+    return () => {
+      if (disconnectTimeoutRef.current) {
+        clearTimeout(disconnectTimeoutRef.current);
+      }
+    };
+  }, [isConnected, isLoading, connectionLost]);
 
   useEffect(() => {
     // Handle WebSocket messages
@@ -3464,10 +3496,11 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                           messageType === 'codex-error' ||
                           messageType === 'session-aborted';
 
-          if (isCompletion || isError) {
-            setIsLoading(false);
-            setCanAbortSession(false);
-            setClaudeStatus(null);
+          // Use atomic state updates to prevent flickering
+          if (isCompletion) {
+            sessionCompleted(sessionId);
+          } else if (isError) {
+            sessionError(sessionId);
           }
         }
 
@@ -3797,9 +3830,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           // Keep the session in a "waiting" state while approval is pending.
           // This does not resume the run; it only updates the UI status so the
           // user knows Claude is blocked on a decision.
-          setIsLoading(true);
-          setCanAbortSession(true);
-          setClaudeStatus({
+          // Using startProcessing() with status for atomic updates
+          startProcessing(latestMessage.sessionId || currentSessionId, {
             text: 'Waiting for permission',
             tokens: 0,
             can_interrupt: true
@@ -3903,10 +3935,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           }]);
 
           // Reset loading state if this error is for the current session
+          // Using atomic sessionError() to prevent race conditions and flickering
           if (cursorErrorSessionId === currentSessionId || !currentSessionId) {
-            setIsLoading(false);
-            setCanAbortSession(false);
-            setClaudeStatus(null);
+            sessionError(cursorErrorSessionId);
           }
 
           // Mark the session as no longer processing
@@ -3915,16 +3946,15 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           }
           break;
         }
-          
+
         case 'cursor-result': {
           // Get session ID from message or fall back to current session
           const cursorCompletedSessionId = latestMessage.sessionId || currentSessionId;
 
           // Only update UI state if this is the current session
+          // Using atomic sessionCompleted() to prevent race conditions and flickering
           if (cursorCompletedSessionId === currentSessionId) {
-            setIsLoading(false);
-            setCanAbortSession(false);
-            setClaudeStatus(null);
+            sessionCompleted(cursorCompletedSessionId);
           }
 
           // Send browser notification for task completion
@@ -4029,10 +4059,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           const completedSessionId = latestMessage.sessionId || currentSessionId || sessionStorage.getItem('pendingSessionId');
 
           // Update UI state if this is the current session OR if we don't have a session ID yet (new session)
+          // Using atomic sessionCompleted() to prevent race conditions and flickering
           if (completedSessionId === currentSessionId || !currentSessionId) {
-            setIsLoading(false);
-            setCanAbortSession(false);
-            setClaudeStatus(null);
+            sessionCompleted(completedSessionId);
           }
 
           // Send browser notification for task completion
@@ -4162,12 +4191,18 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             // Handle turn complete
             if (codexData.type === 'turn_complete') {
               // Turn completed, message stream done
-              setIsLoading(false);
+              // Using atomic sessionCompleted() and calling onSessionNotProcessing to fix the missing call
+              const turnSessionId = latestMessage.sessionId || currentSessionId;
+              sessionCompleted(turnSessionId);
+              if (turnSessionId && onSessionNotProcessing) {
+                onSessionNotProcessing(turnSessionId);
+              }
             }
 
             // Handle turn failed
             if (codexData.type === 'turn_failed') {
-              setIsLoading(false);
+              const turnFailedSessionId = latestMessage.sessionId || currentSessionId;
+              sessionError(turnFailedSessionId);
               setChatMessages(prev => [...prev, {
                 type: 'error',
                 content: codexData.error?.message || 'Turn failed',
@@ -4182,10 +4217,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           // Handle Codex session completion
           const codexCompletedSessionId = latestMessage.sessionId || currentSessionId || sessionStorage.getItem('pendingSessionId');
 
+          // Using atomic sessionCompleted() to prevent race conditions and flickering
           if (codexCompletedSessionId === currentSessionId || !currentSessionId) {
-            setIsLoading(false);
-            setCanAbortSession(false);
-            setClaudeStatus(null);
+            sessionCompleted(codexCompletedSessionId);
           }
 
           // Send browser notification for task completion
@@ -4234,10 +4268,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           }]);
 
           // Reset loading state if this error is for the current session
+          // Using atomic sessionError() to prevent race conditions and flickering
           if (codexErrorSessionId === currentSessionId || !currentSessionId) {
-            setIsLoading(false);
-            setCanAbortSession(false);
-            setClaudeStatus(null);
+            sessionError(codexErrorSessionId);
           }
 
           // Mark the session as no longer processing
@@ -4252,10 +4285,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           const abortedSessionId = latestMessage.sessionId || currentSessionId;
 
           // Only update UI state if this is the current session
+          // Using atomic sessionError() to prevent race conditions and flickering
           if (abortedSessionId === currentSessionId) {
-            setIsLoading(false);
-            setCanAbortSession(false);
-            setClaudeStatus(null);
+            sessionError(abortedSessionId);
           }
 
           // Always mark the aborted session as inactive and not processing
@@ -4285,11 +4317,15 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           const isCurrentSession = statusSessionId === currentSessionId ||
                                    (selectedSession && statusSessionId === selectedSession.id);
           if (isCurrentSession && latestMessage.isProcessing) {
-            // Session is currently processing, restore UI state
-            setIsLoading(true);
-            setCanAbortSession(true);
-            if (onSessionProcessing) {
-              onSessionProcessing(statusSessionId);
+            // Guard: Don't restore processing state for recently completed sessions
+            // This prevents race conditions where session-status arrives after claude-complete
+            if (!hasRecentlyCompleted(statusSessionId)) {
+              // Session is currently processing, restore UI state
+              // Using startProcessing() which has guards against recently completed sessions
+              startProcessing(statusSessionId);
+              if (onSessionProcessing) {
+                onSessionProcessing(statusSessionId);
+              }
             }
           }
           break;
@@ -4314,22 +4350,24 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             } else if (typeof statusData === 'string') {
               statusInfo.text = statusData;
             }
-            
+
             // Extract token count
             if (statusData.tokens) {
               statusInfo.tokens = statusData.tokens;
             } else if (statusData.token_count) {
               statusInfo.tokens = statusData.token_count;
             }
-            
+
             // Check if can interrupt
             if (statusData.can_interrupt !== undefined) {
               statusInfo.can_interrupt = statusData.can_interrupt;
             }
-            
-            setClaudeStatus(statusInfo);
-            setIsLoading(true);
-            setCanAbortSession(statusInfo.can_interrupt);
+
+            // Using updateStatus() which has guards against recently completed sessions
+            // This prevents race conditions where claude-status arrives after claude-complete
+            updateStatus(statusInfo);
+            // Using startProcessing() which has guards against recently completed sessions
+            startProcessing(currentSessionId, statusInfo);
           }
           break;
         }
@@ -4739,15 +4777,13 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     };
 
     setChatMessages(prev => [...prev, userMessage]);
-    setIsLoading(true);
-    setCanAbortSession(true);
-    // Set a default status when starting
-    setClaudeStatus({
+    // Using startProcessing() for atomic state updates
+    startProcessing(currentSessionId || selectedSession?.id, {
       text: 'Processing',
       tokens: 0,
       can_interrupt: true
     });
-    
+
     // Always scroll to bottom when user sends a message and reset scroll state
     // Reset scroll state so auto-scroll works for Claude's response
     setIsUserScrolledUp(false);
@@ -4858,7 +4894,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     if (selectedProject) {
       safeLocalStorage.removeItem(`draft_input_${selectedProject.name}`);
     }
-  }, [input, isLoading, selectedProject, attachedImages, currentSessionId, selectedSession, provider, permissionMode, onSessionActive, cursorModel, claudeModel, codexModel, sendMessage, setInput, setAttachedImages, setUploadingImages, setImageErrors, setIsTextareaExpanded, textareaRef, setChatMessages, setIsLoading, setCanAbortSession, setClaudeStatus, setIsUserScrolledUp, scrollToBottom, thinkingMode]);
+  }, [input, isLoading, selectedProject, attachedImages, currentSessionId, selectedSession, provider, permissionMode, onSessionActive, cursorModel, claudeModel, codexModel, sendMessage, setInput, setAttachedImages, setUploadingImages, setImageErrors, setIsTextareaExpanded, textareaRef, setChatMessages, setIsUserScrolledUp, scrollToBottom, thinkingMode, startProcessing]);
 
   const handleGrantToolPermission = useCallback((suggestion) => {
     if (!suggestion || provider !== 'claude') {
@@ -4895,7 +4931,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       }
       return next;
     });
-  }, [sendMessage]);
+  }, [sendMessage, setClaudeStatus]);
 
   // Store handleSubmit in ref so handleCustomCommand can access it
   useEffect(() => {
@@ -5173,8 +5209,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   const _handleNewSession = () => {
     setChatMessages([]);
     setInput('');
-    setIsLoading(false);
-    setCanAbortSession(false);
+    // Using resetForSessionSwitch() for atomic state updates
+    resetForSessionSwitch();
   };
   
   const handleAbortSession = () => {
