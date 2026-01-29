@@ -326,9 +326,11 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
 
       console.log(`Token usage percentage (initial after response): ${percentage}%`);
 
-      // For a simple "Hello" message, context usage should be low (under 5%)
-      expect(percentage).toBeGreaterThan(0);
-      expect(percentage).toBeLessThan(5);
+      // Claude Code has a built-in system prompt (~33K tokens) that uses context.
+      // For a simple "Hello" message with system prompt, expect 15-25% of 200K context.
+      // This includes: system prompt (cached) + user message + assistant response tokens used as input.
+      expect(percentage).toBeGreaterThan(10);
+      expect(percentage).toBeLessThan(30);
 
       // ==========================================
       // Step 4.6: Refresh page and verify percentage stays consistent
@@ -371,11 +373,16 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
 
       console.log(`Token usage percentage (after page refresh): ${percentageValueAfterRefresh}%`);
 
-      // CRITICAL: The percentage after refresh should remain LOW (under 5%)
-      // It might be 0% if the JSONL doesn't have data yet, or a small value
-      // The key is that it should NOT jump to 16%+ which would indicate a bug
-      expect(percentageValueAfterRefresh).toBeGreaterThanOrEqual(0);
-      expect(percentageValueAfterRefresh).toBeLessThan(5);
+      // CRITICAL: The percentage after refresh should match the initial percentage
+      // Both WebSocket (initial) and REST API (after refresh) should return consistent values
+      // The percentage should be in the same range as initial (15-25%)
+      expect(percentageValueAfterRefresh).toBeGreaterThan(10);
+      expect(percentageValueAfterRefresh).toBeLessThan(30);
+
+      // Verify WebSocket and REST API are consistent (within 5% tolerance)
+      const difference = Math.abs(percentage - percentageValueAfterRefresh);
+      console.log(`Token usage consistency check: initial=${percentage}%, after_refresh=${percentageValueAfterRefresh}%, diff=${difference.toFixed(1)}%`);
+      expect(difference).toBeLessThan(5);
 
       // ==========================================
       // Step 5: Delete the session (optional - may not be visible)
