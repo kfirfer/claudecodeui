@@ -1650,7 +1650,6 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
     // See: https://platform.claude.com/docs/en/build-with-claude/context-windows
     const contextWindow = Number.isFinite(parsedContextWindow) ? parsedContextWindow : 200000;
     let inputTokens = 0;
-    let outputTokens = 0;
     let cacheCreationTokens = 0;
     let cacheReadTokens = 0;
 
@@ -1663,9 +1662,9 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
         if (entry.type === 'assistant' && entry.message?.usage) {
           const usage = entry.message.usage;
 
-          // Use token counts from latest assistant message only
+          // Context usage = input_tokens + cache_creation_input_tokens + cache_read_input_tokens
+          // Output tokens are NOT included (they don't persist in context)
           inputTokens = usage.input_tokens || 0;
-          outputTokens = usage.output_tokens || 0;
           cacheCreationTokens = usage.cache_creation_input_tokens || 0;
           cacheReadTokens = usage.cache_read_input_tokens || 0;
 
@@ -1677,17 +1676,16 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
       }
     }
 
-    // Context window usage = input + output + cache tokens
-    // The context window is a shared limit for both input and output tokens
-    // See: https://platform.claude.com/docs/en/build-with-claude/context-windows
-    const totalUsed = inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens;
+    // Context window usage = input_tokens + cache_creation_input_tokens + cache_read_input_tokens
+    // Output tokens are NOT included in context usage (they don't persist in context)
+    // See: https://codelynx.dev/posts/calculate-claude-code-context
+    const totalUsed = inputTokens + cacheCreationTokens + cacheReadTokens;
 
     res.json({
       used: totalUsed,
       total: contextWindow,
       breakdown: {
         input: inputTokens,
-        output: outputTokens,
         cacheCreation: cacheCreationTokens,
         cacheRead: cacheReadTokens
       }
