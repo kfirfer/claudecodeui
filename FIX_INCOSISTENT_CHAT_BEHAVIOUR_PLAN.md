@@ -1,5 +1,14 @@
 # Fix Plan: Inconsistent Chat Behavior - "Thinking/Processing" Flickering
 
+## Validation Status
+
+**Last Validated:** 2026-01-29
+**Status:** Verified against codebase
+
+All root causes and line numbers have been verified against the current codebase. The proposed solutions align with React best practices (useReducer for atomic state updates is documented at react.dev/learn/extracting-state-logic-into-a-reducer).
+
+---
+
 ## Executive Summary
 
 This document outlines a comprehensive plan to fix the inconsistent chat behavior where the "Thinking" and "Processing" states flicker back and forth and sometimes get stuck. The root cause is a combination of circular state dependencies, race conditions in WebSocket message handling, and multiple code paths that independently modify the loading state.
@@ -89,7 +98,7 @@ useEffect(() => {
 Brief WebSocket disconnections immediately reset all loading state, then reconnection may restore it inconsistently.
 
 #### 5. Inconsistent Codex State Management
-**Location:** `src/components/ChatInterface.jsx:4163-4177`
+**Location:** `src/components/ChatInterface.jsx:4163-4166` (inside `codex-response` handler)
 
 ```javascript
 // turn_complete sets isLoading(false) but DOES NOT call onSessionNotProcessing
@@ -100,10 +109,29 @@ if (codexData.type === 'turn_complete') {
 
 Session remains in `processingSessions` Set, which can trigger the restoration effect.
 
+**Note:** The separate `codex-complete` message type (lines 4181-4223) DOES properly call `onSessionNotProcessing` at lines 4198-4204. The issue is specifically with the `turn_complete` sub-event inside `codex-response`, which fires when individual turns complete but before the overall session ends.
+
 #### 6. handleBackgroundLifecycle Creates Duplicate State Changes
-**Location:** `src/components/ChatInterface.jsx:3457-3479`
+**Location:** `src/components/ChatInterface.jsx:3432-3480` (function definition at 3432, UI reset logic at 3457-3479)
 
 This function resets loading state for "current session" completions, creating another code path that can conflict with main completion handlers.
+
+```javascript
+// Function defined at line 3432
+const handleBackgroundLifecycle = (sessionId, messageType, message) => {
+  // ...
+  // Lines 3457-3479: UI state reset for current session completions
+  if (isCurrentSession && lifecycleMessageTypes.has(messageType)) {
+    const isCompletion = messageType === 'claude-complete' || ...;
+    if (isCompletion || isError) {
+      setIsLoading(false);
+      setCanAbortSession(false);
+      setClaudeStatus(null);
+    }
+  }
+  // ...
+};
+```
 
 ### Secondary Issues
 
@@ -227,9 +255,9 @@ dispatch({
 
 #### Task 2.1: Add Message Sequence Numbers
 **Status:** [ ]
-**Files:** `server/index.js`, `server/claude-sdk.js`, `src/components/ChatInterface.jsx`
+**Files:** `server/index.js` (WebSocketWriter at lines 801-822), `server/claude-sdk.js`, `src/components/ChatInterface.jsx`
 
-**Server-side:**
+**Server-side (modify existing WebSocketWriter at server/index.js:801-822):**
 ```javascript
 class WebSocketWriter {
   constructor(ws) {
@@ -292,10 +320,10 @@ case 'session-status': {
 
 #### Task 2.3: Fix Codex turn_complete Handler
 **Status:** [ ]
-**File:** `src/components/ChatInterface.jsx:4163-4177`
+**File:** `src/components/ChatInterface.jsx:4163-4166` (inside `codex-response` case)
 
 ```javascript
-// BEFORE:
+// BEFORE (lines 4163-4166):
 if (codexData.type === 'turn_complete') {
   setIsLoading(false);
 }
@@ -487,7 +515,9 @@ const handleSessionError = useCallback((sessionId, provider, error) => {
 **Status:** [ ]
 **Files:** `server/index.js`, `server/claude-sdk.js`
 
-Track session completion state on backend to avoid sending stale status messages:
+Track session completion state on backend to avoid sending stale status messages.
+
+**Note:** The `activeSessions` Map in `claude-sdk.js` (line 25) already has a `status: 'active'` field (see `addSession` function at line 229). This could be leveraged by updating status to 'completed' instead of adding a separate Set, but a separate Set provides O(1) lookup without Map iteration.
 
 ```javascript
 // In claude-sdk.js
@@ -633,6 +663,8 @@ useEffect(() => {
 
 ### Phase 7: Testing
 **Goal:** Ensure fixes work correctly and prevent regressions.
+
+**Note:** Existing E2E tests use `.spec.js` naming convention (e.g., `project-workflow.spec.js`, `shell.spec.js`, `notifications.spec.js`). New E2E tests should follow this pattern.
 
 #### Task 7.1: Unit Tests for State Machine
 **Status:** [ ]
