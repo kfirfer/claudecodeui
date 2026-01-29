@@ -3298,7 +3298,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
       reloadExternalMessages();
     }
-  }, [externalMessageUpdate, selectedSession, selectedProject, loadCursorSessionMessages, loadSessionMessages, isNearBottom, autoScrollToBottom, scrollToBottom]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadSessionMessages is intentionally excluded to prevent infinite loops (it changes when messagesOffset updates)
+  }, [externalMessageUpdate, selectedSession, selectedProject, loadCursorSessionMessages, isNearBottom, autoScrollToBottom, scrollToBottom]);
 
   // When the user navigates to a specific session, clear any pending "new session" marker.
   useEffect(() => {
