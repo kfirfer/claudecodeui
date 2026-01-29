@@ -58,6 +58,7 @@ function Sidebar({
   loadingProgress,
   onRefresh,
   onShowSettings,
+  pendingSession,
   updateAvailable,
   latestVersion,
   _currentVersion,
@@ -262,7 +263,9 @@ function Sidebar({
     const codexSessions = (project.codexSessions || []).map(s => ({ ...s, __provider: 'codex' }));
 
     // Sort by most recent activity/date
+    // Pending sessions always at top
     const normalizeDate = (s) => {
+      if (s.__isPending) return new Date();
       if (s.__provider === 'cursor') return new Date(s.createdAt);
       if (s.__provider === 'codex') return new Date(s.createdAt || s.lastActivity);
       return new Date(s.lastActivity);
@@ -276,6 +279,21 @@ function Sidebar({
       const existing = sessionMap.get(session.id);
       if (!existing || normalizeDate(session) > normalizeDate(existing)) {
         sessionMap.set(session.id, session);
+      }
+    }
+
+    // Add pending session if it matches this project
+    if (pendingSession && pendingSession.projectName === project.name) {
+      const pendingSessionObj = {
+        id: pendingSession.id,
+        name: pendingSession.firstMessage || 'New conversation...',
+        lastActivity: pendingSession.timestamp,
+        __provider: pendingSession.provider || 'claude',
+        __isPending: true
+      };
+      // Don't add if a real session with this temp ID already exists
+      if (!sessionMap.has(pendingSession.id)) {
+        sessionMap.set(pendingSession.id, pendingSessionObj);
       }
     }
 
@@ -1243,6 +1261,7 @@ function Sidebar({
                           // Handle Claude, Cursor, and Codex session formats
                           const isCursorSession = session.__provider === 'cursor';
                           const isCodexSession = session.__provider === 'codex';
+                          const isPendingSession = session.__isPending;
 
                           // Calculate if session is active (within last 10 minutes)
                           const getSessionDate = () => {
@@ -1271,10 +1290,14 @@ function Sidebar({
                           
                           return (
                           <div key={session.id} className="group relative">
-                            {/* Active session indicator dot */}
-                            {isActive && (
+                            {/* Active/Pending session indicator dot */}
+                            {(isActive || isPendingSession) && (
                               <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1">
-                                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                                {isPendingSession ? (
+                                  <div className="w-2 h-2 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                                )}
                               </div>
                             )}
                             {/* Mobile Session Item */}
@@ -1283,6 +1306,7 @@ function Sidebar({
                                 className={cn(
                                   "p-2 mx-3 my-0.5 rounded-md bg-card border active:scale-[0.98] transition-all duration-150 relative",
                                   selectedSession?.id === session.id ? "bg-primary/5 border-primary/20" :
+                                  isPendingSession ? "border-blue-500/30 bg-blue-50/5 dark:bg-blue-900/5" :
                                   isActive ? "border-green-500/30 bg-green-50/5 dark:bg-green-900/5" : "border-border/30"
                                 )}
                                 onClick={() => {
@@ -1333,7 +1357,7 @@ function Sidebar({
                                   </span>
                                     </div>
                                   </div>
-                                  {!isCursorSession && (
+                                  {!isCursorSession && !isPendingSession && (
                                     <button
                                       type="button"
                                       className="w-5 h-5 rounded-md bg-red-50 dark:bg-red-900/20 flex items-center justify-center active:scale-95 transition-transform opacity-70 ml-1"
@@ -1346,17 +1370,21 @@ function Sidebar({
                                       <Trash2 className="w-2.5 h-2.5 text-red-600 dark:text-red-400" />
                                     </button>
                                   )}
+                                  {isPendingSession && (
+                                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1" />
+                                  )}
                                 </div>
                               </div>
                             </div>
-                            
+
                             {/* Desktop Session Item */}
                             <div className="hidden md:block">
                               <Button
                                 variant="ghost"
                                 className={cn(
                                   "w-full justify-start p-2 h-auto font-normal text-left hover:bg-accent/50 transition-colors duration-200",
-                                  selectedSession?.id === session.id && "bg-accent text-accent-foreground"
+                                  selectedSession?.id === session.id && "bg-accent text-accent-foreground",
+                                  isPendingSession && "bg-blue-50/50 dark:bg-blue-900/10 border border-blue-500/30"
                                 )}
                                 onClick={() => handleSessionClick(session, project.name)}
                                 onTouchEnd={handleTouchClick(() => handleSessionClick(session, project.name))}
@@ -1396,7 +1424,7 @@ function Sidebar({
                                   </div>
                                 </div>
                               </Button>
-                              {!isCursorSession && (
+                              {!isCursorSession && !isPendingSession && (
                               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
                                 {editingSession === session.id && !isCodexSession ? (
                                   <>

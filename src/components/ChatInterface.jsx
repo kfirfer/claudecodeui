@@ -1952,7 +1952,7 @@ const ImageAttachment = ({ file, onRemove, uploadProgress, error }) => {
 // - onReplaceTemporarySession: Called to replace temporary session ID with real WebSocket session ID
 //
 // This ensures uninterrupted chat experience by pausing sidebar refreshes during conversations.
-function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, isConnected, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick: _onTaskClick, onShowAllTasks }) {
+function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, isConnected, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNewSessionCreating, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick: _onTaskClick, onShowAllTasks }) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { sendNotification } = useNotificationContext();
   // Use a ref to always have the latest sendNotification function
@@ -4790,6 +4790,17 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       // We are starting a brand-new session in this view. Track it so we only
       // accept streaming updates for this run.
       pendingViewSessionRef.current = { sessionId: null, startedAt: Date.now() };
+
+      // Create a pending session in the sidebar immediately so users see the new chat
+      // before the backend creates the real session file
+      if (onNewSessionCreating && selectedProject) {
+        onNewSessionCreating({
+          tempId: sessionToActivate,
+          projectName: selectedProject.name,
+          firstMessage: input.trim().slice(0, 100),
+          provider: provider
+        });
+      }
     }
     if (onSessionActive) {
       onSessionActive(sessionToActivate);
@@ -4884,7 +4895,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     if (selectedProject) {
       safeLocalStorage.removeItem(`draft_input_${selectedProject.name}`);
     }
-  }, [input, isLoading, selectedProject, attachedImages, currentSessionId, selectedSession, provider, permissionMode, onSessionActive, cursorModel, claudeModel, codexModel, sendMessage, setInput, setAttachedImages, setUploadingImages, setImageErrors, setIsTextareaExpanded, textareaRef, setChatMessages, setIsUserScrolledUp, scrollToBottom, thinkingMode, startProcessing]);
+  }, [input, isLoading, selectedProject, attachedImages, currentSessionId, selectedSession, provider, permissionMode, onSessionActive, onNewSessionCreating, cursorModel, claudeModel, codexModel, sendMessage, setInput, setAttachedImages, setUploadingImages, setImageErrors, setIsTextareaExpanded, textareaRef, setChatMessages, setIsUserScrolledUp, scrollToBottom, thinkingMode, startProcessing]);
 
   const handleGrantToolPermission = useCallback((suggestion) => {
     if (!suggestion || provider !== 'claude') {

@@ -455,25 +455,38 @@ test.describe('Session Visibility - Immediate Display', () => {
       const newSessionButton = page.locator('button:has-text("New Session")').first();
       await newSessionButton.dispatchEvent('click');
 
-      // Verify chat interface is visible
+      // Verify chat interface is visible - wait for either textarea or provider selection
       const chatTextarea = page.locator('textarea').first();
       await expect(chatTextarea).toBeVisible({ timeout: 15000 });
 
-      // Step 4: Type a unique test message (but don't send yet)
+      // Step 4: Select Claude as the provider if the provider selection dialog is shown
+      const claudeProviderButton = page.locator('button:has-text("Claude Claude Code by Anthropic")').first();
+      const providerDialogVisible = await claudeProviderButton.isVisible().catch(() => false);
+      if (providerDialogVisible) {
+        await claudeProviderButton.click();
+        // Wait for the dialog to close and chat interface to be fully ready
+        await page.waitForTimeout(500);
+      }
+
+      // Step 5: Type a unique test message
       const uniqueMessage = `Test session visibility ${testId}`;
       await chatTextarea.fill(uniqueMessage);
 
-      // Step 5: Find the send button
+      // Step 6: Send the message using Ctrl+Enter (the default send method)
+      // First try send button, fallback to keyboard
       const sendButtonArrow = page.locator('button:has(svg.lucide-arrow-up)').first();
       const sendButtonSend = page.locator('button:has(svg.lucide-send)').first();
 
       const arrowVisible = await sendButtonArrow.isVisible().catch(() => false);
+      const sendVisible = await sendButtonSend.isVisible().catch(() => false);
 
-      // Step 6: Send the message
       if (arrowVisible) {
         await sendButtonArrow.click();
-      } else {
+      } else if (sendVisible) {
         await sendButtonSend.click();
+      } else {
+        // Fallback to keyboard submission (Ctrl+Enter is enabled by default)
+        await chatTextarea.press('Control+Enter');
       }
 
       // Step 7: CRITICAL - Check that the session appears in the sidebar IMMEDIATELY

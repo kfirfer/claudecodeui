@@ -57,6 +57,8 @@ function MainContent({
   processingSessions,
   // Replace temporary session ID with real session ID from WebSocket
   onReplaceTemporarySession,
+  // Create pending session in sidebar immediately when user starts new session
+  onNewSessionCreating,
   // Navigate to a specific session (for Claude CLI session duplication workaround)
   onNavigateToSession,
   // Show tools settings panel
@@ -512,6 +514,7 @@ function MainContent({
               onSessionNotProcessing={onSessionNotProcessing}
               processingSessions={processingSessions}
               onReplaceTemporarySession={onReplaceTemporarySession}
+              onNewSessionCreating={onNewSessionCreating}
               onNavigateToSession={onNavigateToSession}
               onShowSettings={onShowSettings}
               autoExpandTools={autoExpandTools}
