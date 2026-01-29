@@ -139,7 +139,9 @@ export const useNotifications = () => {
     }
 
     // Respect "only when unfocused" setting
-    if (settings.onlyWhenUnfocused && isTabVisible) {
+    // Check document.hidden directly to avoid stale closure from React state
+    const currentlyVisible = typeof document !== 'undefined' ? !document.hidden : true;
+    if (settings.onlyWhenUnfocused && currentlyVisible) {
       console.log('[Notifications] Tab is visible and onlyWhenUnfocused is enabled, skipping notification');
       return null;
     }
@@ -166,7 +168,7 @@ export const useNotifications = () => {
       console.error('Failed to send notification:', error);
       return null;
     }
-  }, [isSupported, permission, settings, isTabVisible]);
+  }, [isSupported, permission, settings]);
 
   return {
     // State

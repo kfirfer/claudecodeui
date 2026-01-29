@@ -78,6 +78,17 @@ const QuickSettingsPanel = ({
     setLocalIsOpen(isOpen);
   }, [isOpen]);
 
+  // Update constraints and position when isMobile changes
+  useEffect(() => {
+    if (isMobile) {
+      // On mobile, enforce minimum position of 60% from bottom
+      constraintsRef.current = { min: 60, max: 90 };
+      setHandlePosition(prev => prev < 60 ? 80 : prev);
+    } else {
+      constraintsRef.current = { min: 10, max: 90 };
+    }
+  }, [isMobile]);
+
   // Save handle position to localStorage when it changes
   useEffect(() => {
     localStorage.setItem('quickSettingsHandlePosition', JSON.stringify({ y: handlePosition }));
