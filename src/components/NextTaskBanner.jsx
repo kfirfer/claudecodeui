@@ -314,7 +314,8 @@ const NextTaskBanner = ({ onShowAllTasks, onStartTask, className = '' }) => {
           isOpen={showTaskDetail}
           onClose={() => setShowTaskDetail(false)}
           onStatusChange={() => refreshTasks?.()}
-          onTaskClick={null} // Disable dependency navigation in NextTaskBanner for now
+          // Disable dependency navigation in NextTaskBanner for now
+          onTaskClick={null}
         />
       )}
     </>
@@ -477,7 +478,8 @@ const TemplateSelector = ({ currentProject, onClose, onTemplateApplied }) => {
   const [fileName, setFileName] = useState('prd.txt');
   const [isLoading, setIsLoading] = useState(true);
   const [isApplying, setIsApplying] = useState(false);
-  const [step, setStep] = useState('select'); // 'select', 'customize', 'generate'
+  // Possible values: 'select', 'customize', 'generate'
+  const [step, setStep] = useState('select');
 
   useEffect(() => {
     const loadTemplates = async () => {
@@ -630,7 +632,7 @@ const TemplateSelector = ({ currentProject, onClose, onTemplateApplied }) => {
                   {Object.entries(customizations).map(([key, value]) => (
                     <div key={key}>
                       <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                        {key.replaceAll(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
                       </label>
                       <input
                         type="text"

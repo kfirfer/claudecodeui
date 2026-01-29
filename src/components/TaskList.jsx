@@ -12,7 +12,8 @@ const TaskList = ({
   onTaskClick, 
   className = '',
   showParentTasks = false,
-  defaultView = 'kanban', // 'list', 'grid', or 'kanban'
+  // Possible values: 'list', 'grid', or 'kanban'
+  defaultView = 'kanban',
   currentProject,
   onTaskCreated,
   onShowPRDEditor,
@@ -22,8 +23,10 @@ const TaskList = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('id'); // 'id', 'title', 'status', 'priority', 'updated'
-  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
+  // Possible values: 'id', 'title', 'status', 'priority', 'updated'
+  const [sortBy, setSortBy] = useState('id');
+  // Possible values: 'asc' or 'desc'
+  const [sortOrder, setSortOrder] = useState('asc');
   const [viewMode, setViewMode] = useState(defaultView);
   const [showFilters, setShowFilters] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -257,7 +260,8 @@ const TaskList = ({
             <button
               type="button"
               onClick={() => {
-                setIsTaskMasterComplete(false); // Reset completion state
+                // Reset completion state
+                setIsTaskMasterComplete(false);
                 setShowCLI(true);
               }}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 mx-auto"
@@ -477,7 +481,8 @@ const TaskList = ({
                     type="button"
                     onClick={() => {
                       setShowCLI(false);
-                      setIsTaskMasterComplete(false); // Reset state
+                      // Reset state
+                      setIsTaskMasterComplete(false);
                       // Refresh project data after closing CLI to detect TaskMaster initialization
                       setTimeout(() => {
                         refreshProjects();

@@ -11,7 +11,8 @@ const PRDEditor = ({
   file, 
   onClose, 
   projectPath,
-  project, // Add project object
+  // Project object
+  project,
   initialContent = '',
   isNewFile = false,
   onSave
@@ -23,7 +24,8 @@ const PRDEditor = ({
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
-  const [wordWrap, setWordWrap] = useState(true); // Default to true for markdown
+  // Default to true for markdown
+  const [wordWrap, setWordWrap] = useState(true);
   const [fileName, setFileName] = useState('');
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
@@ -294,11 +296,13 @@ This document outlines the requirements for building an AI-powered task manageme
     const initializeEditor = async () => {
       // Set initial filename
       if (file?.name) {
-        setFileName(file.name.replace(/\.(txt|md)$/, '')); // Remove extension for editing
+        // Remove extension for editing
+        setFileName(file.name.replace(/\.(txt|md)$/, ''));
       } else if (isNewFile) {
         // Generate default filename based on current date
         const now = new Date();
-        const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+        // YYYY-MM-DD format
+        const dateStr = now.toISOString().split('T')[0];
         setFileName(`prd-${dateStr}`);
       }
 
@@ -491,16 +495,16 @@ This document outlines the requirements for building an AI-powered task manageme
   // Simple markdown to HTML converter for preview
   const renderMarkdown = (markdown) => {
     return markdown
-      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-      .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
-      .replace(/\*(.*)\*/gim, '<em>$1</em>')
-      .replace(/^- (.*$)/gim, '<li>$1</li>')
-      .replace(/(<li>.*<\/li>)/gims, '<ul>$1</ul>')
-      .replace(/\n\n/gim, '</p><p>')
-      .replace(/^(?!<[h|u|l])(.*$)/gim, '<p>$1</p>')
-      .replace(/<\/ul>\s*<ul>/gim, '');
+      .replaceAll(/^### (.*$)/gim, '<h3>$1</h3>')
+      .replaceAll(/^## (.*$)/gim, '<h2>$1</h2>')
+      .replaceAll(/^# (.*$)/gim, '<h1>$1</h1>')
+      .replaceAll(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
+      .replaceAll(/\*(.*)\*/gim, '<em>$1</em>')
+      .replaceAll(/^- (.*$)/gim, '<li>$1</li>')
+      .replaceAll(/(<li>.*<\/li>)/gims, '<ul>$1</ul>')
+      .replaceAll('\n\n', '</p><p>')
+      .replaceAll(/^(?!<[h|u|l])(.*$)/gim, '<p>$1</p>')
+      .replaceAll(/<\/ul>\s*<ul>/gim, '');
   };
 
   if (loading) {
@@ -544,7 +548,7 @@ This document outlines the requirements for building an AI-powered task manageme
                       value={fileName}
                       onChange={(e) => {
                         // Remove invalid filename characters
-                        const sanitizedValue = e.target.value.replace(/[<>:"/\\|?*]/g, '');
+                        const sanitizedValue = e.target.value.replaceAll(/[<>:"/\\|?*]/g, '');
                         setFileName(sanitizedValue);
                       }}
                       className="font-medium text-gray-900 dark:text-white bg-transparent border-none outline-none min-w-0 flex-1 text-base sm:text-sm placeholder-gray-400 dark:placeholder-gray-500"

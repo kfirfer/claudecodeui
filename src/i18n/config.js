@@ -46,9 +46,12 @@ const getSavedLanguage = () => {
 };
 
 // Initialize i18next
+// oxlint-disable-next-line import/no-named-as-default-member -- .use() is a method call, not a named export access
 i18n
-  .use(LanguageDetector) // Detect user language
-  .use(initReactI18next) // Pass i18n instance to react-i18next
+  // Detect user language
+  .use(LanguageDetector)
+  // Pass i18n instance to react-i18next
+  .use(initReactI18next)
   .init({
     // Resources containing all translations
     resources: {
@@ -94,14 +97,18 @@ i18n
 
     // Interpolation settings
     interpolation: {
-      escapeValue: false, // React already escapes values
+      // React already escapes values
+      escapeValue: false,
     },
 
     // React-specific settings
     react: {
-      useSuspense: true, // Use Suspense for lazy-loading
-      bindI18n: 'languageChanged', // Re-render on language change
-      bindI18nStore: false, // Don't re-render on resource changes
+      // Use Suspense for lazy-loading
+      useSuspense: true,
+      // Re-render on language change
+      bindI18n: 'languageChanged',
+      // Don't re-render on resource changes
+      bindI18nStore: false,
     },
 
     // Detection options

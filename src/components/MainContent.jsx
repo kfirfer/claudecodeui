@@ -44,20 +44,34 @@ function MainContent({
   onInputFocusChange,
   // Session Protection Props: Functions passed down from App.jsx to manage active session state
   // These functions control when project updates are paused during active conversations
-  onSessionActive,        // Mark session as active when user sends message
-  onSessionInactive,      // Mark session as inactive when conversation completes/aborts
-  onSessionProcessing,    // Mark session as processing (thinking/working)
-  onSessionNotProcessing, // Mark session as not processing (finished thinking)
-  processingSessions,     // Set of session IDs currently processing
-  onReplaceTemporarySession, // Replace temporary session ID with real session ID from WebSocket
-  onNavigateToSession,    // Navigate to a specific session (for Claude CLI session duplication workaround)
-  onShowSettings,         // Show tools settings panel
-  autoExpandTools,        // Auto-expand tool accordions
-  showRawParameters,      // Show raw parameters in tool accordions
-  showThinking,           // Show thinking/reasoning sections
-  autoScrollToBottom,     // Auto-scroll to bottom when new messages arrive
-  sendByCtrlEnter,        // Send by Ctrl+Enter mode for East Asian language input
-  externalMessageUpdate   // Trigger for external CLI updates to current session
+  // Mark session as active when user sends message
+  onSessionActive,
+  // Mark session as inactive when conversation completes/aborts
+  onSessionInactive,
+  // Mark session as processing (thinking/working)
+  onSessionProcessing,
+  // Mark session as not processing (finished thinking)
+  onSessionNotProcessing,
+  // Set of session IDs currently processing
+  processingSessions,
+  // Replace temporary session ID with real session ID from WebSocket
+  onReplaceTemporarySession,
+  // Navigate to a specific session (for Claude CLI session duplication workaround)
+  onNavigateToSession,
+  // Show tools settings panel
+  onShowSettings,
+  // Auto-expand tool accordions
+  autoExpandTools,
+  // Show raw parameters in tool accordions
+  showRawParameters,
+  // Show thinking/reasoning sections
+  showThinking,
+  // Auto-scroll to bottom when new messages arrive
+  autoScrollToBottom,
+  // Send by Ctrl+Enter mode for East Asian language input
+  sendByCtrlEnter,
+  // Trigger for external CLI updates to current session
+  externalMessageUpdate
 }) {
   const { t } = useTranslation();
   const [editingFile, setEditingFile] = useState(null);
@@ -126,7 +140,8 @@ function MainContent({
       name: filePath.split('/').pop(),
       path: filePath,
       projectName: selectedProject?.name,
-      diffInfo: diffInfo // Pass along diff information if available
+      // Pass along diff information if available
+      diffInfo: diffInfo
     };
     setEditingFile(file);
   };
@@ -167,7 +182,8 @@ function MainContent({
 
   // Handle resize functionality
   const handleMouseDown = (e) => {
-    if (isMobile) return; // Disable resize on mobile
+    // Disable resize on mobile
+    if (isMobile) return;
     setIsResizing(true);
     e.preventDefault();
   };

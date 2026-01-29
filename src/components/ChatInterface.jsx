@@ -82,15 +82,15 @@ function unescapeWithMathProtection(text) {
   });
 
   // Process escape sequences on non-math content
-  processedText = processedText.replaceAll('\\n', '\n')
-                               .replaceAll('\\t', '\t')
-                               .replaceAll('\\r', '\r');
+  processedText = processedText.replaceAll(String.raw`\n`, '\n')
+                               .replaceAll(String.raw`\t`, '\t')
+                               .replaceAll(String.raw`\r`, '\r');
 
   // Restore math formulas
-  processedText = processedText.replace(
+  processedText = processedText.replaceAll(
     new RegExp(`${PLACEHOLDER_PREFIX}(\\d+)${PLACEHOLDER_SUFFIX}`, 'g'),
     (match, index) => {
-      return mathBlocks[parseInt(index)];
+      return mathBlocks[parseInt(index, 10)];
     }
   );
 
@@ -98,7 +98,7 @@ function unescapeWithMathProtection(text) {
 }
 
 function escapeRegExp(value) {
-  return value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
 // Small wrapper to keep markdown behavior consistent in one place
@@ -386,7 +386,11 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
             ta.style.opacity = '0';
             document.body.appendChild(ta);
             ta.select();
-            try { document.execCommand('copy'); } catch { /* ignore */ }
+            try {
+              document.execCommand('copy');
+            } catch {
+              // ignore
+            }
             document.body.removeChild(ta);
             doSet();
           });
@@ -397,11 +401,17 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
           ta.style.opacity = '0';
           document.body.appendChild(ta);
           ta.select();
-          try { document.execCommand('copy'); } catch { /* ignore */ }
+          try {
+            document.execCommand('copy');
+          } catch {
+            // ignore
+          }
           document.body.removeChild(ta);
           doSet();
         }
-      } catch { /* ignore */ }
+      } catch {
+        // ignore
+      }
     };
 
     // Code block with syntax highlighting
@@ -529,7 +539,11 @@ const MessageComponent = memo(({ message, index: _index, prevMessage, createDiff
           ta.style.opacity = '0';
           document.body.appendChild(ta);
           ta.select();
-          try { document.execCommand('copy'); } catch { /* ignore */ }
+          try {
+            document.execCommand('copy');
+          } catch {
+            // ignore
+          }
           document.body.removeChild(ta);
           doSet();
         });
@@ -540,11 +554,17 @@ const MessageComponent = memo(({ message, index: _index, prevMessage, createDiff
         ta.style.opacity = '0';
         document.body.appendChild(ta);
         ta.select();
-        try { document.execCommand('copy'); } catch { /* ignore */ }
+        try {
+          document.execCommand('copy');
+        } catch {
+          // ignore
+        }
         document.body.removeChild(ta);
         doSet();
       }
-    } catch { /* ignore */ }
+    } catch {
+      // ignore
+    }
   }, [message.content]);
 
   React.useEffect(() => {
@@ -1129,7 +1149,7 @@ const MessageComponent = memo(({ message, index: _index, prevMessage, createDiff
                       const input = JSON.parse(message.toolInput);
                       if (input.plan) {
                         // Replace escaped newlines with actual newlines
-                        const planContent = input.plan.replaceAll('\\n', '\n');
+                        const planContent = input.plan.replaceAll(String.raw`\n`, '\n');
                         return (
                           <details className="mt-2" open={autoExpandTools}>
                             <summary className="text-sm text-blue-700 dark:text-blue-300 cursor-pointer hover:text-blue-800 dark:hover:text-blue-200 flex items-center gap-2">
@@ -1264,7 +1284,7 @@ const MessageComponent = memo(({ message, index: _index, prevMessage, createDiff
                             const parsed = JSON.parse(content);
                             if (parsed.plan) {
                               // Replace escaped newlines with actual newlines
-                              const planContent = parsed.plan.replaceAll('\\n', '\n');
+                              const planContent = parsed.plan.replaceAll(String.raw`\n`, '\n');
                               return (
                                 <div>
                                   <div className="flex items-center gap-2 mb-3">
@@ -2564,7 +2584,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                   }
                 }
               }
-              continue; // Don't add tool messages as regular messages
+              // Don't add tool messages as regular messages
+              continue;
             } else {
               // User or assistant messages
               role = content.role === 'user' ? 'user' : 'assistant';
@@ -2678,10 +2699,12 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                       toolName: toolName,
                       toolId: toolId,
                       toolInput: toolInput ? JSON.stringify(toolInput) : null,
-                      toolResult: null // Will be filled when we get the tool result
+                      // Will be filled when we get the tool result
+                      toolResult: null
                     };
                     converted.push(toolMessage);
-                    toolUseMap[toolId] = toolMessage; // Store for linking results
+                    // Store for linking results
+                    toolUseMap[toolId] = toolMessage;
                   } else if (part?.type === 'tool_use') {
                     // Old format support
                     if (textParts.length > 0 || reasoningText) {
@@ -2735,7 +2758,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                       sequence: blob.sequence,
                       rowid: blob.rowid
                     });
-                    text = ''; // Clear to avoid duplicate
+                    // Clear to avoid duplicate
+                    text = '';
                   }
                 } else {
                   text = '';
@@ -2844,7 +2868,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
   const convertSessionMessages = (rawMessages) => {
     const converted = [];
-    const toolResults = new Map(); // Map tool_use_id to tool result
+    // Map tool_use_id to tool result
+    const toolResults = new Map();
     
     // First pass: collect all tool results
     for (const msg of rawMessages) {
@@ -3319,7 +3344,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       const shouldBeProcessing = processingSessions.has(currentSessionId);
       if (shouldBeProcessing && !isLoading) {
         setIsLoading(true);
-        setCanAbortSession(true); // Assume processing sessions can be aborted
+        // Assume processing sessions can be aborted
+        setCanAbortSession(true);
       }
     }
   }, [currentSessionId, processingSessions]);
@@ -3523,39 +3549,42 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             if (onNavigateToSession) {
               onNavigateToSession(latestMessage.data.session_id);
             }
-            return; // Don't process the message further, let the navigation handle it
+            // Don't process the message further, let the navigation handle it
+            return;
           }
-          
+
           // Handle system/init for new sessions (when currentSessionId is null)
-          if (latestMessage.data.type === 'system' && 
-              latestMessage.data.subtype === 'init' && 
-              latestMessage.data.session_id && 
+          if (latestMessage.data.type === 'system' &&
+              latestMessage.data.subtype === 'init' &&
+              latestMessage.data.session_id &&
               !currentSessionId &&
               isSystemInitForView) {
-            
+
             console.log('🔄 New session init detected:', {
               newSession: latestMessage.data.session_id
             });
-            
+
             // Mark this as a system-initiated session change to preserve messages
             setIsSystemSessionChange(true);
-            
+
             // Switch to the new session
             if (onNavigateToSession) {
               onNavigateToSession(latestMessage.data.session_id);
             }
-            return; // Don't process the message further, let the navigation handle it
+            // Don't process the message further, let the navigation handle it
+            return;
           }
-          
+
           // For system/init messages that match current session, just ignore them
-          if (latestMessage.data.type === 'system' && 
-              latestMessage.data.subtype === 'init' && 
-              latestMessage.data.session_id && 
-              currentSessionId && 
+          if (latestMessage.data.type === 'system' &&
+              latestMessage.data.subtype === 'init' &&
+              latestMessage.data.session_id &&
+              currentSessionId &&
               latestMessage.data.session_id === currentSessionId &&
               isSystemInitForView) {
             console.log('🔄 System init message for current session, ignoring');
-            return; // Don't process the message further
+            // Don't process the message further
+            return;
           }
           
           // Handle different types of content in the response
@@ -3572,7 +3601,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                   toolName: part.name,
                   toolInput: toolInput,
                   toolId: part.id,
-                  toolResult: null // Will be updated when result comes in
+                  // Will be updated when result comes in
+                  toolResult: null
                 }]);
               } else if (part.type === 'text' && part.text?.trim()) {
                 // Decode HTML entities and normalize usage limit message to local time
@@ -3740,7 +3770,6 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                 if (onNavigateToSession) {
                   onNavigateToSession(cdata.session_id);
                 }
-                return;
               }
             }
             // For other cursor-system messages, avoid dumping raw objects to chat
@@ -4216,7 +4245,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         const filtered = fileList.filter(file => 
           file.name.toLowerCase().includes(textAfterAt.toLowerCase()) ||
           file.path.toLowerCase().includes(textAfterAt.toLowerCase())
-        ).slice(0, 10); // Limit to 10 results
+        // Limit to 10 results
+        ).slice(0, 10);
         
         setFilteredFiles(filtered);
         setSelectedFileIndex(-1);
@@ -4271,8 +4301,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedInput(input);
-    }, 150); // 150ms debounce
-    
+    // 150ms debounce
+    }, 150);
+
     return () => clearTimeout(timer);
   }, [input]);
 
@@ -4306,7 +4337,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       if (autoScrollToBottom) {
         // If auto-scroll is enabled, always scroll to bottom unless user has manually scrolled up
         if (!isUserScrolledUp) {
-          setTimeout(() => scrollToBottom(), 50); // Small delay to ensure DOM is updated
+          // Small delay to ensure DOM is updated
+          setTimeout(() => scrollToBottom(), 50);
         }
       } else {
         // When auto-scroll is disabled, preserve the visual position
@@ -4334,9 +4366,11 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       setTimeout(() => {
         scrollToBottom();
         // After scrolling, the scroll event handler will naturally set isUserScrolledUp based on position
-      }, 200); // Delay to ensure full rendering
+      // Delay to ensure full rendering
+      }, 200);
     }
-  }, [selectedSession?.id, selectedProject?.name]); // Only trigger when session/project changes
+  // Only trigger when session/project changes
+  }, [selectedSession?.id, selectedProject?.name]);
 
   // Add scroll event listener to detect user scrolling
   useEffect(() => {
@@ -4354,11 +4388,12 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
 
       // Check if initially expanded
-      const lineHeight = parseInt(window.getComputedStyle(textareaRef.current).lineHeight);
+      const lineHeight = parseInt(window.getComputedStyle(textareaRef.current).lineHeight, 10);
       const isExpanded = textareaRef.current.scrollHeight > lineHeight * 2;
       setIsTextareaExpanded(isExpanded);
     }
-  }, []); // Only run once on mount
+  // Only run once on mount
+  }, []);
 
   // Reset textarea height when input is cleared programmatically
   useEffect(() => {
@@ -4414,7 +4449,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
 
             // Check if expanded after transcript
-            const lineHeight = parseInt(window.getComputedStyle(textareaRef.current).lineHeight);
+            const lineHeight = parseInt(window.getComputedStyle(textareaRef.current).lineHeight, 10);
             const isExpanded = textareaRef.current.scrollHeight > lineHeight * 2;
             setIsTextareaExpanded(isExpanded);
           }
@@ -4463,7 +4498,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     });
 
     if (validFiles.length > 0) {
-      setAttachedImages(prev => [...prev, ...validFiles].slice(0, 5)); // Max 5 images
+      // Max 5 images
+      setAttachedImages(prev => [...prev, ...validFiles].slice(0, 5));
     }
   }, []);
 
@@ -4495,10 +4531,12 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     accept: {
       'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']
     },
-    maxSize: 5 * 1024 * 1024, // 5MB
+    // 5MB
+    maxSize: 5 * 1024 * 1024,
     maxFiles: 5,
     onDrop: handleImageFiles,
-    noClick: true, // We'll use our own button
+    // We'll use our own button
+    noClick: true,
     noKeyboard: true
   });
 
@@ -4524,7 +4562,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       try {
         const response = await authenticatedFetch(`/api/projects/${selectedProject.name}/upload-images`, {
           method: 'POST',
-          headers: {}, // Let browser set Content-Type for FormData
+          // Let browser set Content-Type for FormData
+          headers: {},
           body: formData
         });
         
@@ -4563,8 +4602,10 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     });
     
     // Always scroll to bottom when user sends a message and reset scroll state
-    setIsUserScrolledUp(false); // Reset scroll state so auto-scroll works for Claude's response
-    setTimeout(() => scrollToBottom(), 100); // Longer delay to ensure message is rendered
+    // Reset scroll state so auto-scroll works for Claude's response
+    setIsUserScrolledUp(false);
+    // Longer delay to ensure message is rendered
+    setTimeout(() => scrollToBottom(), 100);
 
     // Determine effective session id for replies to avoid race on state updates
     const effectiveSessionId = currentSessionId || selectedSession?.id || sessionStorage.getItem('cursorSessionId');
@@ -4647,7 +4688,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           toolsSettings: toolsSettings,
           permissionMode: permissionMode,
           model: claudeModel,
-          images: uploadedImages // Pass images to backend
+          // Pass images to backend
+          images: uploadedImages
         }
       });
     }
@@ -4657,7 +4699,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     setUploadingImages(new Map());
     setImageErrors(new Map());
     setIsTextareaExpanded(false);
-    setThinkingMode('none'); // Reset thinking mode after sending
+    // Reset thinking mode after sending
+    setThinkingMode('none');
 
     // Reset textarea height
     if (textareaRef.current) {
@@ -4835,7 +4878,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     if (e.key === 'Enter') {
       // If we're in composition, don't send message
       if (e.nativeEvent.isComposing) {
-        return; // Let IME handle the Enter key
+        // Let IME handle the Enter key
+        return;
       }
       
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
@@ -4936,8 +4980,10 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     const match = textBeforeCursor.match(slashPattern);
 
     if (match) {
-      const slashPos = match.index + match[1].length; // Position of the slash
-      const query = match[2]; // Text after the slash
+      // Position of the slash
+      const slashPos = match.index + match[1].length;
+      // Text after the slash
+      const query = match[2];
 
       // Update states with debouncing for query
       setSlashPosition(slashPos);
@@ -4951,7 +4997,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
       commandQueryTimerRef.current = setTimeout(() => {
         setCommandQuery(query);
-      }, 150); // 150ms debounce
+      // 150ms debounce
+      }, 150);
     } else {
       // No slash command detected
       setShowCommandMenu(false);
@@ -5496,7 +5543,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             {/* Token usage pie chart - positioned next to mode indicator */}
             <TokenUsagePie
               used={tokenBudget?.used || 0}
-              total={tokenBudget?.total || parseInt(import.meta.env.VITE_CONTEXT_WINDOW) || 160000}
+              total={tokenBudget?.total || parseInt(import.meta.env.VITE_CONTEXT_WINDOW, 10) || 160000}
             />
 
             {/* Slash commands button */}
@@ -5712,7 +5759,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                 syncInputOverlayScroll(e.target);
 
                 // Check if textarea is expanded (more than 2 lines worth of height)
-                const lineHeight = parseInt(window.getComputedStyle(e.target).lineHeight);
+                const lineHeight = parseInt(window.getComputedStyle(e.target).lineHeight, 10);
                 const isExpanded = e.target.scrollHeight > lineHeight * 2;
                 setIsTextareaExpanded(isExpanded);
               }}

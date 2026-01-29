@@ -52,11 +52,13 @@ function AppContent() {
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedSession, setSelectedSession] = useState(null);
-  const [activeTab, setActiveTab] = useState('chat'); // 'chat' or 'files'
+  // 'chat' or 'files'
+  const [activeTab, setActiveTab] = useState('chat');
   const [isMobile, setIsMobile] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
-  const [loadingProgress, setLoadingProgress] = useState(null); // { phase, current, total, currentProject }
+  // { phase, current, total, currentProject }
+  const [loadingProgress, setLoadingProgress] = useState(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState('agents');
@@ -201,7 +203,7 @@ function AppContent() {
         // If so, and the session is not active, trigger a message reload in ChatInterface
         if (latestMessage.changedFile && selectedSession && selectedProject) {
           // Extract session ID from changedFile (format: "project-name/session-id.jsonl")
-          const normalized = latestMessage.changedFile.replace(/\\/g, '/');
+          const normalized = latestMessage.changedFile.replaceAll('\\', '/');
           const changedFileParts = normalized.split('/');
 
           if (changedFileParts.length >= 2) {
@@ -609,15 +611,15 @@ function AppContent() {
 
       return body
         // Remove full commit hashes (40 character hex strings)
-        .replace(/\b[0-9a-f]{40}\b/gi, '')
+        .replaceAll(/\b[0-9a-f]{40}\b/gi, '')
         // Remove short commit hashes (7-10 character hex strings at start of line or after dash/space)
-        .replace(/(?:^|\s|-)([0-9a-f]{7,10})\b/gi, '')
+        .replaceAll(/(?:^|\s|-)([0-9a-f]{7,10})\b/gi, '')
         // Remove "Full Changelog" links
-        .replace(/\*\*Full Changelog\*\*:.*$/gim, '')
+        .replaceAll(/\*\*Full Changelog\*\*:.*$/gim, '')
         // Remove compare links (e.g., https://github.com/.../compare/v1.0.0...v1.0.1)
-        .replace(/https?:\/\/github\.com\/[^/]+\/[^/]+\/compare\/[^\s)]+/gi, '')
+        .replaceAll(/https?:\/\/github\.com\/[^/]+\/[^/]+\/compare\/[^\s)]+/gi, '')
         // Clean up multiple consecutive empty lines
-        .replace(/\n\s*\n\s*\n/g, '\n\n')
+        .replaceAll(/\n\s*\n\s*\n/g, '\n\n')
         // Trim whitespace
         .trim();
     };
@@ -830,7 +832,7 @@ function AppContent() {
                 onToggleSidebar={() => setSidebarVisible(false)}
               />
             ) : (
-              /* Collapsed Sidebar */
+              // Collapsed Sidebar
               <div className="h-full flex flex-col items-center py-4 gap-4">
                 {/* Expand Button */}
                 <button

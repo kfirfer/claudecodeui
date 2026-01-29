@@ -81,8 +81,10 @@ function Sidebar({
   const [_generatingSummary, _setGeneratingSummary] = useState({});
   const [searchFilter, setSearchFilter] = useState('');
   const [deletingProjects, setDeletingProjects] = useState(new Set());
-  const [deleteConfirmation, setDeleteConfirmation] = useState(null); // { project, sessionCount }
-  const [sessionDeleteConfirmation, setSessionDeleteConfirmation] = useState(null); // { projectName, sessionId, sessionTitle, provider }
+  // { project, sessionCount }
+  const [deleteConfirmation, setDeleteConfirmation] = useState(null);
+  // { projectName, sessionId, sessionTitle, provider }
+  const [sessionDeleteConfirmation, setSessionDeleteConfirmation] = useState(null);
 
   // TaskMaster context
   const { setCurrentProject, mcpServerStatus } = useTaskMaster();
@@ -115,9 +117,10 @@ function Sidebar({
 
   // Auto-update timestamps every minute
   useEffect(() => {
+    // Update every 60 seconds
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 60000); // Update every 60 seconds
+    }, 60000);
 
     return () => clearInterval(timer);
   }, []);
@@ -244,7 +247,8 @@ function Sidebar({
   const getProjectLastActivity = (project) => {
     const allSessions = getAllSessions(project);
     if (allSessions.length === 0) {
-      return new Date(0); // Return epoch date for projects with no sessions
+      // Return epoch date for projects with no sessions
+      return new Date(0);
     }
     
     // Find the most recent session activity
@@ -872,8 +876,9 @@ function Sidebar({
                                     if (e.key === 'Enter') saveProjectName(project.name);
                                     if (e.key === 'Escape') cancelEditing();
                                   }}
+                                  // Prevents zoom on iOS
                                   style={{
-                                    fontSize: '16px', // Prevents zoom on iOS
+                                    fontSize: '16px',
                                     WebkitAppearance: 'none',
                                     borderRadius: '8px'
                                   }}

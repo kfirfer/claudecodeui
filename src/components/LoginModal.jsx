@@ -4,7 +4,7 @@ import StandaloneShell from './StandaloneShell'; // eslint-disable-line no-unuse
 /**
  * Reusable login modal component for Claude, Cursor, and Codex CLI authentication
  *
- * @param {Object} props
+ * @param {Object} props - The component props
  * @param {boolean} props.isOpen - Whether the modal is visible
  * @param {Function} props.onClose - Callback when modal is closed
  * @param {'claude'|'cursor'|'codex'} props.provider - Which CLI provider to authenticate with

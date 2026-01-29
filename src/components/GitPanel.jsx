@@ -20,7 +20,8 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
   const [showNewBranchModal, setShowNewBranchModal] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
   const [isCreatingBranch, setIsCreatingBranch] = useState(false);
-  const [activeView, setActiveView] = useState('changes'); // 'changes' or 'history'
+  // 'changes' or 'history'
+  const [activeView, setActiveView] = useState('changes');
   const [recentCommits, setRecentCommits] = useState([]);
   const [expandedCommits, setExpandedCommits] = useState(new Set());
   const [commitDiffs, setCommitDiffs] = useState({});
@@ -30,8 +31,10 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
   const [isPulling, setIsPulling] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [isCommitAreaCollapsed, setIsCommitAreaCollapsed] = useState(isMobile); // Collapsed by default on mobile
-  const [confirmAction, setConfirmAction] = useState(null); // { type: 'discard|commit|pull|push', file?: string, message?: string }
+  // Collapsed by default on mobile
+  const [isCommitAreaCollapsed, setIsCommitAreaCollapsed] = useState(isMobile);
+  // { type: 'discard|commit|pull|push', file?: string, message?: string }
+  const [confirmAction, setConfirmAction] = useState(null);
   const [isCreatingInitialCommit, setIsCreatingInitialCommit] = useState(false);
   const textareaRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -168,7 +171,8 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
       if (data.success) {
         setCurrentBranch(branchName);
         setShowBranchDropdown(false);
-        fetchGitStatus(); // Refresh status after branch switch
+        // Refresh status after branch switch
+        fetchGitStatus();
       } else {
         console.error('Failed to switch branch:', data.error);
       }
@@ -197,8 +201,10 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
         setShowNewBranchModal(false);
         setShowBranchDropdown(false);
         setNewBranchName('');
-        fetchBranches(); // Refresh branch list
-        fetchGitStatus(); // Refresh status
+        // Refresh branch list
+        fetchBranches();
+        // Refresh status
+        fetchGitStatus();
       } else {
         console.error('Failed to create branch:', data.error);
       }
@@ -489,7 +495,8 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
         body: JSON.stringify({
           project: selectedProject.name,
           files: Array.from(selectedFiles),
-          provider: provider // Pass the current provider (claude or cursor)
+          // Pass the current provider (claude or cursor)
+          provider: provider
         })
       });
 
