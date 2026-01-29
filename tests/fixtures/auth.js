@@ -165,8 +165,12 @@ export async function authenticate(page, options = {}) {
 
 /**
  * Complete the onboarding wizard by clicking through all steps
+ * @param {import('@playwright/test').Page} page
+ * @param {import('@playwright/test').Locator} nextButton
+ * @param {import('@playwright/test').Locator} finishButton
+ * @param {import('@playwright/test').Locator} newProjectButton
  */
-async function completeOnboarding(page, nextButton, finishButton, newProjectButton) {
+export async function completeOnboarding(page, nextButton, finishButton, newProjectButton) {
   // Click through onboarding steps (max 10 steps to prevent infinite loop)
   for (let i = 0; i < 10; i++) {
     // Check if we've reached the main app

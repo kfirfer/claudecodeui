@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { authenticate, hasTestCredentials } from './fixtures/auth.js';
+import { authenticate } from './fixtures/auth.js';
 
 test.describe('Server Health', () => {
   test('health endpoint should return ok status', async ({ request }) => {
@@ -21,7 +21,7 @@ test.describe('Shell WebSocket Connection', () => {
 
     // Reload to see unauthenticated state
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Should show login/registration form (password field indicates auth form)
     const loginForm = page.locator('input#password');
@@ -75,13 +75,7 @@ test.describe('Shell PTY Configuration', () => {
   });
 });
 
-// Authenticated tests - require TEST_USERNAME and TEST_PASSWORD env vars
 test.describe('Authenticated Shell Tests', () => {
-  test.skip(
-    !hasTestCredentials(),
-    'Skipping authenticated tests - set TEST_USERNAME and TEST_PASSWORD env vars'
-  );
-
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     // Use shared auth fixture for robust login/account creation handling

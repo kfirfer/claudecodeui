@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { authenticate, hasTestCredentials } from './fixtures/auth.js';
+import { authenticate } from './fixtures/auth.js';
 
 /**
  * E2E Test: Notification Settings and Triggers
@@ -215,13 +215,7 @@ async function deleteProjectViaUI(page, projectName) {
   await expect(projectButton).not.toBeVisible({ timeout: 10000 });
 }
 
-// Skip all tests if no credentials provided
 test.describe('Notification Settings', () => {
-  test.skip(
-    !process.env.TEST_USERNAME || !process.env.TEST_PASSWORD,
-    'Skipping tests - set TEST_USERNAME and TEST_PASSWORD env vars'
-  );
-
   // Use larger viewport for Settings modal
   test.use({
     viewport: { width: 1400, height: 900 }
@@ -502,11 +496,6 @@ test.describe('Notification Settings', () => {
  * the app logs "[Notifications] Notification sent:" when sending.
  */
 test.describe('Notification Trigger', () => {
-  test.skip(
-    !process.env.TEST_USERNAME || !process.env.TEST_PASSWORD,
-    'Skipping tests - set TEST_USERNAME and TEST_PASSWORD env vars'
-  );
-
   // Run trigger tests serially to avoid parallel project creation conflicts
   test.describe.configure({ mode: 'serial' });
 
@@ -573,12 +562,20 @@ test.describe('Notification Trigger', () => {
       const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
       await expect(projectButton).toBeVisible({ timeout: 15000 });
 
-      // Click project to expand and create new session
+      // Click project to expand - this may auto-navigate to session view
       await projectButton.click();
-      const newSessionButton = page.locator('button:has-text("New Session")').first();
-      await newSessionButton.dispatchEvent('click');
 
+      // Check if we need to click "New Session" or if we're already in session view
       const chatTextarea = page.locator('textarea').first();
+      const isTextareaVisible = await chatTextarea.isVisible().catch(() => false);
+
+      if (!isTextareaVisible) {
+        // Need to create a new session
+        const newSessionButton = page.locator('button:has-text("New Session")').first();
+        await expect(newSessionButton).toBeVisible({ timeout: 10000 });
+        await newSessionButton.click();
+      }
+
       await expect(chatTextarea).toBeVisible({ timeout: 15000 });
 
       // Fill the prompt
@@ -684,10 +681,17 @@ test.describe('Notification Trigger', () => {
       await expect(projectButton).toBeVisible({ timeout: 15000 });
       await projectButton.click();
 
-      const newSessionButton = page.locator('button:has-text("New Session")').first();
-      await newSessionButton.dispatchEvent('click');
-
+      // Check if we need to click "New Session" or if we're already in session view
       const chatTextarea = page.locator('textarea').first();
+      const isTextareaVisible = await chatTextarea.isVisible().catch(() => false);
+
+      if (!isTextareaVisible) {
+        // Need to create a new session
+        const newSessionButton = page.locator('button:has-text("New Session")').first();
+        await expect(newSessionButton).toBeVisible({ timeout: 10000 });
+        await newSessionButton.click();
+      }
+
       await expect(chatTextarea).toBeVisible({ timeout: 15000 });
 
       // Send prompt while tab stays focused (do NOT switch tabs)
@@ -706,7 +710,23 @@ test.describe('Notification Trigger', () => {
       const responseIndicator = page.locator('text="Focused Test"').first();
       await expect(responseIndicator).toBeVisible({ timeout: 120000 });
 
-      // Verify NO "Notification sent" log was recorded (tab is focused, onlyWhenUnfocused=true)
+      // Wait a moment for any notification attempt to complete
+      // Then verify NO "Notification sent" log was recorded (tab is focused, onlyWhenUnfocused=true)
+      await expect.poll(
+        () => {
+          // Check that we have some notification activity but no "sent" log
+          const hasSkipLog = notificationLogs.some(log =>
+            log.includes('skipping notification') ||
+            log.includes('Tab is visible')
+          );
+          const hasSentLog = notificationLogs.some(log => log.includes('Notification sent'));
+          // Either we have a skip log without sent, or no logs at all (notification not triggered)
+          return hasSkipLog ? !hasSentLog : true;
+        },
+        { timeout: 10000, intervals: [500] }
+      ).toBe(true);
+
+      // Final verification: no notification was actually sent
       const sentLog = notificationLogs.find(log => log.includes('Notification sent'));
       expect(sentLog).toBeUndefined();
 

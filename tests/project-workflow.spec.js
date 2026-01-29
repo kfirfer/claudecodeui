@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { authenticate, hasTestCredentials } from './fixtures/auth.js';
+import { authenticate } from './fixtures/auth.js';
 
 /**
  * E2E Test: Project Workflow Tests
@@ -128,15 +128,9 @@ async function deleteProjectViaUI(page, projectName) {
 }
 
 test.describe('Project Operations - Individual Tests', () => {
-  // Skip if no test credentials are provided
-  test.skip(
-    !process.env.TEST_USERNAME || !process.env.TEST_PASSWORD,
-    'Skipping tests - set TEST_USERNAME and TEST_PASSWORD env vars'
-  );
-
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await performLogin(page);
   });
 
@@ -215,15 +209,9 @@ test.describe('Project Operations - Individual Tests', () => {
 });
 
 test.describe('Project Workflow - Complete Lifecycle', () => {
-  // Skip if no test credentials are provided
-  test.skip(
-    !process.env.TEST_USERNAME || !process.env.TEST_PASSWORD,
-    'Skipping tests - set TEST_USERNAME and TEST_PASSWORD env vars'
-  );
-
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await performLogin(page);
   });
 

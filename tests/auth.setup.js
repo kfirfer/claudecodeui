@@ -11,7 +11,7 @@
  */
 
 import { test as setup, expect } from '@playwright/test';
-import { getTestCredentials } from './fixtures/auth.js';
+import { getTestCredentials, completeOnboarding } from './fixtures/auth.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -99,40 +99,3 @@ setup('authenticate', async ({ page }) => {
   // Save authentication state
   await page.context().storageState({ path: AUTH_FILE });
 });
-
-/**
- * Complete the onboarding wizard by clicking through all steps
- */
-async function completeOnboarding(page, nextButton, finishButton, newProjectButton) {
-  // Click through onboarding steps (max 10 steps to prevent infinite loop)
-  for (let i = 0; i < 10; i++) {
-    // Check if we've reached the main app
-    const isMainApp = await newProjectButton.isVisible().catch(() => false);
-    if (isMainApp) {
-      return;
-    }
-
-    // Check for finish/complete button
-    const hasFinish = await finishButton.isVisible().catch(() => false);
-    if (hasFinish) {
-      await finishButton.click();
-      await expect(newProjectButton).toBeVisible({ timeout: 30000 });
-      return;
-    }
-
-    // Check for next button
-    const hasNext = await nextButton.isVisible().catch(() => false);
-    if (hasNext) {
-      await nextButton.click();
-      // Wait a moment for transition
-      await page.waitForLoadState('domcontentloaded');
-      continue;
-    }
-
-    // No buttons found, wait and check again
-    await page.waitForLoadState('domcontentloaded');
-  }
-
-  // Final check for main app
-  await expect(newProjectButton).toBeVisible({ timeout: 30000 });
-}
