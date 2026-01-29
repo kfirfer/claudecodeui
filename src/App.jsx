@@ -280,6 +280,7 @@ function AppContent() {
         loadingProgressTimeoutRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- projects is intentionally omitted: this effect handles project updates from WebSocket messages and uses the current projects state for comparison, but should not re-run when projects changes
   }, [messages, selectedProject, selectedSession, activeSessions]);
 
   const fetchProjects = async () => {
@@ -386,6 +387,7 @@ function AppContent() {
       // Just navigate to it and it will be found when the sidebar refreshes
       // Don't redirect to home, let the session load naturally
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedSession is intentionally omitted: this effect handles URL-based session loading and should only run on URL changes (sessionId) or project data updates, not when selectedSession changes
   }, [sessionId, projects, navigate]);
 
   const handleProjectSelect = (project) => {

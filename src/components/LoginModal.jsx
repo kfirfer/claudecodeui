@@ -1,5 +1,5 @@
-import { X } from 'lucide-react'; // eslint-disable-line no-unused-vars
-import StandaloneShell from './StandaloneShell'; // eslint-disable-line no-unused-vars
+import { X } from 'lucide-react';
+import StandaloneShell from './StandaloneShell';
 
 /**
  * Reusable login modal component for Claude, Cursor, and Codex CLI authentication

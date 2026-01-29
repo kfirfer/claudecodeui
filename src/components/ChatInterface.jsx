@@ -2065,6 +2065,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       setProvider(selectedSession.__provider);
       localStorage.setItem('selected-provider', selectedSession.__provider);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only run when session changes, not when provider changes (would cause loop)
   }, [selectedSession]);
 
   // Clear pending permission prompts when switching providers; filter when switching sessions.
@@ -2246,6 +2247,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
     // Execute the command
     executeCommand(command);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- executeCommand is stable, only re-create when project changes
   }, [selectedProject]);
 
   // Execute a command
@@ -2438,6 +2440,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         timestamp: Date.now()
       }]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- claudeModel, handleBuiltInCommand, handleCustomCommand are stable callbacks
   }, [input, selectedProject, currentSessionId, provider, cursorModel, tokenBudget]);
 
   // Handle built-in command actions
@@ -3243,6 +3246,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     };
 
     loadMessages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- currentSessionId, loadSessionMessages, sendMessage, ws are used inside but intentionally excluded to prevent re-running on their changes
   }, [selectedSession, selectedProject, loadCursorSessionMessages, scrollToBottom, isSystemSessionChange, resetStreamingState]);
 
   // External Message Update Handler: Reload messages when external CLI modifies current session
@@ -3328,6 +3332,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         setInput(savedInput);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only load draft on project change, not on every input change (would overwrite user typing)
   }, [selectedProject?.name]);
 
   // Track processing state: notify parent when isLoading becomes true
@@ -3348,6 +3353,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         setCanAbortSession(true);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- isLoading is checked inside but intentionally excluded to prevent loops
   }, [currentSessionId, processingSessions]);
 
   useEffect(() => {
@@ -3519,6 +3525,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                 }
                 return updated;
               });
+              // oxlint-disable-next-line eslint/no-useless-return -- Early exit to skip further message processing
               return;
             }
           }
@@ -3550,6 +3557,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
               onNavigateToSession(latestMessage.data.session_id);
             }
             // Don't process the message further, let the navigation handle it
+            // oxlint-disable-next-line eslint/no-useless-return -- Early exit to skip further message processing
             return;
           }
 
@@ -3572,6 +3580,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
               onNavigateToSession(latestMessage.data.session_id);
             }
             // Don't process the message further, let the navigation handle it
+            // oxlint-disable-next-line eslint/no-useless-return -- Early exit to skip further message processing
             return;
           }
 
@@ -3584,9 +3593,10 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
               isSystemInitForView) {
             console.log('🔄 System init message for current session, ignoring');
             // Don't process the message further
+            // oxlint-disable-next-line eslint/no-useless-return -- Early exit to skip further message processing
             return;
           }
-          
+
           // Handle different types of content in the response
           if (Array.isArray(messageData.content)) {
             for (const part of messageData.content) {
@@ -4188,6 +4198,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only react to new messages; other deps (currentSessionId, onNavigateToSession, etc.) are stable or intentionally excluded to prevent re-running
   }, [messages]);
 
   // Load file list when project changes
@@ -4195,6 +4206,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     if (selectedProject) {
       fetchProjectFiles();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchProjectFiles is defined after this effect and uses selectedProject internally
   }, [selectedProject]);
 
   const fetchProjectFiles = async () => {
@@ -4369,7 +4381,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       // Delay to ensure full rendering
       }, 200);
     }
-  // Only trigger when session/project changes
+  // Only trigger when session/project changes, not when chatMessages or scrollToBottom change
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- chatMessages.length and scrollToBottom are intentionally excluded to only trigger on session/project switch
   }, [selectedSession?.id, selectedProject?.name]);
 
   // Add scroll event listener to detect user scrolling
@@ -4435,6 +4448,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     };
 
     fetchInitialTokenUsage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedProject is checked inside; using selectedProject.path to trigger on project path change, not object reference
   }, [selectedSession?.id, selectedSession?.__provider, selectedProject?.path]);
 
   const handleTranscript = useCallback((text) => {
@@ -4482,11 +4496,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         if (!file.size || file.size > 5 * 1024 * 1024) {
           // Safely get file name with fallback
           const fileName = file.name || 'Unknown file';
-          setImageErrors(prev => {
-            const newMap = new Map(prev);
-            newMap.set(fileName, 'File too large (max 5MB)');
-            return newMap;
-          });
+          setImageErrors(prev => new Map([...prev, [fileName, 'File too large (max 5MB)']]));
           return false;
         }
 

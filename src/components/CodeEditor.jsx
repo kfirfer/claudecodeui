@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import CodeMirror from '@uiw/react-codemirror'; // eslint-disable-line no-unused-vars
+import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
 import { html } from '@codemirror/lang-html';
@@ -10,7 +10,7 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView, showPanel, ViewPlugin } from '@codemirror/view';
 import { unifiedMergeView, getChunks } from '@codemirror/merge';
 import { showMinimap } from '@replit/codemirror-minimap';
-import { X, Save, Download, Maximize2, Minimize2 } from 'lucide-react'; // eslint-disable-line no-unused-vars
+import { X, Save, Download, Maximize2, Minimize2 } from 'lucide-react';
 import { api } from '../utils/api';
 import { useTranslation } from 'react-i18next';
 
@@ -256,6 +256,7 @@ function CodeEditor({ file, onClose, projectPath, isSidebar = false, isExpanded 
     };
 
     return [showPanel.of(createPanel)];
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t is stable and intentionally excluded to avoid unnecessary panel recreation on language changes during editing
   }, [file.diffInfo, showDiff, isSidebar, isExpanded, onToggleExpand]);
 
   // Get language extension based on file extension
@@ -448,6 +449,7 @@ function CodeEditor({ file, onClose, projectPath, isSidebar = false, isExpanded 
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleSave and onClose are intentionally excluded; content is the only dependency needed to ensure save uses latest content
   }, [content]);
 
   if (loading) {

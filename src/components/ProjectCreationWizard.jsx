@@ -42,6 +42,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
     if (step === 2 && workspaceType === 'new' && githubUrl) {
       loadGithubTokens();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadGithubTokens is intentionally excluded; we only want to trigger when step/workspaceType/githubUrl change
   }, [step, workspaceType, githubUrl]);
 
   // Load path suggestions
@@ -143,6 +144,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
         const token = localStorage.getItem('auth-token');
         const url = `/api/projects/clone-progress?${params}${token ? `&token=${token}` : ''}`;
 
+        // oxlint-disable-next-line promise/avoid-new -- Necessary to wrap EventSource callback API in async/await
         await new Promise((resolve, reject) => {
           const eventSource = new EventSource(url);
 

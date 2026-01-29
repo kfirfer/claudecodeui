@@ -473,6 +473,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
       checkCodexAuthStatus();
       setActiveTab(initialTab);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Load settings when modal opens
   }, [isOpen, initialTab]);
 
   // Persist code editor settings to localStorage

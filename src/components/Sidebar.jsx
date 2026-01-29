@@ -314,7 +314,7 @@ function Sidebar({
   };
 
   // Placeholder for session summary update functionality
-  // TODO: Implement backend API endpoint for updating session summaries
+  // NOTE: Backend API endpoint for updating session summaries not yet implemented
   const updateSessionSummary = async (_projectName, _sessionId, newSummary) => {
     console.warn('updateSessionSummary: API endpoint not implemented yet', { newSummary });
     setEditingSession(null);

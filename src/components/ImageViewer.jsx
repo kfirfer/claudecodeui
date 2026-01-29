@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Button } from './ui/button'; // eslint-disable-line no-unused-vars
-import { X } from 'lucide-react'; // eslint-disable-line no-unused-vars
+import { Button } from './ui/button';
+import { X } from 'lucide-react';
 import { authenticatedFetch } from '../utils/api';
 
 function ImageViewer({ file, onClose }) {

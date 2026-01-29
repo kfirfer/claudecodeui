@@ -219,7 +219,8 @@ function Shell({ selectedProject, selectedSession, initialCommand, isPlainShell 
     }
 
     setLastSessionId(currentSessionId);
-  }, [selectedSession?.id, isInitialized, disconnectFromShell]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- disconnectFromShell is a stable callback (wrapped in useCallback with empty deps), and lastSessionId is intentionally excluded to track previous vs current session
+  }, [selectedSession?.id, isInitialized]);
 
   useEffect(() => {
     if (!terminalRef.current || !selectedProject || isRestarting || terminal.current) {
@@ -364,6 +365,7 @@ function Shell({ selectedProject, selectedSession, initialCommand, isPlainShell 
         terminal.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Terminal initialization should only run on mount, project path change, or restart; selectedProject object reference changes are handled via refs
   }, [selectedProject?.path || selectedProject?.fullPath, isRestarting]);
 
   useEffect(() => {

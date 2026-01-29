@@ -40,6 +40,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     checkAuthStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Run once on mount
   }, []);
 
   const checkOnboardingStatus = async () => {

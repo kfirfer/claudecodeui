@@ -25,6 +25,7 @@ function FileTree({ selectedProject }) {
     if (selectedProject) {
       fetchFiles();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchFiles is intentionally excluded; we only want to refetch when selectedProject changes, not when the function reference changes
   }, [selectedProject]);
 
   // Load view mode preference from localStorage
@@ -54,6 +55,7 @@ function FileTree({ selectedProject }) {
       };
       expandMatches(filtered);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- filterFiles is a pure helper function defined below; including it would cause unnecessary re-renders
   }, [files, searchQuery]);
 
   // Recursively filter files and directories based on search query

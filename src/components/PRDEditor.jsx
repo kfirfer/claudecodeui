@@ -341,6 +341,7 @@ This document outlines the requirements for building an AI-powered task manageme
     };
 
     initializeEditor();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- PRD_TEMPLATE is a constant that never changes, no need to include in deps
   }, [file, projectPath, isNewFile]);
 
   // Fetch existing PRDs to check for conflicts
@@ -367,6 +368,7 @@ This document outlines the requirements for building an AI-powered task manageme
     };
 
     fetchExistingPRDs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only re-fetch when project name changes, not when api reference changes
   }, [project?.name]);
 
   const handleSave = async () => {
@@ -490,6 +492,7 @@ This document outlines the requirements for building an AI-powered task manageme
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only re-subscribe when content changes; handleSave and onClose are stable callbacks
   }, [content]);
 
   // Simple markdown to HTML converter for preview
@@ -704,7 +707,7 @@ This document outlines the requirements for building an AI-powered task manageme
         <div className="flex-1 overflow-hidden">
           {previewMode ? (
             <div className="h-full overflow-y-auto p-6 prose prose-gray dark:prose-invert max-w-none">
-              <div 
+              <div
                 className="markdown-preview"
                 dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
               />

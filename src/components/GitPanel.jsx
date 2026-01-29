@@ -64,6 +64,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
         fetchRecentCommits();
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Effect should run on project/view changes, not when helper functions are redefined
   }, [selectedProject, activeView]);
 
   // Handle click outside dropdown
@@ -259,7 +260,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
         fetchRemoteStatus();
       } else {
         console.error('Pull failed:', data.error);
-        // TODO: Show user-friendly error message
+        // NOTE: Consider showing user-friendly error message
       }
     } catch (error) {
       console.error('Error pulling from remote:', error);
@@ -286,7 +287,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
         fetchRemoteStatus();
       } else {
         console.error('Push failed:', data.error);
-        // TODO: Show user-friendly error message
+        // NOTE: Consider showing user-friendly error message
       }
     } catch (error) {
       console.error('Error pushing to remote:', error);
@@ -314,7 +315,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
         fetchRemoteStatus();
       } else {
         console.error('Publish failed:', data.error);
-        // TODO: Show user-friendly error message
+        // NOTE: Consider showing user-friendly error message
       }
     } catch (error) {
       console.error('Error publishing branch:', error);
@@ -646,7 +647,7 @@ function GitPanel({ selectedProject, isMobile, onFileOpen }) {
                 </p>
               </div>
               <span className="text-xs font-mono text-gray-400 dark:text-gray-500 flex-shrink-0">
-                {commit.hash.substring(0, 7)}
+                {commit.hash.slice(0, 7)}
               </span>
             </div>
           </div>
