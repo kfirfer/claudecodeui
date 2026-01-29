@@ -43,17 +43,17 @@ const QuickSettingsPanel = ({
   const { isDarkMode } = useTheme();
 
   // Draggable handle state
-  // On mobile, default to 85% from bottom (near top of screen) to avoid overlap with input area
+  // On mobile, default to 80% from bottom (upper area) to avoid overlap with input area
   // On desktop, default to 50% (middle of screen)
-  const defaultPosition = isMobile ? 85 : 50;
+  const defaultPosition = isMobile ? 80 : 50;
   const [handlePosition, setHandlePosition] = useState(() => {
     const saved = localStorage.getItem('quickSettingsHandlePosition');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // On mobile, ensure saved position is not too low (min 65% from bottom)
+        // On mobile, ensure saved position is not too low (min 60% from bottom)
         const savedY = parsed.y ?? defaultPosition;
-        return isMobile ? Math.max(savedY, 65) : savedY;
+        return isMobile ? Math.max(savedY, 60) : savedY;
       } catch {
         // Remove corrupted data
         localStorage.removeItem('quickSettingsHandlePosition');
