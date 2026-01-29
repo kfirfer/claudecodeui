@@ -33,7 +33,8 @@ const QuickSettingsPanel = ({
   onAutoScrollChange,
   sendByCtrlEnter,
   onSendByCtrlEnterChange,
-  isMobile
+  isMobile,
+  isInputFocused
 }) => {
   const { t } = useTranslation('settings');
   const [localIsOpen, setLocalIsOpen] = useState(isOpen);
@@ -220,6 +221,7 @@ const QuickSettingsPanel = ({
   return (
     <>
       {/* Pull Tab - Combined drag handle and toggle button */}
+      {/* Hide on mobile when input is focused to prevent accidental touches when sending messages */}
       <button
         type="button"
         ref={handleRef}
@@ -238,7 +240,7 @@ const QuickSettingsPanel = ({
           isDragging ? 'border-blue-500 dark:border-blue-400' : 'border-gray-200 dark:border-gray-700'
         } rounded-l-md p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-lg ${
           isDragging ? 'cursor-grabbing' : 'cursor-pointer'
-        } touch-none`}
+        } touch-none ${isMobile && isInputFocused ? 'opacity-0 pointer-events-none' : ''}`}
         style={{ ...getPositionStyle(), touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
         aria-label={isDragging ? t('quickSettings.dragHandle.dragging') : localIsOpen ? t('quickSettings.dragHandle.closePanel') : t('quickSettings.dragHandle.openPanel')}
         title={isDragging ? t('quickSettings.dragHandle.draggingStatus') : t('quickSettings.dragHandle.toggleAndMove')}

@@ -70,7 +70,7 @@ function AppContent() {
   const [showRawParameters, setShowRawParameters] = useLocalStorage('showRawParameters', false);
   const [showThinking, setShowThinking] = useLocalStorage('showThinking', true);
   const [autoScrollToBottom, setAutoScrollToBottom] = useLocalStorage('autoScrollToBottom', true);
-  const [sendByCtrlEnter, setSendByCtrlEnter] = useLocalStorage('sendByCtrlEnter', false);
+  const [sendByCtrlEnter, setSendByCtrlEnter] = useLocalStorage('sendByCtrlEnter', true);
   const [sidebarVisible, setSidebarVisible] = useLocalStorage('sidebarVisible', true);
   // Session Protection System: Track sessions with active conversations to prevent
   // automatic project updates from interrupting ongoing chats. When a user sends
@@ -995,6 +995,7 @@ function AppContent() {
           sendByCtrlEnter={sendByCtrlEnter}
           onSendByCtrlEnterChange={setSendByCtrlEnter}
           isMobile={isMobile}
+          isInputFocused={isInputFocused}
         />
       )}
 
