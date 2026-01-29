@@ -2092,6 +2092,21 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     }
   }, [selectedSession?.id]);
 
+  // Immediate currentSessionId sync: Update currentSessionId as soon as selectedSession changes
+  // This prevents a timing gap where messages could be sent to the wrong session if user sends
+  // a message right after selecting a session but before the async loadMessages() runs.
+  // The loadMessages() effect at line 3260/3277 also sets currentSessionId but that happens
+  // asynchronously - this effect provides immediate sync for the common case.
+  useEffect(() => {
+    const sessionId = selectedSession?.id;
+    if (sessionId && sessionId !== currentSessionId) {
+      setCurrentSessionId(sessionId);
+    } else if (!sessionId && currentSessionId !== null) {
+      // Clear currentSessionId when no session is selected (new session view)
+      setCurrentSessionId(null);
+    }
+  }, [selectedSession?.id, currentSessionId]);
+
   // When selecting a session from Sidebar, auto-switch provider to match session's origin
   useEffect(() => {
     if (selectedSession && selectedSession.__provider && selectedSession.__provider !== provider) {
