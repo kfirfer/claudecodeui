@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../utils/api';
 
 const TasksSettingsContext = createContext({
-  tasksEnabled: true,
+  tasksEnabled: false,
   setTasksEnabled: () => {},
   toggleTasksEnabled: () => {},
   isTaskMasterInstalled: null,
@@ -22,9 +22,9 @@ export const useTasksSettings = () => {
 export const TasksSettingsProvider = ({ children }) => {
   const [tasksEnabled, setTasksEnabled] = useState(() => {
     // Load from localStorage on initialization
-    // Default to true if no saved value exists
+    // Default to false if no saved value exists
     const saved = localStorage.getItem('tasks-enabled');
-    return saved !== null ? JSON.parse(saved) : true;
+    return saved !== null ? JSON.parse(saved) : false;
   });
   
   const [isTaskMasterInstalled, setIsTaskMasterInstalled] = useState(null);
@@ -47,13 +47,6 @@ export const TasksSettingsProvider = ({ children }) => {
           setInstallationStatus(data);
           setIsTaskMasterInstalled(data.installation?.isInstalled || false);
           setIsTaskMasterReady(data.isReady || false);
-          
-          // If TaskMaster is not installed and user hasn't explicitly enabled tasks,
-          // disable tasks automatically
-          const userEnabledTasks = localStorage.getItem('tasks-enabled');
-          if (!data.installation?.isInstalled && !userEnabledTasks) {
-            setTasksEnabled(false);
-          }
         } else {
           console.error('Failed to check TaskMaster installation status');
           setIsTaskMasterInstalled(false);
