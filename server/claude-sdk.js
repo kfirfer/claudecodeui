@@ -604,6 +604,9 @@ async function queryClaudeSDK(command, options = {}, ws) {
 
     // Process streaming messages
     console.log('Starting async generator loop for session:', capturedSessionId || 'NEW');
+    // Track if we've received token usage from the main assistant message
+    // to prevent sub-agent results from overwriting it
+    let hasReceivedAssistantUsage = false;
     for await (const message of queryInstance) {
       // Capture session ID from first message
       if (message.session_id && !capturedSessionId) {
@@ -638,20 +641,8 @@ async function queryClaudeSDK(command, options = {}, ws) {
         sessionId: capturedSessionId || sessionId || null
       });
 
-      // Extract and send token budget updates from result messages
-      if (message.type === 'result') {
-        const tokenBudget = extractTokenBudget(message);
-        if (tokenBudget) {
-          console.log('Token budget from modelUsage:', tokenBudget);
-          ws.send({
-            type: 'token-budget',
-            data: tokenBudget,
-            sessionId: capturedSessionId || sessionId || null
-          });
-        }
-      }
-
-      // Also extract usage from assistant messages (SDK may send usage here)
+      // Extract usage from assistant messages - this is the authoritative source
+      // as it includes cache tokens from the main conversation
       if (message.type === 'assistant' && message.message?.usage) {
         const usage = message.message.usage;
         const inputTokens = usage.input_tokens || 0;
@@ -659,16 +650,34 @@ async function queryClaudeSDK(command, options = {}, ws) {
         const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
         const totalUsed = inputTokens + cacheCreationTokens + cacheReadTokens;
 
-        console.log(`Token budget from assistant message: input=${inputTokens}, cacheRead=${cacheReadTokens}, cacheCreate=${cacheCreationTokens}, used=${totalUsed}`);
+        // Only send if there's actual usage (not from warmup messages with 0 tokens)
+        if (totalUsed > 0) {
+          console.log(`Token budget from assistant message: input=${inputTokens}, cacheRead=${cacheReadTokens}, cacheCreate=${cacheCreationTokens}, used=${totalUsed}`);
+          hasReceivedAssistantUsage = true;
 
-        ws.send({
-          type: 'token-budget',
-          data: {
-            used: totalUsed,
-            total: 200000 // Default context window
-          },
-          sessionId: capturedSessionId || sessionId || null
-        });
+          ws.send({
+            type: 'token-budget',
+            data: {
+              used: totalUsed,
+              total: 200000 // Default context window
+            },
+            sessionId: capturedSessionId || sessionId || null
+          });
+        }
+      }
+
+      // Extract token budget from result messages (sub-agents like warmup)
+      // Only use if we haven't received usage from the main assistant message
+      if (message.type === 'result' && !hasReceivedAssistantUsage) {
+        const tokenBudget = extractTokenBudget(message);
+        if (tokenBudget) {
+          console.log('Token budget from modelUsage (no assistant usage yet):', tokenBudget);
+          ws.send({
+            type: 'token-budget',
+            data: tokenBudget,
+            sessionId: capturedSessionId || sessionId || null
+          });
+        }
       }
     }
 
