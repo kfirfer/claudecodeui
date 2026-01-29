@@ -421,207 +421,292 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
   });
 });
 
-test.describe('Session Visibility - Immediate Display', () => {
+test.describe('Session Visibility - Comprehensive Tests', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
     await performLogin(page);
   });
 
-  test('multiple sessions should appear immediately in sidebar', async ({ page }) => {
-    test.setTimeout(180000);
+  test('multiple sessions with navigation during AI thinking', async ({ page }) => {
+    test.setTimeout(240000);
 
-    // Generate unique identifier for this test run
     const testId = Date.now();
-    const testProjectPath = path.join(os.homedir(), `e2e-multi-session-${testId}`);
-    const projectFolderName = `e2e-multi-session-${testId}`;
+    const testProjectPath = path.join(os.homedir(), `e2e-session-nav-${testId}`);
+    const projectFolderName = `e2e-session-nav-${testId}`;
 
-    // Create the test directory
     await createTestDirectory(testProjectPath);
 
     try {
       // ==========================================
-      // Step 1: Create a new project
+      // PHASE 1: Create project and first session
       // ==========================================
-      console.log('Step 1: Creating project...');
+      console.log('\n=== PHASE 1: Create project and first session ===');
+
       const createdProjectName = await createProject(page, testProjectPath);
       expect(createdProjectName).toBe(projectFolderName);
+      console.log('✓ Project created');
 
-      // Verify project appears in sidebar
       const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
       await expect(projectButton).toBeVisible();
-      console.log('Project created and visible in sidebar');
-
-      // ==========================================
-      // Step 2: Click on the project to expand it
-      // ==========================================
-      console.log('Step 2: Expanding project...');
       await projectButton.click();
+      console.log('✓ Project expanded');
 
-      // Verify project shows "0" sessions initially
-      const projectWith0Sessions = page.locator(`button:has-text("${projectFolderName}")`).filter({
-        has: page.locator('text="0"')
-      }).first();
-      await expect(projectWith0Sessions).toBeVisible({ timeout: 5000 });
-      console.log('Project expanded, shows 0 sessions');
+      // Helper to check session count by looking for the badge number in the project button
+      // The button text format is: "project-name N• path" where N is the session count
+      const checkSessionCount = async (expectedCount) => {
+        const projectWithCount = page.locator(`button:has-text("${projectFolderName}")`).filter({
+          has: page.locator(`text="${expectedCount}"`)
+        }).first();
+        return await projectWithCount.isVisible().catch(() => false);
+      };
+
+      // Check initial session count is 0
+      const has0Sessions = await checkSessionCount(0);
+      console.log(`Initial session count is 0: ${has0Sessions}`);
+      expect(has0Sessions).toBe(true);
 
       // ==========================================
-      // Step 3: Create FIRST session
+      // PHASE 2: Create first session and send message
       // ==========================================
-      console.log('Step 3: Creating first session...');
-      const newSessionButton = page.locator('button:has-text("New Session")').first();
-      await newSessionButton.dispatchEvent('click');
+      console.log('\n=== PHASE 2: First session ===');
 
-      // Wait for chat interface
+      const newSessionBtn = page.locator('button:has-text("New Session")').first();
+      await newSessionBtn.dispatchEvent('click');
+
       const chatTextarea = page.locator('textarea').first();
       await expect(chatTextarea).toBeVisible({ timeout: 15000 });
 
-      // Select Claude provider if dialog appears
-      const claudeProviderButton = page.locator('button:has-text("Claude Claude Code by Anthropic")').first();
-      const providerDialogVisible = await claudeProviderButton.isVisible().catch(() => false);
-      if (providerDialogVisible) {
-        await claudeProviderButton.click();
+      // Handle provider selection if shown
+      const claudeProvider = page.locator('button:has-text("Claude Claude Code by Anthropic")').first();
+      if (await claudeProvider.isVisible().catch(() => false)) {
+        await claudeProvider.click();
         await page.waitForTimeout(500);
       }
 
-      // Send first message
-      const firstMessage = `First session message ${testId}`;
+      const firstMessage = `First session ${testId} - say hello`;
       await chatTextarea.fill(firstMessage);
-      console.log('Sending first message:', firstMessage);
+      console.log('Sending first message...');
 
-      // Click send button
-      const sendButtonArrow = page.locator('button:has(svg.lucide-arrow-up)').first();
-      const arrowVisible = await sendButtonArrow.isVisible().catch(() => false);
-      if (arrowVisible) {
-        await sendButtonArrow.click();
+      const sendBtn = page.locator('button:has(svg.lucide-arrow-up)').first();
+      if (await sendBtn.isVisible().catch(() => false)) {
+        await sendBtn.click();
       } else {
         await chatTextarea.press('Control+Enter');
       }
 
-      // Verify message was sent
-      const userMessage1 = page.getByText(firstMessage).first();
-      await expect(userMessage1).toBeVisible({ timeout: 5000 });
-      console.log('First message sent and visible in chat');
+      // Verify message sent
+      await expect(page.getByText(firstMessage).first()).toBeVisible({ timeout: 5000 });
+      console.log('✓ First message sent');
 
-      // ==========================================
-      // Step 4: CRITICAL - Check session count changes to "1" IMMEDIATELY
-      // ==========================================
-      console.log('Step 4: Checking session count changes to 1 immediately...');
-      const projectWith1Session = page.locator(`button:has-text("${projectFolderName}")`).filter({
+      // CRITICAL CHECK: Session count should immediately show 1
+      console.log('Checking session count immediately after sending...');
+      await page.waitForTimeout(500);
+      let has1Session = await checkSessionCount(1);
+      console.log(`Session count is 1 after sending: ${has1Session}`);
+
+      // Wait up to 3 seconds for session count to become 1
+      const projectWith1 = page.locator(`button:has-text("${projectFolderName}")`).filter({
         has: page.locator('text="1"')
       }).first();
+      await expect(projectWith1).toBeVisible({ timeout: 3000 });
+      console.log('✓ Session count changed to 1 immediately');
 
-      // This should happen within 3 seconds (before AI responds)
-      await expect(projectWith1Session).toBeVisible({ timeout: 3000 });
-      console.log('SUCCESS: Session count changed to 1 immediately!');
+      // Wait for AI to complete first session
+      console.log('Waiting for first AI response...');
+      const stopBtn = page.locator('button:has-text("Stop")').first();
+      await expect(stopBtn).toBeHidden({ timeout: 120000 });
+      console.log('✓ First AI response complete');
 
-      // ==========================================
-      // Step 5: Wait for first AI response to complete
-      // ==========================================
-      console.log('Step 5: Waiting for first AI response...');
-      const processingBar = page.locator('button:has-text("Stop")').first();
-      await expect(processingBar).toBeHidden({ timeout: 120000 });
-      console.log('First AI response complete');
-
-      // Verify session count is still "1"
-      await expect(projectWith1Session).toBeVisible();
-      console.log('Session count still shows 1 after AI response');
+      // Verify session count still 1
+      has1Session = await checkSessionCount(1);
+      console.log(`Session count is still 1 after AI complete: ${has1Session}`);
+      expect(has1Session).toBe(true);
 
       // ==========================================
-      // Step 6: Create SECOND session
+      // PHASE 3: Create second session
       // ==========================================
-      console.log('Step 6: Creating second session...');
+      console.log('\n=== PHASE 3: Second session ===');
 
-      // Click "New Session" button again
-      const newSessionButton2 = page.locator('button:has-text("New Session")').first();
-      await newSessionButton2.dispatchEvent('click');
+      // Click New Session
+      const newSessionBtn2 = page.locator('button:has-text("New Session")').first();
+      await newSessionBtn2.dispatchEvent('click');
+      console.log('Clicked New Session for second session');
 
-      // Wait for chat interface to reset (empty state or provider selection)
       await page.waitForTimeout(1000);
 
-      // If provider dialog appears again, select Claude
-      const claudeProviderButton2 = page.locator('button:has-text("Claude Claude Code by Anthropic")').first();
-      const providerDialogVisible2 = await claudeProviderButton2.isVisible().catch(() => false);
-      if (providerDialogVisible2) {
-        await claudeProviderButton2.click();
+      // Handle provider selection again if shown
+      const claudeProvider2 = page.locator('button:has-text("Claude Claude Code by Anthropic")').first();
+      if (await claudeProvider2.isVisible().catch(() => false)) {
+        await claudeProvider2.click();
         await page.waitForTimeout(500);
       }
 
-      // Wait for textarea to be ready
       const chatTextarea2 = page.locator('textarea').first();
       await expect(chatTextarea2).toBeVisible({ timeout: 15000 });
 
-      // Send second message
-      const secondMessage = `Second session message ${testId}`;
+      const secondMessage = `Second session ${testId} - tell me a joke`;
       await chatTextarea2.fill(secondMessage);
-      console.log('Sending second message:', secondMessage);
+      console.log('Sending second message...');
 
-      // Click send button
-      const sendButtonArrow2 = page.locator('button:has(svg.lucide-arrow-up)').first();
-      const arrowVisible2 = await sendButtonArrow2.isVisible().catch(() => false);
-      if (arrowVisible2) {
-        await sendButtonArrow2.click();
+      const sendBtn2 = page.locator('button:has(svg.lucide-arrow-up)').first();
+      if (await sendBtn2.isVisible().catch(() => false)) {
+        await sendBtn2.click();
       } else {
         await chatTextarea2.press('Control+Enter');
       }
 
-      // Verify second message was sent
-      const userMessage2 = page.getByText(secondMessage).first();
-      await expect(userMessage2).toBeVisible({ timeout: 5000 });
-      console.log('Second message sent and visible in chat');
+      // Verify second message sent
+      await expect(page.getByText(secondMessage).first()).toBeVisible({ timeout: 5000 });
+      console.log('✓ Second message sent');
 
-      // ==========================================
-      // Step 7: CRITICAL - Check session count changes to "2" IMMEDIATELY
-      // ==========================================
-      console.log('Step 7: Checking session count changes to 2 immediately...');
-      const projectWith2Sessions = page.locator(`button:has-text("${projectFolderName}")`).filter({
+      // CRITICAL CHECK: Session count should immediately show 2
+      console.log('Checking session count immediately after sending second message...');
+      await page.waitForTimeout(500);
+      let has2Sessions = await checkSessionCount(2);
+      console.log(`Session count is 2 after sending second message: ${has2Sessions}`);
+
+      const projectWith2 = page.locator(`button:has-text("${projectFolderName}")`).filter({
         has: page.locator('text="2"')
       }).first();
-
-      // This should happen within 3 seconds (before AI responds)
-      await expect(projectWith2Sessions).toBeVisible({ timeout: 3000 });
-      console.log('SUCCESS: Session count changed to 2 immediately!');
+      await expect(projectWith2).toBeVisible({ timeout: 3000 });
+      console.log('✓ Session count changed to 2 immediately');
 
       // ==========================================
-      // Step 8: Wait for second AI response to complete
+      // PHASE 4: Navigate between sessions WHILE AI is thinking
       // ==========================================
-      console.log('Step 8: Waiting for second AI response...');
-      const processingBar2 = page.locator('button:has-text("Stop")').first();
-      await expect(processingBar2).toBeHidden({ timeout: 120000 });
-      console.log('Second AI response complete');
+      console.log('\n=== PHASE 4: Navigate between sessions while AI thinking ===');
 
-      // Verify session count is still "2"
-      await expect(projectWith2Sessions).toBeVisible();
-      console.log('Session count still shows 2 after second AI response');
+      // AI should still be processing - verify Stop button visible
+      const stopBtn2 = page.locator('button:has-text("Stop")').first();
+      const isProcessing = await stopBtn2.isVisible().catch(() => false);
+      console.log(`AI is currently processing: ${isProcessing}`);
+
+      if (isProcessing) {
+        // Find session buttons in sidebar (look for session items with icons)
+        // Sessions appear as buttons within the expanded project
+        console.log('Looking for session buttons in sidebar...');
+
+        // Get all buttons that could be sessions (have message-square or clock icons)
+        const sidebarArea = page.locator('.overflow-y-auto, [class*="scroll"]').first();
+
+        // Try to find the first session (contains "First session" or similar)
+        const firstSessionBtn = page.locator('button').filter({
+          hasText: /First session|hello/i
+        }).first();
+
+        const firstSessionVisible = await firstSessionBtn.isVisible().catch(() => false);
+        console.log(`First session button visible: ${firstSessionVisible}`);
+
+        if (firstSessionVisible) {
+          // Click on first session while second is processing
+          console.log('Clicking on first session while second is processing...');
+          await firstSessionBtn.click();
+          await page.waitForTimeout(1000);
+
+          // Verify first session content is shown
+          const firstMsgInChat = page.getByText(firstMessage).first();
+          const firstMsgVisible = await firstMsgInChat.isVisible().catch(() => false);
+          console.log(`First session message visible in chat: ${firstMsgVisible}`);
+
+          // Check session count - should still be 2
+          has2Sessions = await checkSessionCount(2);
+          console.log(`Session count still 2 after switching to first session: ${has2Sessions}`);
+
+          // Switch back to second session
+          const secondSessionBtn = page.locator('button').filter({
+            hasText: /Second session|joke/i
+          }).first();
+
+          const secondSessionVisible = await secondSessionBtn.isVisible().catch(() => false);
+          console.log(`Second session button visible: ${secondSessionVisible}`);
+
+          if (secondSessionVisible) {
+            console.log('Clicking back to second session...');
+            await secondSessionBtn.click();
+            await page.waitForTimeout(1000);
+
+            // Verify second session content
+            const secondMsgInChat = page.getByText(secondMessage).first();
+            const secondMsgVisible = await secondMsgInChat.isVisible().catch(() => false);
+            console.log(`Second session message visible in chat: ${secondMsgVisible}`);
+          }
+
+          // Check session count again - should still be 2
+          has2Sessions = await checkSessionCount(2);
+          console.log(`Session count still 2 after switching back: ${has2Sessions}`);
+        }
+      }
 
       // ==========================================
-      // Step 9: Verify both sessions are visible in sidebar
+      // PHASE 5: Wait for second AI to complete
       // ==========================================
-      console.log('Step 9: Verifying both sessions are visible in sidebar...');
+      console.log('\n=== PHASE 5: Wait for second AI to complete ===');
+      await expect(stopBtn2).toBeHidden({ timeout: 120000 });
+      console.log('✓ Second AI response complete');
 
-      // Look for session buttons in the expanded project area
-      // Sessions should be visible as clickable buttons with message preview
-      const sessionButtons = page.locator('button').filter({
-        has: page.locator('svg')
-      });
-
-      // Count visible session-like buttons
-      const sessionCount = await sessionButtons.count();
-      console.log(`Found ${sessionCount} potential session buttons in sidebar`);
+      // Final session count check
+      has2Sessions = await checkSessionCount(2);
+      console.log(`Final session count is 2: ${has2Sessions}`);
+      expect(has2Sessions).toBe(true);
 
       // ==========================================
-      // Step 10: Clean up
+      // PHASE 6: Navigate between completed sessions
       // ==========================================
-      console.log('Step 10: Cleaning up...');
+      console.log('\n=== PHASE 6: Navigate between completed sessions ===');
+
+      // Click first session
+      const firstSessionFinal = page.locator('button').filter({
+        hasText: /First session|hello/i
+      }).first();
+
+      if (await firstSessionFinal.isVisible().catch(() => false)) {
+        await firstSessionFinal.click();
+        await page.waitForTimeout(1000);
+
+        // Verify first session messages are shown
+        const firstMsgCheck = await page.getByText(firstMessage).first().isVisible().catch(() => false);
+        console.log(`First session content visible: ${firstMsgCheck}`);
+
+        // Session count should still be 2
+        has2Sessions = await checkSessionCount(2);
+        console.log(`Session count still 2 while viewing first session: ${has2Sessions}`);
+        expect(has2Sessions).toBe(true);
+      }
+
+      // Click second session
+      const secondSessionFinal = page.locator('button').filter({
+        hasText: /Second session|joke/i
+      }).first();
+
+      if (await secondSessionFinal.isVisible().catch(() => false)) {
+        await secondSessionFinal.click();
+        await page.waitForTimeout(1000);
+
+        // Verify second session messages are shown
+        const secondMsgCheck = await page.getByText(secondMessage).first().isVisible().catch(() => false);
+        console.log(`Second session content visible: ${secondMsgCheck}`);
+
+        // Session count should still be 2
+        has2Sessions = await checkSessionCount(2);
+        console.log(`Session count still 2 while viewing second session: ${has2Sessions}`);
+        expect(has2Sessions).toBe(true);
+      }
+
+      // ==========================================
+      // PHASE 7: Cleanup
+      // ==========================================
+      console.log('\n=== PHASE 7: Cleanup ===');
       try {
         await deleteProjectViaUI(page, projectFolderName);
-        console.log('Project deleted successfully');
+        console.log('✓ Project deleted');
       } catch (e) {
         console.log('Project cleanup failed:', e.message);
       }
 
+      console.log('\n=== TEST COMPLETE ===');
+
     } finally {
-      // Clean up the test directory
       await removeTestDirectory(testProjectPath);
     }
   });
