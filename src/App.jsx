@@ -87,9 +87,10 @@ function AppContent() {
   // Triggers ChatInterface to reload messages without switching sessions
   const [externalMessageUpdate, setExternalMessageUpdate] = useState(0);
 
-  // Pending Session: Tracks a newly-created session that hasn't been persisted to disk yet
-  // This allows the sidebar to show the new session immediately when the user sends a message
-  const [pendingSession, setPendingSession] = useState(null);
+  // Pending Sessions: Tracks newly-created sessions that haven't been persisted to disk yet
+  // This allows the sidebar to show new sessions immediately when the user sends messages
+  // Uses an array to support multiple pending sessions in quick succession
+  const [pendingSessions, setPendingSessions] = useState([]);
 
   const { ws, sendMessage, messages, isConnected } = useWebSocketContext();
 
@@ -393,7 +394,7 @@ function AppContent() {
           return;
         }
       }
-      
+
       // If session not found, it might be a newly created session
       // Just navigate to it and it will be found when the sidebar refreshes
       // Don't redirect to home, let the session load naturally
@@ -622,22 +623,77 @@ function AppContent() {
   // onNewSessionCreating: Called when user starts a new session (sends first message)
   // Creates a pending session in the sidebar immediately, before the backend creates the real session
   const onNewSessionCreating = useCallback((sessionInfo) => {
+    console.log('[App] onNewSessionCreating called with:', sessionInfo);
     if (sessionInfo && sessionInfo.projectName) {
-      setPendingSession({
+      const newPendingSession = {
         id: sessionInfo.tempId,
         projectName: sessionInfo.projectName,
         firstMessage: sessionInfo.firstMessage,
         provider: sessionInfo.provider || 'claude',
         timestamp: new Date().toISOString()
-      });
+      };
+      console.log('[App] Adding pendingSession:', newPendingSession);
+      // Add to array instead of replacing - this supports multiple pending sessions
+      setPendingSessions(prev => [...prev, newPendingSession]);
     }
   }, []);
 
-  // clearPendingSession: Called when session-created event is received in ChatInterface
-  // This ensures the pending session is cleared only after the real session exists
-  const clearPendingSession = useCallback(() => {
-    setPendingSession(null);
+  // confirmPendingSession: Called when session-created event is received in ChatInterface
+  // Instead of clearing immediately, we mark the most recent unconfirmed pending session with the confirmed real session ID.
+  // The Sidebar will then hide the pending session only when the real session appears in the data.
+  // This prevents the race condition where the pending session is cleared before projects_updated arrives.
+  const confirmPendingSession = useCallback((realSessionId) => {
+    console.log('[App] confirmPendingSession called with realSessionId:', realSessionId);
+    setPendingSessions(prev => {
+      if (prev.length === 0) return prev;
+      // Find the most recent unconfirmed pending session and mark it with the real ID
+      const updatedSessions = [...prev];
+      for (let i = updatedSessions.length - 1; i >= 0; i--) {
+        if (!updatedSessions[i].confirmedSessionId) {
+          updatedSessions[i] = { ...updatedSessions[i], confirmedSessionId: realSessionId };
+          break;
+        }
+      }
+      return updatedSessions;
+    });
   }, []);
+
+  // clearPendingSession: Directly clears all pending sessions (used as a fallback)
+  const clearPendingSession = useCallback(() => {
+    console.log('[App] clearPendingSession called - clearing all pending sessions');
+    setPendingSessions([]);
+  }, []);
+
+  // Auto-clear pending sessions when their confirmed sessions appear in projects data
+  // This cleans up the pendingSessions state after real sessions are loaded
+  useEffect(() => {
+    if (pendingSessions.length === 0 || !projects?.length) return;
+
+    // Check if any pending sessions have their confirmed IDs in the projects data
+    const confirmedSessionsToRemove = new Set();
+
+    for (const pending of pendingSessions) {
+      if (!pending.confirmedSessionId) continue;
+
+      const confirmedSessionExists = projects.some(project => {
+        const allSessions = [
+          ...(project.sessions || []),
+          ...(project.cursorSessions || []),
+          ...(project.codexSessions || [])
+        ];
+        return allSessions.some(s => s.id === pending.confirmedSessionId);
+      });
+
+      if (confirmedSessionExists) {
+        confirmedSessionsToRemove.add(pending.confirmedSessionId);
+      }
+    }
+
+    if (confirmedSessionsToRemove.size > 0) {
+      console.log('[App] Confirmed sessions found in projects, removing:', Array.from(confirmedSessionsToRemove));
+      setPendingSessions(prev => prev.filter(p => !confirmedSessionsToRemove.has(p.confirmedSessionId)));
+    }
+  }, [pendingSessions, projects]);
 
   // Version Upgrade Modal Component
   const VersionUpgradeModal = () => {
@@ -874,7 +930,7 @@ function AppContent() {
                 isPWA={isPWA}
                 isMobile={isMobile}
                 onToggleSidebar={() => setSidebarVisible(false)}
-                pendingSession={pendingSession}
+                pendingSessions={pendingSessions}
               />
             ) : (
               // Collapsed Sidebar
@@ -975,7 +1031,7 @@ function AppContent() {
               isPWA={isPWA}
               isMobile={isMobile}
               onToggleSidebar={() => setSidebarVisible(false)}
-              pendingSession={pendingSession}
+              pendingSessions={pendingSessions}
             />
           </div>
         </div>
@@ -1004,6 +1060,7 @@ function AppContent() {
           processingSessions={processingSessions}
           onReplaceTemporarySession={replaceTemporarySession}
           onNewSessionCreating={onNewSessionCreating}
+          confirmPendingSession={confirmPendingSession}
           clearPendingSession={clearPendingSession}
           onNavigateToSession={(sessionId) => navigate(`/session/${sessionId}`)}
           onShowSettings={() => setShowSettings(true)}

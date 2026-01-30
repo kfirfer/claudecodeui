@@ -254,15 +254,15 @@ export function useChatSessionState() {
 
   const sessionCompleted = useCallback((sessionId) => {
     // Record completion timestamp for this session
-    if (sessionId) {
-      completionTimestamps.current.set(sessionId, Date.now());
+    // Use a fallback key if no sessionId to still protect against race conditions
+    const timestampKey = sessionId || '__anonymous__';
+    completionTimestamps.current.set(timestampKey, Date.now());
 
-      // Clean up old timestamps (older than 30 seconds)
-      const cutoff = Date.now() - 30000;
-      for (const [id, timestamp] of completionTimestamps.current.entries()) {
-        if (timestamp < cutoff) {
-          completionTimestamps.current.delete(id);
-        }
+    // Clean up old timestamps (older than 30 seconds)
+    const cutoff = Date.now() - 30000;
+    for (const [id, timestamp] of completionTimestamps.current.entries()) {
+      if (timestamp < cutoff) {
+        completionTimestamps.current.delete(id);
       }
     }
 
@@ -332,10 +332,22 @@ export function useChatSessionState() {
     dispatch({ type: SESSION_ACTIONS.SET_CLAUDE_STATUS, value });
   }, []);
 
-  // Check if a session recently completed (for external use)
+  // Check if a specific session recently completed (for external use)
   const hasRecentlyCompleted = useCallback((sessionId) => {
+    if (!sessionId) return false;
     const completedAt = completionTimestamps.current.get(sessionId);
     return completedAt && (Date.now() - completedAt < 5000);
+  }, []);
+
+  // Check if ANY session completed recently (useful for race condition prevention)
+  const hasAnyRecentCompletion = useCallback(() => {
+    const now = Date.now();
+    for (const [, timestamp] of completionTimestamps.current.entries()) {
+      if (now - timestamp < 5000) {
+        return true;
+      }
+    }
+    return false;
   }, []);
 
   return {
@@ -364,6 +376,7 @@ export function useChatSessionState() {
 
     // Utilities
     hasRecentlyCompleted,
+    hasAnyRecentCompletion,
     completionTimestamps
   };
 }

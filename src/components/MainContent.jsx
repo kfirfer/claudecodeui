@@ -59,6 +59,8 @@ function MainContent({
   onReplaceTemporarySession,
   // Create pending session in sidebar immediately when user starts new session
   onNewSessionCreating,
+  // Confirm pending session with real session ID (from session-created event)
+  confirmPendingSession,
   // Clear pending session when real session is created
   clearPendingSession,
   // Navigate to a specific session (for Claude CLI session duplication workaround)
@@ -517,6 +519,7 @@ function MainContent({
               processingSessions={processingSessions}
               onReplaceTemporarySession={onReplaceTemporarySession}
               onNewSessionCreating={onNewSessionCreating}
+              confirmPendingSession={confirmPendingSession}
               clearPendingSession={clearPendingSession}
               onNavigateToSession={onNavigateToSession}
               onShowSettings={onShowSettings}

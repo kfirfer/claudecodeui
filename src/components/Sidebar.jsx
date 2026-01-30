@@ -58,7 +58,7 @@ function Sidebar({
   loadingProgress,
   onRefresh,
   onShowSettings,
-  pendingSession,
+  pendingSessions = [],
   updateAvailable,
   latestVersion,
   _currentVersion,
@@ -282,23 +282,32 @@ function Sidebar({
       }
     }
 
-    // Add pending session if it matches this project
+    // Add pending sessions that match this project
     // Handle both dash-separated paths (e.g., -Users-dev345-project) and folder names (e.g., project)
-    const pendingSessionMatchesProject = pendingSession && (
-      pendingSession.projectName === project.name ||
-      pendingSession.projectName.endsWith(`-${project.name}`)
-    );
-    if (pendingSessionMatchesProject) {
-      const pendingSessionObj = {
-        id: pendingSession.id,
-        name: pendingSession.firstMessage || 'New conversation...',
-        lastActivity: pendingSession.timestamp,
-        __provider: pendingSession.provider || 'claude',
-        __isPending: true
-      };
-      // Don't add if a real session with this temp ID already exists
-      if (!sessionMap.has(pendingSession.id)) {
-        sessionMap.set(pendingSession.id, pendingSessionObj);
+    for (const pendingSession of pendingSessions) {
+      const pendingSessionMatchesProject = (
+        pendingSession.projectName === project.name ||
+        pendingSession.projectName.endsWith(`-${project.name}`)
+      );
+      if (pendingSessionMatchesProject) {
+        // If pendingSession has a confirmedSessionId, check if that real session exists in data
+        // Only hide pending session when the real session has appeared (prevents race condition)
+        const confirmedSessionExists = pendingSession.confirmedSessionId &&
+          sessionMap.has(pendingSession.confirmedSessionId);
+
+        if (!confirmedSessionExists) {
+          const pendingSessionObj = {
+            id: pendingSession.id,
+            name: pendingSession.firstMessage || 'New conversation...',
+            lastActivity: pendingSession.timestamp,
+            __provider: pendingSession.provider || 'claude',
+            __isPending: true
+          };
+          // Don't add if a real session with this temp ID already exists
+          if (!sessionMap.has(pendingSession.id)) {
+            sessionMap.set(pendingSession.id, pendingSessionObj);
+          }
+        }
       }
     }
 
@@ -1001,7 +1010,8 @@ function Sidebar({
                                   </div>
                                   <p className="text-xs text-muted-foreground">
                                     {(() => {
-                                      const sessionCount = getAllSessions(project).length;
+                                      const sessions = getAllSessions(project);
+                                      const sessionCount = sessions.length;
                                       const hasMore = project.sessionMeta?.hasMore !== false;
                                       const count = hasMore && sessionCount >= 5 ? `${sessionCount}+` : sessionCount;
                                       return `${count} session${count === 1 ? '' : 's'}`;
@@ -1245,12 +1255,12 @@ function Sidebar({
                   {isExpanded && (
                     <div className="ml-3 space-y-1 border-l border-border pl-3">
                       {(() => {
-                        // Check if we have a pending session for this project
+                        // Check if we have any pending sessions for this project
                         // Handle both dash-separated paths (e.g., -Users-dev345-project) and folder names (e.g., project)
-                        const hasPendingSessionForProject = pendingSession && (
-                          pendingSession.projectName === project.name ||
-                          pendingSession.projectName.endsWith(`-${project.name}`)
-                        );
+                        const hasPendingSessionForProject = pendingSessions.some(ps => (
+                          ps.projectName === project.name ||
+                          ps.projectName.endsWith(`-${project.name}`)
+                        ));
 
                         // Show loading skeleton only if sessions haven't loaded AND there's no pending session
                         if (!initialSessionsLoaded.has(project.name) && !hasPendingSessionForProject) {
