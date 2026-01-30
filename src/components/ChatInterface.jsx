@@ -4855,16 +4855,19 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     // Longer delay to ensure message is rendered
     setTimeout(() => scrollToBottom(), 100);
 
+    // Check if this is a new session - use selectedSession?.id as the source of truth
+    // because currentSessionId state update can be asynchronous after switching sessions
+    const isNewSession = !selectedSession?.id;
+
     // Determine effective session id for replies to avoid race on state updates
-    const effectiveSessionId = currentSessionId || selectedSession?.id || sessionStorage.getItem('cursorSessionId');
+    // IMPORTANT: When isNewSession is true, we must use null - not currentSessionId which
+    // might be stale due to React's async state updates. If user clicks "New Session" and
+    // sends a message quickly, the effect that clears currentSessionId might not have run yet.
+    const effectiveSessionId = isNewSession ? null : (currentSessionId || selectedSession?.id || sessionStorage.getItem('cursorSessionId'));
 
     // Session Protection: Mark session as active to prevent automatic project updates during conversation
     // Use existing session if available; otherwise a temporary placeholder until backend provides real ID
     const sessionToActivate = effectiveSessionId || `new-session-${Date.now()}`;
-
-    // Check if this is a new session - use selectedSession?.id as the source of truth
-    // because currentSessionId state update can be asynchronous after switching sessions
-    const isNewSession = !selectedSession?.id;
 
     if (isNewSession) {
       // We are starting a brand-new session in this view. Track it so we only
@@ -4953,14 +4956,20 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       });
     } else {
       // Send Claude command (existing code)
+      // IMPORTANT: Use isNewSession to determine sessionId, not currentSessionId directly.
+      // currentSessionId might be stale due to React's async state updates - if user clicks
+      // "New Session" and sends a message quickly, the effect that clears currentSessionId
+      // might not have run yet. isNewSession is derived from selectedSession prop which
+      // updates synchronously, making it the reliable source of truth.
+      const claudeSessionId = isNewSession ? null : currentSessionId;
       sendMessage({
         type: 'claude-command',
         command: messageContent,
         options: {
           projectPath: selectedProject.path,
           cwd: selectedProject.fullPath,
-          sessionId: currentSessionId,
-          resume: !!currentSessionId,
+          sessionId: claudeSessionId,
+          resume: !!claudeSessionId,
           toolsSettings: toolsSettings,
           permissionMode: permissionMode,
           model: claudeModel,

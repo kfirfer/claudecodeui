@@ -408,6 +408,16 @@ function AppContent() {
   }, [sessionId, projects, navigate]);
 
   const handleSessionSelect = (session) => {
+    // Find and set the project first - this ensures ChatInterface has correct context
+    // The session object includes __projectName from handleSessionClick in Sidebar
+    const sessionProjectName = session.__projectName;
+    if (sessionProjectName) {
+      const project = projects.find(p => p.name === sessionProjectName);
+      if (project) {
+        setSelectedProject(project);
+      }
+    }
+
     setSelectedSession(session);
     // Only switch to chat tab when user explicitly selects a session
     // This prevents tab switching during automatic updates
@@ -425,7 +435,6 @@ function AppContent() {
 
     // Only close sidebar on mobile if switching to a different project
     if (isMobile) {
-      const sessionProjectName = session.__projectName;
       const currentProjectName = selectedProject?.name;
 
       // Close sidebar if clicking a session from a different project

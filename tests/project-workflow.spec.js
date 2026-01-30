@@ -510,8 +510,10 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
 
       // PHASE 3: Create second session
 
-      // Use dispatchEvent to click New Session (matches working test pattern)
-      const newSessionBtn2 = page.locator('button:has-text("New Session")').first();
+      // Use a specific selector for the "New Session" BUTTON (not session items)
+      // The actual "New Session" button is at the bottom of the sessions list and contains a "+" icon
+      // We use .last() because pending sessions at the top might have similar text
+      const newSessionBtn2 = page.locator('button:has-text("New Session")').last();
       await newSessionBtn2.dispatchEvent('click');
 
       const chatTextarea2 = page.locator('textarea').first();
