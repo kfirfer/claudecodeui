@@ -4375,7 +4375,16 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         case 'claude-status': {
           // Handle Claude working status messages
           const statusData = latestMessage.data;
-          if (statusData) {
+          const statusSessionId = latestMessage.sessionId;
+
+          // Guard: Only process if the message has a sessionId and it matches the current session
+          // This prevents race conditions where status messages for a previous session affect the current view
+          const isCurrentSession = statusSessionId && (
+            statusSessionId === currentSessionId ||
+            (selectedSession && statusSessionId === selectedSession.id)
+          );
+
+          if (statusData && isCurrentSession) {
             // Parse the status message to extract relevant information
             let statusInfo = {
               text: 'Working...',
@@ -4407,8 +4416,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             // Using updateStatus() which has guards against recently completed sessions
             // This prevents race conditions where claude-status arrives after claude-complete
             updateStatus(statusInfo);
-            // Using startProcessing() which has guards against recently completed sessions
-            startProcessing(currentSessionId, statusInfo);
+            // Using startProcessing() with the message's sessionId, not currentSessionId
+            // This ensures we only set processing state for the correct session
+            startProcessing(statusSessionId, statusInfo);
           }
           break;
         }

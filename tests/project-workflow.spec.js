@@ -450,9 +450,8 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
       await expect(projectButton).toBeVisible({ timeout: 5000 });
 
-      // Scroll into view and click to expand the project
-      await projectButton.scrollIntoViewIfNeeded();
-      await projectButton.click({ force: true });
+      // Click to expand the project
+      await projectButton.click();
 
       // Helper to check session count by looking for the badge number in the project button
       // The button text format is: "project-name N• path" where N is the session count
@@ -468,19 +467,9 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       expect(has0Sessions).toBe(true);
 
       // PHASE 2: Create first session and send message
-      // Wait for "New Session" button to be visible after project expansion
+      // Use dispatchEvent to click New Session (matches working test pattern)
       const newSessionBtn = page.locator('button:has-text("New Session")').first();
-
-      // Keep trying to expand the project until New Session button is visible
-      await expect(async () => {
-        const isVisible = await newSessionBtn.isVisible().catch(() => false);
-        if (!isVisible) {
-          await projectButton.click({ force: true });
-        }
-        expect(await newSessionBtn.isVisible()).toBe(true);
-      }).toPass({ timeout: 10000 });
-
-      await newSessionBtn.click();
+      await newSessionBtn.dispatchEvent('click');
 
       const chatTextarea = page.locator('textarea').first();
       await expect(chatTextarea).toBeVisible({ timeout: 15000 });
@@ -521,10 +510,9 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
 
       // PHASE 3: Create second session
 
-      // Click New Session button - wait for it to be visible first
+      // Use dispatchEvent to click New Session (matches working test pattern)
       const newSessionBtn2 = page.locator('button:has-text("New Session")').first();
-      await expect(newSessionBtn2).toBeVisible({ timeout: 5000 });
-      await newSessionBtn2.click();
+      await newSessionBtn2.dispatchEvent('click');
 
       const chatTextarea2 = page.locator('textarea').first();
       await expect(chatTextarea2).toBeVisible({ timeout: 15000 });

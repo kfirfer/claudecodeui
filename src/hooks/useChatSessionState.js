@@ -85,6 +85,7 @@ function sessionReducer(state, action) {
         isLoading: false,
         canAbortSession: false,
         claudeStatus: null,
+        processingSessionId: null,
         lastStateChangeAt: now
       };
     }
@@ -140,6 +141,7 @@ function sessionReducer(state, action) {
         isLoading: false,
         canAbortSession: false,
         claudeStatus: null,
+        processingSessionId: null,
         lastStateChangeAt: now
       };
     }
