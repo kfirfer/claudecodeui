@@ -549,9 +549,9 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const isProcessing = await stopBtn2.isVisible().catch(() => false);
 
       if (isProcessing) {
-        // Find first session button
+        // Find first session button - use testId to match only this test's sessions
         const firstSessionBtn = page.locator('button').filter({
-          hasText: /First session|hello/i
+          hasText: new RegExp(`First session ${testId}`, 'i')
         }).first();
 
         const firstSessionVisible = await firstSessionBtn.isVisible().catch(() => false);
@@ -560,16 +560,17 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
           // Click on first session while second is processing
           await firstSessionBtn.click();
 
-          // Verify first session content is shown
-          const firstMsgInChat = page.getByText(firstMessage).first();
-          await expect(firstMsgInChat).toBeVisible({ timeout: 10000 });
+          // Verify first session content is shown in the main content area
+          // Use a scoped locator to avoid finding text in sidebar
+          const mainContent = page.locator('[class*="flex-1"]').last();
+          await expect(mainContent.getByText(firstMessage).first()).toBeVisible({ timeout: 10000 });
 
           // Check session count - should still be 2
           has2Sessions = await checkSessionCount(2);
 
-          // Switch back to second session
+          // Switch back to second session - use testId for specificity
           const secondSessionBtn = page.locator('button').filter({
-            hasText: /Second session|joke/i
+            hasText: new RegExp(`Second session ${testId}`, 'i')
           }).first();
 
           const secondSessionVisible = await secondSessionBtn.isVisible().catch(() => false);
@@ -577,9 +578,8 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
           if (secondSessionVisible) {
             await secondSessionBtn.click();
 
-            // Verify second session content
-            const secondMsgInChat = page.getByText(secondMessage).first();
-            await expect(secondMsgInChat).toBeVisible({ timeout: 10000 });
+            // Verify second session content in main content area
+            await expect(mainContent.getByText(secondMessage).first()).toBeVisible({ timeout: 10000 });
           }
 
           // Check session count again - should still be 2

@@ -87,6 +87,11 @@ function AppContent() {
   // Triggers ChatInterface to reload messages without switching sessions
   const [externalMessageUpdate, setExternalMessageUpdate] = useState(0);
 
+  // Force New Session Counter: Incremented when user explicitly clicks "New Session"
+  // This signals ChatInterface to force-clear messages even if a session recently completed
+  // (which would normally block clearing to prevent race conditions)
+  const [forceNewSessionCounter, setForceNewSessionCounter] = useState(0);
+
   // Pending Sessions: Tracks newly-created sessions that haven't been persisted to disk yet
   // This allows the sidebar to show new sessions immediately when the user sends messages
   // Uses an array to support multiple pending sessions in quick succession
@@ -402,15 +407,6 @@ function AppContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedSession is intentionally omitted: this effect handles URL-based session loading and should only run on URL changes (sessionId) or project data updates, not when selectedSession changes
   }, [sessionId, projects, navigate]);
 
-  const handleProjectSelect = (project) => {
-    setSelectedProject(project);
-    setSelectedSession(null);
-    navigate('/');
-    if (isMobile) {
-      setSidebarOpen(false);
-    }
-  };
-
   const handleSessionSelect = (session) => {
     setSelectedSession(session);
     // Only switch to chat tab when user explicitly selects a session
@@ -445,6 +441,10 @@ function AppContent() {
     setSelectedProject(project);
     setSelectedSession(null);
     setActiveTab('chat');
+    // Signal to ChatInterface that user explicitly requested a new session
+    // This bypasses the hasAnyRecentCompletion() guard that normally prevents
+    // clearing messages (to protect against race conditions from projects_updated)
+    setForceNewSessionCounter(prev => prev + 1);
     navigate('/');
     if (isMobile) {
       setSidebarOpen(false);
@@ -912,7 +912,6 @@ function AppContent() {
                 projects={projects}
                 selectedProject={selectedProject}
                 selectedSession={selectedSession}
-                onProjectSelect={handleProjectSelect}
                 onSessionSelect={handleSessionSelect}
                 onNewSession={handleNewSession}
                 onSessionDelete={handleSessionDelete}
@@ -1013,7 +1012,6 @@ function AppContent() {
               projects={projects}
               selectedProject={selectedProject}
               selectedSession={selectedSession}
-              onProjectSelect={handleProjectSelect}
               onSessionSelect={handleSessionSelect}
               onNewSession={handleNewSession}
               onSessionDelete={handleSessionDelete}
@@ -1070,6 +1068,7 @@ function AppContent() {
           autoScrollToBottom={autoScrollToBottom}
           sendByCtrlEnter={sendByCtrlEnter}
           externalMessageUpdate={externalMessageUpdate}
+          forceNewSessionCounter={forceNewSessionCounter}
         />
       </div>
 

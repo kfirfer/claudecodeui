@@ -48,7 +48,6 @@ function Sidebar({
   projects,
   selectedProject,
   selectedSession,
-  onProjectSelect,
   onSessionSelect,
   onNewSession,
   onSessionDelete,
@@ -219,18 +218,23 @@ function Sidebar({
 
 
   const toggleProject = (projectName) => {
-    const newExpanded = new Set();
-    // If clicking the already-expanded project, collapse it (newExpanded stays empty)
-    // If clicking a different project, expand only that one
-    if (!expandedProjects.has(projectName)) {
-      newExpanded.add(projectName);
-    }
-    setExpandedProjects(newExpanded);
+    setExpandedProjects(prev => {
+      const newExpanded = new Set(prev);
+      // Toggle: if expanded, collapse; if collapsed, expand
+      if (newExpanded.has(projectName)) {
+        newExpanded.delete(projectName);
+      } else {
+        newExpanded.add(projectName);
+      }
+      return newExpanded;
+    });
   };
 
   // Wrapper to attach project context when session is clicked
-  const handleSessionClick = (session, projectName) => {
-    onSessionSelect({ ...session, __projectName: projectName });
+  const handleSessionClick = (session, project) => {
+    onSessionSelect({ ...session, __projectName: project.name });
+    // Update TaskMaster context with the selected project
+    setCurrentProject(project);
   };
 
   // Starred projects utility functions
@@ -568,15 +572,6 @@ function Sidebar({
     // Search in both display name and actual project name/path
     return displayName.includes(searchLower) || projectName.includes(searchLower);
   });
-
-  // Enhanced project selection that updates both the main UI and TaskMaster context
-  const handleProjectSelect = (project) => {
-    // Call the original project select handler
-    onProjectSelect(project);
-    
-    // Update TaskMaster context with the selected project
-    setCurrentProject(project);
-  };
 
   return (
     <>
@@ -1115,16 +1110,13 @@ function Sidebar({
                         isStarred && !isSelected && "bg-yellow-50/50 dark:bg-yellow-900/10 hover:bg-yellow-100/50 dark:hover:bg-yellow-900/20"
                       )}
                       onClick={() => {
-                        // Desktop behavior: select project and toggle
-                        if (selectedProject?.name !== project.name) {
-                          handleProjectSelect(project);
-                        }
+                        // Desktop behavior: just toggle expand/collapse
+                        // Don't call handleProjectSelect - that clears the active session
+                        // Users should be able to browse folders without losing their chat
                         toggleProject(project.name);
                       }}
                       onTouchEnd={handleTouchClick(() => {
-                        if (selectedProject?.name !== project.name) {
-                          handleProjectSelect(project);
-                        }
+                        // Same behavior on touch - just toggle, don't clear session
                         toggleProject(project.name);
                       })}
                     >
@@ -1340,12 +1332,12 @@ function Sidebar({
                                   isActive ? "border-green-500/30 bg-green-50/5 dark:bg-green-900/5" : "border-border/30"
                                 )}
                                 onClick={() => {
-                                  handleProjectSelect(project);
-                                  handleSessionClick(session, project.name);
+                                  // Just handle session click - don't call handleProjectSelect
+                                  // as that would clear the session before setting it
+                                  handleSessionClick(session, project);
                                 }}
                                 onTouchEnd={handleTouchClick(() => {
-                                  handleProjectSelect(project);
-                                  handleSessionClick(session, project.name);
+                                  handleSessionClick(session, project);
                                 })}
                               >
                                 <div className="flex items-center gap-2">
@@ -1416,8 +1408,8 @@ function Sidebar({
                                   selectedSession?.id === session.id && "bg-accent text-accent-foreground",
                                   isPendingSession && "bg-blue-50/50 dark:bg-blue-900/10 border border-blue-500/30"
                                 )}
-                                onClick={() => handleSessionClick(session, project.name)}
-                                onTouchEnd={handleTouchClick(() => handleSessionClick(session, project.name))}
+                                onClick={() => handleSessionClick(session, project)}
+                                onTouchEnd={handleTouchClick(() => handleSessionClick(session, project))}
                               >
                                 <div className="flex items-start gap-2 min-w-0 w-full">
                                   {isCursorSession ? (
@@ -1565,7 +1557,7 @@ function Sidebar({
                           type="button"
                           className="w-full h-8 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md flex items-center justify-center gap-2 font-medium text-xs active:scale-[0.98] transition-all duration-150"
                           onClick={() => {
-                            handleProjectSelect(project);
+                            // onNewSession already handles setting the project and clearing session
                             onNewSession(project);
                           }}
                         >

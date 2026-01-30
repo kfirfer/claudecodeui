@@ -1952,7 +1952,7 @@ const ImageAttachment = ({ file, onRemove, uploadProgress, error }) => {
 // - onReplaceTemporarySession: Called to replace temporary session ID with real WebSocket session ID
 //
 // This ensures uninterrupted chat experience by pausing sidebar refreshes during conversations.
-function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, isConnected, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNewSessionCreating, confirmPendingSession, clearPendingSession: _clearPendingSession, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick: _onTaskClick, onShowAllTasks }) {
+function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, isConnected, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNewSessionCreating, confirmPendingSession, clearPendingSession: _clearPendingSession, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick: _onTaskClick, onShowAllTasks, forceNewSessionCounter }) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { sendNotification } = useNotificationContext();
   // Use a ref to always have the latest sendNotification function
@@ -2060,6 +2060,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   // Track whether we have active messages from current session that should NOT be cleared
   // This prevents race conditions from clearing messages during/after session processing
   const hasActiveSessionMessagesRef = useRef(false);
+  // Track forceNewSessionCounter to detect explicit "New Session" clicks from user
+  // When this changes, we bypass hasAnyRecentCompletion() guard to ensure messages are cleared
+  const prevForceNewSessionCounterRef = useRef(forceNewSessionCounter);
   // claudeStatus is now provided by useChatSessionState hook
   const [thinkingMode, setThinkingMode] = useState('none');
   const [provider, setProvider] = useState(() => {
@@ -3329,9 +3332,17 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         // since state updates may not have propagated yet.
         // Also check hasActiveSessionMessagesRef - if we have messages from an active session,
         // do NOT clear them even if selectedSession becomes null.
-        const shouldResetSessionState = !isSystemSessionChange && !hasAnyRecentCompletion() && !hasActiveSessionMessagesRef.current;
+        //
+        // EXCEPTION: If forceNewSessionCounter changed, user explicitly clicked "New Session"
+        // so we MUST clear messages regardless of hasAnyRecentCompletion() guard.
+        const forceNewSessionRequested = forceNewSessionCounter !== prevForceNewSessionCounterRef.current;
+        const shouldResetSessionState = forceNewSessionRequested || (!isSystemSessionChange && !hasAnyRecentCompletion() && !hasActiveSessionMessagesRef.current);
 
         if (shouldResetSessionState) {
+          // Update the ref so we don't re-trigger on the same counter value
+          prevForceNewSessionCounterRef.current = forceNewSessionCounter;
+          // Also reset the active session messages flag since user is starting fresh
+          hasActiveSessionMessagesRef.current = false;
           resetStreamingState();
           pendingViewSessionRef.current = null;
           setChatMessages([]);
@@ -3356,7 +3367,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
     loadMessages();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- currentSessionId, loadSessionMessages, sendMessage, ws are used inside but intentionally excluded to prevent re-running on their changes
-  }, [selectedSession, selectedProject, loadCursorSessionMessages, scrollToBottom, isSystemSessionChange, resetStreamingState, hasAnyRecentCompletion, resetForSessionSwitch]);
+  }, [selectedSession, selectedProject, loadCursorSessionMessages, scrollToBottom, isSystemSessionChange, resetStreamingState, hasAnyRecentCompletion, resetForSessionSwitch, forceNewSessionCounter]);
 
   // External Message Update Handler: Reload messages when external CLI modifies current session
   // This triggers when App.jsx detects a JSONL file change for the currently-viewed session
