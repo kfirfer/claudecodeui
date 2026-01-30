@@ -661,4 +661,410 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await removeTestDirectory(testProjectPath);
     }
   });
+
+  test('session messages persist after navigating away and back during processing', async ({ page }) => {
+    test.setTimeout(180000);
+
+    const testId = Date.now();
+    const testProjectPath = path.join(os.homedir(), `e2e-nav-persist-${testId}`);
+    const projectFolderName = `e2e-nav-persist-${testId}`;
+
+    await createTestDirectory(testProjectPath);
+
+    try {
+      // Create project
+      const createdProjectName = await createProject(page, testProjectPath);
+      expect(createdProjectName).toBe(projectFolderName);
+
+      const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
+      await expect(projectButton).toBeVisible();
+      await projectButton.click();
+
+      // Create first session with a unique message
+      const newSessionBtn = page.locator('button:has-text("New Session")').first();
+      await newSessionBtn.dispatchEvent('click');
+
+      const chatTextarea = page.locator('textarea').first();
+      await expect(chatTextarea).toBeVisible({ timeout: 15000 });
+
+      // Handle provider selection if shown
+      const claudeProvider = page.locator('button:has-text("Claude Code")').first();
+      const providerVisible = await claudeProvider.isVisible().catch(() => false);
+      if (providerVisible) {
+        await claudeProvider.click();
+        await expect(chatTextarea).toBeEnabled({ timeout: 5000 });
+      }
+
+      const firstSessionMessage = `FIRST_SESSION_${testId}_unique_marker`;
+      await chatTextarea.fill(firstSessionMessage);
+
+      const sendBtn = page.locator('button[type="submit"]').first();
+      await expect(sendBtn).toBeEnabled({ timeout: 5000 });
+      await sendBtn.click();
+
+      // Verify first message is visible in the chat area (user message has blue background)
+      const firstMsgInChat = page.locator('.chat-message.user').filter({ hasText: firstSessionMessage });
+      await expect(firstMsgInChat).toBeVisible({ timeout: 5000 });
+
+      // Wait for first session to complete before creating second session
+      const stopBtn1 = page.locator('button:has-text("Stop")').first();
+      await expect(stopBtn1).toBeHidden({ timeout: 120000 });
+
+      // Create second session with a different unique message
+      const newSessionBtn2 = page.locator('button:has-text("New Session")').last();
+      await newSessionBtn2.dispatchEvent('click');
+
+      const chatTextarea2 = page.locator('textarea').first();
+      await expect(chatTextarea2).toBeVisible({ timeout: 15000 });
+
+      // Handle provider selection if shown
+      const claudeProvider2 = page.locator('button:has-text("Claude Code")').first();
+      const provider2Visible = await claudeProvider2.isVisible().catch(() => false);
+      if (provider2Visible) {
+        await claudeProvider2.click();
+        await expect(chatTextarea2).toBeEnabled({ timeout: 5000 });
+      }
+
+      const secondSessionMessage = `SECOND_SESSION_${testId}_unique_marker`;
+      await chatTextarea2.fill(secondSessionMessage);
+
+      const sendBtn2 = page.locator('button[type="submit"]').first();
+      await expect(sendBtn2).toBeEnabled({ timeout: 5000 });
+      await sendBtn2.click();
+
+      // Verify second message is visible in chat area (we're in second session)
+      const secondMsgInChat = page.locator('.chat-message.user').filter({ hasText: secondSessionMessage });
+      await expect(secondMsgInChat).toBeVisible({ timeout: 5000 });
+
+      // Navigate back to first session using sidebar
+      // Find the session button that contains our first message text
+      const firstSessionButton = page.locator('button').filter({ hasText: /FIRST_SESSION/i }).first();
+      await expect(firstSessionButton).toBeVisible({ timeout: 10000 });
+      await firstSessionButton.click();
+
+      // Verify first session message is visible in chat after navigation
+      await expect(firstMsgInChat).toBeVisible({ timeout: 10000 });
+
+      // Verify second session message is NOT visible in chat (we're in first session now)
+      await expect(secondMsgInChat).toBeHidden({ timeout: 5000 });
+
+      // Navigate back to second session
+      const secondSessionButton = page.locator('button').filter({ hasText: /SECOND_SESSION/i }).first();
+      await expect(secondSessionButton).toBeVisible({ timeout: 10000 });
+      await secondSessionButton.click();
+
+      // Verify second session message is visible in chat after navigation
+      await expect(secondMsgInChat).toBeVisible({ timeout: 10000 });
+
+      // Verify first session message is NOT visible in chat (we're in second session now)
+      await expect(firstMsgInChat).toBeHidden({ timeout: 5000 });
+
+      // Wait for second session to complete
+      const stopBtn2 = page.locator('button:has-text("Stop")').first();
+      await expect(stopBtn2).toBeHidden({ timeout: 120000 });
+
+    } finally {
+      await deleteProjectViaUI(page, projectFolderName).catch(() => {});
+      await removeTestDirectory(testProjectPath);
+    }
+  });
+
+  test('processing indicator only shows for active session', async ({ page }) => {
+    test.setTimeout(180000);
+
+    const testId = Date.now();
+    const testProjectPath = path.join(os.homedir(), `e2e-indicator-${testId}`);
+    const projectFolderName = `e2e-indicator-${testId}`;
+
+    await createTestDirectory(testProjectPath);
+
+    try {
+      // Create project
+      const createdProjectName = await createProject(page, testProjectPath);
+      expect(createdProjectName).toBe(projectFolderName);
+
+      const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
+      await expect(projectButton).toBeVisible();
+      await projectButton.click();
+
+      // Create first session
+      const newSessionBtn = page.locator('button:has-text("New Session")').first();
+      await newSessionBtn.dispatchEvent('click');
+
+      const chatTextarea = page.locator('textarea').first();
+      await expect(chatTextarea).toBeVisible({ timeout: 15000 });
+
+      // Handle provider selection if shown
+      const claudeProvider = page.locator('button:has-text("Claude Code")').first();
+      const providerVisible = await claudeProvider.isVisible().catch(() => false);
+      if (providerVisible) {
+        await claudeProvider.click();
+        await expect(chatTextarea).toBeEnabled({ timeout: 5000 });
+      }
+
+      const testMessage = `Indicator test ${testId} - respond briefly`;
+      await chatTextarea.fill(testMessage);
+
+      const sendBtn = page.locator('button[type="submit"]').first();
+      await expect(sendBtn).toBeEnabled({ timeout: 5000 });
+      await sendBtn.click();
+
+      // Verify processing indicator shows while AI is thinking
+      const processingBar = page.locator('button:has-text("Stop")').first();
+      const thinkingIndicator = page.locator('text=Thinking...').first();
+
+      // At least one of these should be visible during processing
+      await expect(processingBar.or(thinkingIndicator).first()).toBeVisible({ timeout: 10000 });
+
+      // Wait for completion
+      await expect(processingBar).toBeHidden({ timeout: 120000 });
+
+      // After completion, neither indicator should be visible
+      await expect(processingBar).toBeHidden();
+      await expect(thinkingIndicator).toBeHidden();
+
+      // Verify message is still visible in the chat area
+      const msgInChat = page.locator('.chat-message.user').filter({ hasText: testMessage });
+      await expect(msgInChat).toBeVisible();
+
+    } finally {
+      await deleteProjectViaUI(page, projectFolderName).catch(() => {});
+      await removeTestDirectory(testProjectPath);
+    }
+  });
+
+  test('rapid session creation maintains correct session boundaries', async ({ page }) => {
+    test.setTimeout(300000);
+
+    const testId = Date.now();
+    const testProjectPath = path.join(os.homedir(), `e2e-rapid-${testId}`);
+    const projectFolderName = `e2e-rapid-${testId}`;
+
+    await createTestDirectory(testProjectPath);
+
+    try {
+      // Create project
+      const createdProjectName = await createProject(page, testProjectPath);
+      expect(createdProjectName).toBe(projectFolderName);
+
+      const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
+      await expect(projectButton).toBeVisible();
+      await projectButton.click();
+
+      // Create and complete 3 sessions in sequence
+      const sessionMessages = [];
+
+      for (let i = 1; i <= 3; i++) {
+        // Create new session
+        const newSessionBtn = page.locator('button:has-text("New Session")').last();
+        await newSessionBtn.dispatchEvent('click');
+
+        const chatTextarea = page.locator('textarea').first();
+        await expect(chatTextarea).toBeVisible({ timeout: 15000 });
+
+        // Handle provider selection if shown
+        const claudeProvider = page.locator('button:has-text("Claude Code")').first();
+        const providerVisible = await claudeProvider.isVisible().catch(() => false);
+        if (providerVisible) {
+          await claudeProvider.click();
+          await expect(chatTextarea).toBeEnabled({ timeout: 5000 });
+        }
+
+        const uniqueMessage = `SESSION_${i}_${testId}_marker`;
+        sessionMessages.push(uniqueMessage);
+        await chatTextarea.fill(uniqueMessage);
+
+        const sendBtn = page.locator('button[type="submit"]').first();
+        await expect(sendBtn).toBeEnabled({ timeout: 5000 });
+        await sendBtn.click();
+
+        // Verify message is visible in chat area
+        const msgInChat = page.locator('.chat-message.user').filter({ hasText: uniqueMessage });
+        await expect(msgInChat).toBeVisible({ timeout: 5000 });
+
+        // Wait for AI to complete before creating next session
+        const stopBtn = page.locator('button:has-text("Stop")').first();
+        await expect(stopBtn).toBeHidden({ timeout: 120000 });
+      }
+
+      // Verify session count is 3
+      const projectWith3 = page.locator(`button:has-text("${projectFolderName}")`).filter({
+        has: page.locator('text="3"')
+      }).first();
+      await expect(projectWith3).toBeVisible({ timeout: 10000 });
+
+      // Navigate to each session and verify its message is correct
+      for (let i = 0; i < sessionMessages.length; i++) {
+        const message = sessionMessages[i];
+        const sessionButton = page.locator('button').filter({ hasText: new RegExp(`SESSION_${i + 1}`) }).first();
+        await expect(sessionButton).toBeVisible({ timeout: 10000 });
+        await sessionButton.click();
+
+        // Verify this session's message is visible in chat area
+        const msgInChat = page.locator('.chat-message.user').filter({ hasText: message });
+        await expect(msgInChat).toBeVisible({ timeout: 10000 });
+
+        // Verify other session messages are NOT visible in chat area
+        for (let j = 0; j < sessionMessages.length; j++) {
+          if (j !== i) {
+            const otherMsgInChat = page.locator('.chat-message.user').filter({ hasText: sessionMessages[j] });
+            await expect(otherMsgInChat).toBeHidden({ timeout: 5000 });
+          }
+        }
+      }
+
+    } finally {
+      await deleteProjectViaUI(page, projectFolderName).catch(() => {});
+      await removeTestDirectory(testProjectPath);
+    }
+  });
+
+  test('session URL navigation loads correct session', async ({ page }) => {
+    test.setTimeout(180000);
+
+    const testId = Date.now();
+    const testProjectPath = path.join(os.homedir(), `e2e-url-nav-${testId}`);
+    const projectFolderName = `e2e-url-nav-${testId}`;
+
+    await createTestDirectory(testProjectPath);
+
+    try {
+      // Create project
+      const createdProjectName = await createProject(page, testProjectPath);
+      expect(createdProjectName).toBe(projectFolderName);
+
+      const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
+      await expect(projectButton).toBeVisible();
+      await projectButton.click();
+
+      // Create a session
+      const newSessionBtn = page.locator('button:has-text("New Session")').first();
+      await newSessionBtn.dispatchEvent('click');
+
+      const chatTextarea = page.locator('textarea').first();
+      await expect(chatTextarea).toBeVisible({ timeout: 15000 });
+
+      // Handle provider selection if shown
+      const claudeProvider = page.locator('button:has-text("Claude Code")').first();
+      const providerVisible = await claudeProvider.isVisible().catch(() => false);
+      if (providerVisible) {
+        await claudeProvider.click();
+        await expect(chatTextarea).toBeEnabled({ timeout: 5000 });
+      }
+
+      const testMessage = `URL_NAV_TEST_${testId}`;
+      await chatTextarea.fill(testMessage);
+
+      const sendBtn = page.locator('button[type="submit"]').first();
+      await expect(sendBtn).toBeEnabled({ timeout: 5000 });
+      await sendBtn.click();
+
+      // Wait for completion
+      const stopBtn = page.locator('button:has-text("Stop")').first();
+      await expect(stopBtn).toBeHidden({ timeout: 120000 });
+
+      // Capture the current URL which should contain the session ID
+      const sessionUrl = page.url();
+
+      // Verify URL contains 'session/'
+      expect(sessionUrl).toContain('/session/');
+
+      // Navigate away to home
+      await page.goto('/');
+      await page.waitForLoadState('networkidle');
+
+      // Verify chat message is no longer visible (we're on home page)
+      const msgInChat = page.locator('.chat-message.user').filter({ hasText: testMessage });
+      await expect(msgInChat).toBeHidden({ timeout: 5000 });
+
+      // Navigate back using the captured URL
+      await page.goto(sessionUrl);
+      await page.waitForLoadState('networkidle');
+
+      // Verify session message is visible in chat after URL navigation
+      await expect(msgInChat).toBeVisible({ timeout: 15000 });
+
+    } finally {
+      await deleteProjectViaUI(page, projectFolderName).catch(() => {});
+      await removeTestDirectory(testProjectPath);
+    }
+  });
+
+  test('session state preserved after page refresh', async ({ page }) => {
+    test.setTimeout(180000);
+
+    const testId = Date.now();
+    const testProjectPath = path.join(os.homedir(), `e2e-refresh-${testId}`);
+    const projectFolderName = `e2e-refresh-${testId}`;
+
+    await createTestDirectory(testProjectPath);
+
+    try {
+      // Create project
+      const createdProjectName = await createProject(page, testProjectPath);
+      expect(createdProjectName).toBe(projectFolderName);
+
+      const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
+      await expect(projectButton).toBeVisible();
+      await projectButton.click();
+
+      // Create a session
+      const newSessionBtn = page.locator('button:has-text("New Session")').first();
+      await newSessionBtn.dispatchEvent('click');
+
+      const chatTextarea = page.locator('textarea').first();
+      await expect(chatTextarea).toBeVisible({ timeout: 15000 });
+
+      // Handle provider selection if shown
+      const claudeProvider = page.locator('button:has-text("Claude Code")').first();
+      const providerVisible = await claudeProvider.isVisible().catch(() => false);
+      if (providerVisible) {
+        await claudeProvider.click();
+        await expect(chatTextarea).toBeEnabled({ timeout: 5000 });
+      }
+
+      const testMessage = `REFRESH_TEST_${testId}`;
+      await chatTextarea.fill(testMessage);
+
+      const sendBtn = page.locator('button[type="submit"]').first();
+      await expect(sendBtn).toBeEnabled({ timeout: 5000 });
+      await sendBtn.click();
+
+      // Verify message is visible in chat area
+      const msgInChat = page.locator('.chat-message.user').filter({ hasText: testMessage });
+      await expect(msgInChat).toBeVisible({ timeout: 5000 });
+
+      // Wait for completion
+      const stopBtn = page.locator('button:has-text("Stop")').first();
+      await expect(stopBtn).toBeHidden({ timeout: 120000 });
+
+      // Capture session URL before refresh
+      const sessionUrl = page.url();
+
+      // Refresh the page
+      await page.reload();
+      await page.waitForLoadState('networkidle');
+
+      // Re-authenticate if needed
+      const loginForm = page.locator('input[type="password"]').first();
+      const needsLogin = await loginForm.isVisible().catch(() => false);
+      if (needsLogin) {
+        await performLogin(page);
+      }
+
+      // Navigate back to session if not automatically loaded
+      const currentUrl = page.url();
+      if (!currentUrl.includes('/session/')) {
+        await page.goto(sessionUrl);
+        await page.waitForLoadState('networkidle');
+      }
+
+      // Verify message is visible in chat area after refresh
+      await expect(msgInChat).toBeVisible({ timeout: 15000 });
+
+    } finally {
+      await deleteProjectViaUI(page, projectFolderName).catch(() => {});
+      await removeTestDirectory(testProjectPath);
+    }
+  });
 });
