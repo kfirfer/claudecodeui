@@ -78,7 +78,11 @@ function MainContent({
   // Send by Ctrl+Enter mode for East Asian language input
   sendByCtrlEnter,
   // Trigger for external CLI updates to current session
-  externalMessageUpdate
+  externalMessageUpdate,
+  // Force new session counter - incremented when user clicks "New Session"
+  forceNewSessionCounter,
+  // Synchronous check for force new session flag
+  checkAndConsumeForceNewSession
 }) {
   const { t } = useTranslation();
   const [editingFile, setEditingFile] = useState(null);
@@ -529,6 +533,8 @@ function MainContent({
               autoScrollToBottom={autoScrollToBottom}
               sendByCtrlEnter={sendByCtrlEnter}
               externalMessageUpdate={externalMessageUpdate}
+              forceNewSessionCounter={forceNewSessionCounter}
+              checkAndConsumeForceNewSession={checkAndConsumeForceNewSession}
               onShowAllTasks={tasksEnabled ? () => setActiveTab('tasks') : null}
             />
           </ErrorBoundary>

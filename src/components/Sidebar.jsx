@@ -221,8 +221,14 @@ function Sidebar({
     setExpandedProjects(prev => {
       const newExpanded = new Set(prev);
       // Toggle: if expanded, collapse; if collapsed, expand
+      // But don't collapse if this project contains the currently selected session
       if (newExpanded.has(projectName)) {
-        newExpanded.delete(projectName);
+        // Check if this is the active project with selected session
+        const isActiveProject = selectedProject?.name === projectName && selectedSession?.id;
+        if (!isActiveProject) {
+          newExpanded.delete(projectName);
+        }
+        // If it's the active project, keep it expanded (do nothing)
       } else {
         newExpanded.add(projectName);
       }
@@ -232,6 +238,11 @@ function Sidebar({
 
   // Wrapper to attach project context when session is clicked
   const handleSessionClick = (session, project) => {
+    console.log('[Sidebar handleSessionClick] Session clicked:', {
+      sessionId: session?.id,
+      sessionSummary: session?.summary,
+      projectName: project?.name
+    });
     onSessionSelect({ ...session, __projectName: project.name });
     // Update TaskMaster context with the selected project
     setCurrentProject(project);
@@ -1299,7 +1310,8 @@ function Sidebar({
                           const getSessionName = () => {
                             if (isCursorSession) return session.name || t('projects.untitledSession');
                             if (isCodexSession) return session.summary || session.name || t('projects.codexSession');
-                            return session.summary || t('projects.newSession');
+                            // For Claude sessions: prefer summary, then name (for pending sessions), then default
+                            return session.summary || session.name || t('projects.newSession');
                           };
                           const sessionName = getSessionName();
                           const getSessionTime = () => {
@@ -1570,7 +1582,13 @@ function Sidebar({
                         variant="default"
                         size="sm"
                         className="hidden md:flex w-full justify-start gap-2 mt-1 h-8 text-xs font-medium bg-primary hover:bg-primary/90 text-primary-foreground transition-colors"
-                        onClick={() => onNewSession(project)}
+                        onClick={(e) => {
+                          console.log('[Sidebar] New Session button onClick! project:', project.name, 'event:', e.type, 'isTrusted:', e.isTrusted);
+                          // Mark that the button was clicked - for debugging
+                          document.body.setAttribute('data-last-new-session-click', Date.now().toString());
+                          onNewSession(project);
+                        }}
+                        data-testid="new-session-button"
                       >
                         <Plus className="w-3 h-3" />
                         {t('sessions.newSession')}

@@ -43,6 +43,18 @@ import { I18nextProvider, useTranslation } from 'react-i18next';
 import i18n from './i18n/config.js';
 
 
+// Global singleton flag for "force new session" - survives component remounts
+// This is set when user clicks "New Session" and consumed when handleSubmit runs
+let globalForceNewSessionFlag = false;
+
+// Also expose on window for debugging - helps trace race conditions
+if (typeof window !== 'undefined') {
+  window.__forceNewSessionFlag = {
+    get value() { return globalForceNewSessionFlag; },
+    set value(v) { globalForceNewSessionFlag = v; }
+  };
+}
+
 // Main App component with routing
 function AppContent() {
   const navigate = useNavigate();
@@ -92,6 +104,11 @@ function AppContent() {
   // (which would normally block clearing to prevent race conditions)
   const [forceNewSessionCounter, setForceNewSessionCounter] = useState(0);
 
+  // Ref for synchronous "force new session" flag - updates IMMEDIATELY when user clicks "New Session"
+  // This is necessary because React state updates are async and the test/user might send a message
+  // before the state update propagates. The ref provides a synchronous communication channel.
+  const forceNewSessionFlagRef = useRef(false);
+
   // Pending Sessions: Tracks newly-created sessions that haven't been persisted to disk yet
   // This allows the sidebar to show new sessions immediately when the user sends messages
   // Uses an array to support multiple pending sessions in quick succession
@@ -101,6 +118,11 @@ function AppContent() {
 
   // Ref to track loading progress timeout for cleanup
   const loadingProgressTimeoutRef = useRef(null);
+
+  // Ref to track recently completed session IDs with timestamps
+  // This provides a grace period to prevent clearing selectedSession when
+  // projects_updated arrives before the session is indexed on disk
+  const recentlyCompletedSessionsRef = useRef(new Map());
 
   // Detect if running as PWA
   const [isPWA, setIsPWA] = useState(false);
@@ -283,7 +305,22 @@ function AppContent() {
               ];
               const updatedSelectedSession = allSessions.find(s => s.id === selectedSession.id);
               if (!updatedSelectedSession) {
-                setSelectedSession(null);
+                // Check if this session was recently completed (within 10 seconds)
+                // If so, don't clear it - the disk scan might be behind
+                const completedTime = recentlyCompletedSessionsRef.current.get(selectedSession.id);
+                const isRecentlyCompleted = completedTime && (Date.now() - completedTime < 10000);
+
+                console.log('[App projects_updated] Session not found in updated data:', {
+                  sessionId: selectedSession.id,
+                  completedTime,
+                  isRecentlyCompleted,
+                  willClear: !isRecentlyCompleted
+                });
+
+                if (!isRecentlyCompleted) {
+                  console.log('[App projects_updated] CLEARING selectedSession');
+                  setSelectedSession(null);
+                }
               }
             }
           }
@@ -408,16 +445,61 @@ function AppContent() {
   }, [sessionId, projects, navigate]);
 
   const handleSessionSelect = (session) => {
+    console.log('[App handleSessionSelect] Called with session:', {
+      id: session?.id,
+      __projectName: session?.__projectName,
+      title: session?.title || session?.summary,
+      currentSelectedProject: selectedProject?.name
+    });
     // Find and set the project first - this ensures ChatInterface has correct context
     // The session object includes __projectName from handleSessionClick in Sidebar
     const sessionProjectName = session.__projectName;
+    let projectFound = false;
     if (sessionProjectName) {
       const project = projects.find(p => p.name === sessionProjectName);
+      console.log('[App handleSessionSelect] Project lookup result:', {
+        sessionProjectName,
+        projectFound: !!project,
+        projectName: project?.name,
+        projectsCount: projects.length,
+        projectNames: projects.map(p => p.name).join(', ')
+      });
       if (project) {
         setSelectedProject(project);
+        projectFound = true;
+      } else {
+        // Project not found in state - might be a timing issue
+        // Search for the session in all projects to find the correct one
+        for (const p of projects) {
+          const allSessions = [...(p.sessions || []), ...(p.codexSessions || []), ...(p.cursorSessions || [])];
+          if (allSessions.some(s => s.id === session.id)) {
+            console.log('[App handleSessionSelect] Found session in project:', p.name);
+            setSelectedProject(p);
+            projectFound = true;
+            break;
+          }
+        }
+        if (!projectFound) {
+          console.log('[App handleSessionSelect] Could not find project for session, keeping current selectedProject');
+          // If we can't find the project, don't change selectedProject
+          // This prevents "Choose Your Project" from showing
+        }
+      }
+    } else {
+      console.log('[App handleSessionSelect] No __projectName on session, searching all projects');
+      // No project name on session - search all projects for this session
+      for (const p of projects) {
+        const allSessions = [...(p.sessions || []), ...(p.codexSessions || []), ...(p.cursorSessions || [])];
+        if (allSessions.some(s => s.id === session.id)) {
+          console.log('[App handleSessionSelect] Found session in project:', p.name);
+          setSelectedProject(p);
+          projectFound = true;
+          break;
+        }
       }
     }
 
+    console.log('[App handleSessionSelect] Setting selectedSession:', session?.id, 'projectFound:', projectFound);
     setSelectedSession(session);
     // Only switch to chat tab when user explicitly selects a session
     // This prevents tab switching during automatic updates
@@ -447,6 +529,10 @@ function AppContent() {
   };
 
   const handleNewSession = (project) => {
+    console.log('🔴 [App handleNewSession] CALLED! project:', project?.name);
+    console.log('🔴 [App handleNewSession] BEFORE: ref=', forceNewSessionFlagRef.current, 'global=', globalForceNewSessionFlag);
+    // Mark that handleNewSession was called - for debugging
+    document.body.setAttribute('data-handle-new-session-called', Date.now().toString());
     setSelectedProject(project);
     setSelectedSession(null);
     setActiveTab('chat');
@@ -454,6 +540,12 @@ function AppContent() {
     // This bypasses the hasAnyRecentCompletion() guard that normally prevents
     // clearing messages (to protect against race conditions from projects_updated)
     setForceNewSessionCounter(prev => prev + 1);
+    // Set BOTH the ref and global flag IMMEDIATELY - this is checked by ChatInterface.handleSubmit
+    // to ensure new session is created even if React state hasn't propagated yet
+    forceNewSessionFlagRef.current = true;
+    // Also set module-level global flag (survives component remounts)
+    globalForceNewSessionFlag = true;
+    console.log('🔴 [App handleNewSession] AFTER: ref=', forceNewSessionFlagRef.current, 'global=', globalForceNewSessionFlag);
     navigate('/');
     if (isMobile) {
       setSidebarOpen(false);
@@ -587,7 +679,35 @@ function AppContent() {
         newSet.delete(sessionId);
         return newSet;
       });
+
+      // Track this session as recently completed with a timestamp
+      // This provides a 10-second grace period to prevent clearing selectedSession
+      // when projects_updated arrives before the session is indexed on disk
+      recentlyCompletedSessionsRef.current.set(sessionId, Date.now());
+
+      // Clean up old entries after 10 seconds
+      setTimeout(() => {
+        recentlyCompletedSessionsRef.current.delete(sessionId);
+      }, 10000);
     }
+  }, []);
+
+  // checkAndConsumeForceNewSession: Called by ChatInterface.handleSubmit to check if
+  // a new session was explicitly requested. This uses a ref for SYNCHRONOUS checking,
+  // bypassing React's async state updates. Returns true and resets the flag if set.
+  // Also checks module-level global flag which survives component remounts.
+  const checkAndConsumeForceNewSession = useCallback(() => {
+    const refFlag = forceNewSessionFlagRef.current;
+    const globalFlag = globalForceNewSessionFlag;
+    console.log('🟢 [App checkAndConsumeForceNewSession] Checking flags: ref=', refFlag, 'global=', globalFlag);
+    if (refFlag || globalFlag) {
+      forceNewSessionFlagRef.current = false;
+      globalForceNewSessionFlag = false;
+      console.log('🟢 [App checkAndConsumeForceNewSession] CONSUMED flags, returning true');
+      return true;
+    }
+    console.log('🟡 [App checkAndConsumeForceNewSession] No flags set, returning false');
+    return false;
   }, []);
 
   // Processing Session Functions: Track which sessions are currently thinking/processing
@@ -1078,6 +1198,7 @@ function AppContent() {
           sendByCtrlEnter={sendByCtrlEnter}
           externalMessageUpdate={externalMessageUpdate}
           forceNewSessionCounter={forceNewSessionCounter}
+          checkAndConsumeForceNewSession={checkAndConsumeForceNewSession}
         />
       </div>
 

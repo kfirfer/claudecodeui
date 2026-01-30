@@ -1952,7 +1952,7 @@ const ImageAttachment = ({ file, onRemove, uploadProgress, error }) => {
 // - onReplaceTemporarySession: Called to replace temporary session ID with real WebSocket session ID
 //
 // This ensures uninterrupted chat experience by pausing sidebar refreshes during conversations.
-function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, isConnected, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNewSessionCreating, confirmPendingSession, clearPendingSession: _clearPendingSession, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick: _onTaskClick, onShowAllTasks, forceNewSessionCounter }) {
+function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, messages, isConnected, onFileOpen, onInputFocusChange, onSessionActive, onSessionInactive, onSessionProcessing, onSessionNotProcessing, processingSessions, onReplaceTemporarySession, onNewSessionCreating, confirmPendingSession, clearPendingSession: _clearPendingSession, onNavigateToSession, onShowSettings, autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter, externalMessageUpdate, onTaskClick: _onTaskClick, onShowAllTasks, forceNewSessionCounter, checkAndConsumeForceNewSession }) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { sendNotification } = useNotificationContext();
   // Use a ref to always have the latest sendNotification function
@@ -2063,6 +2063,10 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   // Track forceNewSessionCounter to detect explicit "New Session" clicks from user
   // When this changes, we bypass hasAnyRecentCompletion() guard to ensure messages are cleared
   const prevForceNewSessionCounterRef = useRef(forceNewSessionCounter);
+  // Track forceNewSessionCounter at message submit time to detect "New Session" clicks
+  // This handles the race condition where user clicks "New Session" and sends a message
+  // before React's state update propagates selectedSession=null to this component
+  const lastSubmitForceNewSessionCounterRef = useRef(forceNewSessionCounter);
   // claudeStatus is now provided by useChatSessionState hook
   const [thinkingMode, setThinkingMode] = useState('none');
   const [provider, setProvider] = useState(() => {
@@ -4857,7 +4861,29 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
     // Check if this is a new session - use selectedSession?.id as the source of truth
     // because currentSessionId state update can be asynchronous after switching sessions
-    const isNewSession = !selectedSession?.id;
+    // ALSO check the SYNCHRONOUS forceNewSession flag to handle race condition where user clicks
+    // "New Session" and sends a message before React's state update propagates selectedSession=null
+    // The checkAndConsumeForceNewSession callback reads a ref that's updated IMMEDIATELY when
+    // "New Session" is clicked, bypassing React's async state updates
+    const syncFlagWasSet = checkAndConsumeForceNewSession?.();
+    const counterIncreased = forceNewSessionCounter > lastSubmitForceNewSessionCounterRef.current;
+    const forceNewSessionRequested = syncFlagWasSet || counterIncreased;
+    const isNewSession = !selectedSession?.id || forceNewSessionRequested;
+
+    console.log('🔵 [ChatInterface handleSubmit] Session decision:', {
+      syncFlagWasSet,
+      counterIncreased,
+      forceNewSessionCounter,
+      lastSubmitRef: lastSubmitForceNewSessionCounterRef.current,
+      selectedSessionId: selectedSession?.id,
+      currentSessionId,
+      forceNewSessionRequested,
+      isNewSession,
+      messageContent: input.trim().slice(0, 50)
+    });
+
+    // Update the ref to track this submission (do it early to prevent double-triggering)
+    lastSubmitForceNewSessionCounterRef.current = forceNewSessionCounter;
 
     // Determine effective session id for replies to avoid race on state updates
     // IMPORTANT: When isNewSession is true, we must use null - not currentSessionId which
@@ -4996,7 +5022,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     if (selectedProject) {
       safeLocalStorage.removeItem(`draft_input_${selectedProject.name}`);
     }
-  }, [input, isLoading, selectedProject, attachedImages, currentSessionId, selectedSession, provider, permissionMode, onSessionActive, onNewSessionCreating, cursorModel, claudeModel, codexModel, sendMessage, setInput, setAttachedImages, setUploadingImages, setImageErrors, setIsTextareaExpanded, textareaRef, setChatMessages, setIsUserScrolledUp, scrollToBottom, thinkingMode, startProcessing]);
+  }, [input, isLoading, selectedProject, attachedImages, currentSessionId, selectedSession, provider, permissionMode, onSessionActive, onNewSessionCreating, cursorModel, claudeModel, codexModel, sendMessage, setInput, setAttachedImages, setUploadingImages, setImageErrors, setIsTextareaExpanded, textareaRef, setChatMessages, setIsUserScrolledUp, scrollToBottom, thinkingMode, startProcessing, forceNewSessionCounter]);
 
   const handleGrantToolPermission = useCallback((suggestion) => {
     if (!suggestion || provider !== 'claude') {
