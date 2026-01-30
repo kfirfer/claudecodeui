@@ -619,10 +619,13 @@ test.describe('Notification Trigger', () => {
       // Verify at minimum that notification logs were captured
       expect(notificationLogs.length).toBeGreaterThan(0);
 
-      // Clean up
-      await deleteProjectViaUI(page, projectFolderName);
-
     } finally {
+      // Clean up the test directory and project regardless of test outcome
+      try {
+        await deleteProjectViaUI(page, projectFolderName);
+      } catch {
+        // Ignore cleanup errors
+      }
       await removeTestDirectory(testProjectPath);
     }
   });
@@ -730,10 +733,13 @@ test.describe('Notification Trigger', () => {
       const sentLog = notificationLogs.find(log => log.includes('Notification sent'));
       expect(sentLog).toBeUndefined();
 
-      // Clean up
-      await deleteProjectViaUI(page, projectFolderName);
-
     } finally {
+      // Clean up the test directory and project regardless of test outcome
+      try {
+        await deleteProjectViaUI(page, projectFolderName);
+      } catch {
+        // Ignore cleanup errors
+      }
       await removeTestDirectory(testProjectPath);
     }
   });
