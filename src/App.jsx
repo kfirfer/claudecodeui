@@ -95,6 +95,10 @@ function AppContent() {
   // This allows us to restore the "Thinking..." banner when switching back to a processing session
   const [processingSessions, setProcessingSessions] = useState(new Set());
 
+  // Session Selection Protection: Track when a session was last explicitly selected
+  // This prevents projects_updated from clearing the selection too soon after user navigation
+  const sessionSelectedTimeRef = useRef(0);
+
   // External Message Update Trigger: Incremented when external CLI modifies current session's JSONL
   // Triggers ChatInterface to reload messages without switching sessions
   const [externalMessageUpdate, setExternalMessageUpdate] = useState(0);
@@ -259,11 +263,14 @@ function AppContent() {
 
         // Session Protection Logic: Allow additions but prevent changes during active conversations
         // This allows new sessions/projects to appear in sidebar while protecting active chat messages
-        // We check for two types of active sessions:
-        // 1. Existing sessions: selectedSession.id exists in activeSessions
-        // 2. New sessions: temporary "new-session-*" identifiers in activeSessions (before real session ID is received)
-        const hasActiveSession = (selectedSession && activeSessions.has(selectedSession.id)) ||
-                                 (activeSessions.size > 0 && Array.from(activeSessions).some(id => id.startsWith('new-session-')));
+        // We check for active sessions:
+        // 1. ANY session is actively processing (in activeSessions)
+        // 2. OR there are temporary "new-session-*" identifiers (before real session ID is received)
+        // When ANY session is active, we need to be careful with updates because:
+        // - The user might navigate between sessions during processing
+        // - The projects_updated data might be stale (not yet containing newly created sessions)
+        // - Clearing selectedSession would disrupt the user experience
+        const hasActiveSession = activeSessions.size > 0;
         
         if (hasActiveSession) {
           // Allow updates but be selective: permit additions, prevent changes to existing items
@@ -310,14 +317,25 @@ function AppContent() {
                 const completedTime = recentlyCompletedSessionsRef.current.get(selectedSession.id);
                 const isRecentlyCompleted = completedTime && (Date.now() - completedTime < 10000);
 
+                // Also don't clear if ANY session is currently active
+                // When user navigates between sessions during processing, the projects_updated
+                // data might be stale and not include the session they navigated to
+                const hasAnyActiveSession = activeSessions.size > 0;
+
+                // Also don't clear if the session was recently selected (within 5 seconds)
+                // This protects against stale projects_updated data when user navigates between sessions
+                const isRecentlySelected = (Date.now() - sessionSelectedTimeRef.current) < 5000;
+
                 console.log('[App projects_updated] Session not found in updated data:', {
                   sessionId: selectedSession.id,
                   completedTime,
                   isRecentlyCompleted,
-                  willClear: !isRecentlyCompleted
+                  hasAnyActiveSession,
+                  isRecentlySelected,
+                  willClear: !isRecentlyCompleted && !hasAnyActiveSession && !isRecentlySelected
                 });
 
-                if (!isRecentlyCompleted) {
+                if (!isRecentlyCompleted && !hasAnyActiveSession && !isRecentlySelected) {
                   console.log('[App projects_updated] CLEARING selectedSession');
                   setSelectedSession(null);
                 }
@@ -501,6 +519,8 @@ function AppContent() {
 
     console.log('[App handleSessionSelect] Setting selectedSession:', session?.id, 'projectFound:', projectFound);
     setSelectedSession(session);
+    // Track when the session was selected - protects against stale projects_updated clearing
+    sessionSelectedTimeRef.current = Date.now();
     // Only switch to chat tab when user explicitly selects a session
     // This prevents tab switching during automatic updates
     if (activeTab !== 'git' && activeTab !== 'preview') {

@@ -2119,6 +2119,41 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     }
   }, [selectedSession?.id, currentSessionId]);
 
+  // Session change reset: Clear messages when navigating to a DIFFERENT session
+  // This provides immediate message clearing without waiting for the async loadMessages effect
+  // Use a ref to track the previous session ID and detect actual changes
+  const prevSessionIdRef = useRef(selectedSession?.id);
+  useEffect(() => {
+    const newSessionId = selectedSession?.id;
+    const prevSessionId = prevSessionIdRef.current;
+
+    // Clear messages when navigating to a KNOWN session that's different from the previous state
+    // We need to distinguish between:
+    // 1. User explicitly navigating to a different session (should clear)
+    // 2. System assigning a real ID to a new session (should NOT clear - isSystemSessionChange)
+    //
+    // For case 1: prevSessionId exists (was viewing a real session) → always clear
+    // For case 2: prevSessionId is null AND isSystemSessionChange → don't clear
+    //
+    // So we clear if: newSessionId changed AND (prevSessionId exists OR !isSystemSessionChange)
+    const isUserNavigatingAway = prevSessionId && newSessionId && prevSessionId !== newSessionId;
+    const isNavigatingFromNewSession = !prevSessionId && newSessionId && !isSystemSessionChange;
+    const shouldClear = isUserNavigatingAway || isNavigatingFromNewSession;
+
+    if (shouldClear) {
+      console.log('[ChatInterface] Session changed, clearing messages:', { prevSessionId, newSessionId, isSystemSessionChange, isUserNavigatingAway, isNavigatingFromNewSession });
+      setChatMessages([]);
+      setSessionMessages([]);
+      hasActiveSessionMessagesRef.current = false;
+      // Also reset isSystemSessionChange since user is explicitly switching sessions
+      if (isSystemSessionChange) {
+        setIsSystemSessionChange(false);
+      }
+    }
+
+    prevSessionIdRef.current = newSessionId;
+  }, [selectedSession?.id, isSystemSessionChange]);
+
   // When selecting a session from Sidebar, auto-switch provider to match session's origin
   useEffect(() => {
     if (selectedSession && selectedSession.__provider && selectedSession.__provider !== provider) {
@@ -3239,14 +3274,19 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         const sessionChanged = currentSessionId !== null && currentSessionId !== selectedSession.id;
 
         if (sessionChanged) {
-          if (!isSystemSessionChange) {
-            // Clear any streaming leftovers from the previous session
-            resetStreamingState();
-            pendingViewSessionRef.current = null;
-            setChatMessages([]);
-            setSessionMessages([]);
-            // User explicitly navigating to different session - reset the active messages flag
-            hasActiveSessionMessagesRef.current = false;
+          // User explicitly navigating to a different session - always clear old messages
+          // regardless of isSystemSessionChange state. The isSystemSessionChange flag is meant
+          // to prevent clearing during system transitions (temp->real session ID swap), but
+          // user-initiated navigation to a DIFFERENT session should always work properly.
+          resetStreamingState();
+          pendingViewSessionRef.current = null;
+          setChatMessages([]);
+          setSessionMessages([]);
+          // Reset the active messages flag since we're switching to a different session
+          hasActiveSessionMessagesRef.current = false;
+          // Reset isSystemSessionChange if it was set, since user is explicitly switching sessions
+          if (isSystemSessionChange) {
+            setIsSystemSessionChange(false);
           }
           // Reset pagination state when switching sessions
           setMessagesOffset(0);
@@ -3290,11 +3330,11 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           sessionStorage.setItem('cursorSessionId', selectedSession.id);
 
           // Only load messages from SQLite when:
-          // 1. It's a user-initiated session change (sessionChanged && !isSystemSessionChange), OR
-          // 2. It's an initial load (currentSessionId === null && !isSystemSessionChange)
-          // Do NOT load messages on every effect re-run, as this would replace WebSocket-accumulated messages
-          // Also check hasActiveSessionMessagesRef - don't replace WebSocket-accumulated messages with SQLite data
-          const shouldLoadFromSqlite = !isSystemSessionChange && !hasActiveSessionMessagesRef.current && (sessionChanged || currentSessionId === null);
+          // 1. User explicitly navigated to a different session (sessionChanged), OR
+          // 2. It's an initial load (currentSessionId === null && !isSystemSessionChange && !hasActiveSessionMessagesRef)
+          // Note: When sessionChanged is true, we always load because we've already cleared messages above.
+          // The hasActiveSessionMessagesRef check is only for initial loads to prevent replacing WebSocket messages.
+          const shouldLoadFromSqlite = sessionChanged || (!isSystemSessionChange && !hasActiveSessionMessagesRef.current && currentSessionId === null);
 
           if (shouldLoadFromSqlite) {
             // Load historical messages for Cursor session from SQLite
@@ -3311,11 +3351,11 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           setCurrentSessionId(selectedSession.id);
 
           // Only load messages from API when:
-          // 1. It's a user-initiated session change (sessionChanged && !isSystemSessionChange), OR
-          // 2. It's an initial load (currentSessionId === null && !isSystemSessionChange)
-          // Do NOT load messages on every effect re-run, as this would replace WebSocket-accumulated messages
-          // Also check hasActiveSessionMessagesRef - don't replace WebSocket-accumulated messages with API data
-          const shouldLoadFromApi = !isSystemSessionChange && !hasActiveSessionMessagesRef.current && (sessionChanged || currentSessionId === null);
+          // 1. User explicitly navigated to a different session (sessionChanged), OR
+          // 2. It's an initial load (currentSessionId === null && !isSystemSessionChange && !hasActiveSessionMessagesRef)
+          // Note: When sessionChanged is true, we always load because we've already cleared messages above.
+          // The hasActiveSessionMessagesRef check is only for initial loads to prevent replacing WebSocket messages.
+          const shouldLoadFromApi = sessionChanged || (!isSystemSessionChange && !hasActiveSessionMessagesRef.current && currentSessionId === null);
 
           if (shouldLoadFromApi) {
             const messages = await loadSessionMessages(selectedProject.name, selectedSession.id, false, selectedSession.__provider || 'claude');
