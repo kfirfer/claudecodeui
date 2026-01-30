@@ -1759,6 +1759,48 @@ async function deleteCodexSession(sessionId) {
   }
 }
 
+// Bulk delete multiple sessions across projects
+async function bulkDeleteSessions(sessions) {
+  const results = {
+    success: [],
+    failed: []
+  };
+
+  for (const { projectName, sessionId, provider } of sessions) {
+    try {
+      if (provider === 'codex') {
+        await deleteCodexSession(sessionId);
+      } else {
+        await deleteSession(projectName, sessionId);
+      }
+      results.success.push({ projectName, sessionId });
+    } catch (error) {
+      results.failed.push({ projectName, sessionId, error: error.message });
+    }
+  }
+
+  return results;
+}
+
+// Bulk delete multiple projects
+async function bulkDeleteProjects(projectNames, force = false) {
+  const results = {
+    success: [],
+    failed: []
+  };
+
+  for (const projectName of projectNames) {
+    try {
+      await deleteProject(projectName, force);
+      results.success.push(projectName);
+    } catch (error) {
+      results.failed.push({ projectName, error: error.message });
+    }
+  }
+
+  return results;
+}
+
 export {
   getProjects,
   getSessions,
@@ -1775,5 +1817,7 @@ export {
   clearProjectDirectoryCache,
   getCodexSessions,
   getCodexSessionMessages,
-  deleteCodexSession
+  deleteCodexSession,
+  bulkDeleteSessions,
+  bulkDeleteProjects
 };

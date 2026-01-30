@@ -1105,7 +1105,7 @@ function AppContent() {
       {!isMobile && (
         <div
           className={`h-full flex-shrink-0 border-r border-border bg-card transition-all duration-300 ${
-            sidebarVisible ? 'w-80' : 'w-14'
+            sidebarVisible ? 'w-[340px]' : 'w-14'
           }`}
         >
           <div className="h-full overflow-hidden">

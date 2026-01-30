@@ -83,6 +83,16 @@ export const api = {
     authenticatedFetch(`/api/projects/${projectName}${force ? '?force=true' : ''}`, {
       method: 'DELETE',
     }),
+  bulkDeleteSessions: (sessions) =>
+    authenticatedFetch('/api/sessions/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ sessions }),
+    }),
+  bulkDeleteProjects: (projectNames, force = true) =>
+    authenticatedFetch('/api/projects/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ projectNames, force }),
+    }),
   createProject: (path) =>
     authenticatedFetch('/api/projects/create', {
       method: 'POST',

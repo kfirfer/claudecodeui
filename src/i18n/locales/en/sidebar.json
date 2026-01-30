@@ -111,5 +111,26 @@
     "sessionCount_other": "This project contains {{count}} conversations.",
     "allConversationsDeleted": "All conversations will be permanently deleted.",
     "cannotUndo": "This action cannot be undone."
+  },
+  "multiSelect": {
+    "select": "Select",
+    "selectAll": "Select All",
+    "deselectAll": "Deselect All",
+    "cancel": "Cancel",
+    "deleteSelected": "Delete Selected",
+    "selectedCount_one": "{{count}} item selected",
+    "selectedCount_other": "{{count}} items selected",
+    "deleteMultipleTitle": "Delete Multiple Items",
+    "deleteMultipleConfirm": "Are you sure you want to delete the selected items?",
+    "projectsCount_one": "{{count}} project",
+    "projectsCount_other": "{{count}} projects",
+    "sessionsCount_one": "{{count}} session",
+    "sessionsCount_other": "{{count}} sessions",
+    "deleteMultipleWarning": "This will delete {{projects}} and {{sessions}}.",
+    "deleteMultipleWarningProjectsOnly": "This will delete {{projects}}.",
+    "deleteMultipleWarningSessionsOnly": "This will delete {{sessions}}.",
+    "bulkDeleteFailed": "Some items failed to delete. Please try again.",
+    "bulkDeleteSuccess": "Successfully deleted selected items.",
+    "deleting": "Deleting..."
   }
 }

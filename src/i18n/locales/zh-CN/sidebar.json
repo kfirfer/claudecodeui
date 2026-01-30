@@ -111,5 +111,26 @@
     "sessionCount_other": "此项目包含 {{count}} 个对话。",
     "allConversationsDeleted": "所有对话将被永久删除。",
     "cannotUndo": "此操作无法撤销。"
+  },
+  "multiSelect": {
+    "select": "选择",
+    "selectAll": "全选",
+    "deselectAll": "取消全选",
+    "cancel": "取消",
+    "deleteSelected": "删除所选",
+    "selectedCount_one": "已选择 {{count}} 项",
+    "selectedCount_other": "已选择 {{count}} 项",
+    "deleteMultipleTitle": "删除多个项目",
+    "deleteMultipleConfirm": "您确定要删除所选项目吗？",
+    "projectsCount_one": "{{count}} 个项目",
+    "projectsCount_other": "{{count}} 个项目",
+    "sessionsCount_one": "{{count}} 个会话",
+    "sessionsCount_other": "{{count}} 个会话",
+    "deleteMultipleWarning": "这将删除 {{projects}} 和 {{sessions}}。",
+    "deleteMultipleWarningProjectsOnly": "这将删除 {{projects}}。",
+    "deleteMultipleWarningSessionsOnly": "这将删除 {{sessions}}。",
+    "bulkDeleteFailed": "部分项目删除失败，请重试。",
+    "bulkDeleteSuccess": "已成功删除所选项目。",
+    "deleting": "正在删除..."
   }
 }

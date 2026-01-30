@@ -6,7 +6,7 @@ import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { useTranslation } from 'react-i18next';
 
-import { FolderOpen, Folder, Plus, MessageSquare, Clock, ChevronDown, ChevronRight, Edit3, Check, X, Trash2, Settings, FolderPlus, RefreshCw, Edit2, Star, Search, AlertTriangle } from 'lucide-react';
+import { FolderOpen, Folder, Plus, MessageSquare, Clock, ChevronDown, ChevronRight, Edit3, Check, X, Trash2, Settings, FolderPlus, RefreshCw, Edit2, Star, Search, AlertTriangle, CheckSquare, Square } from 'lucide-react';
 import { cn } from '../lib/utils';
 import ClaudeLogo from './ClaudeLogo';
 import CursorLogo from './CursorLogo.jsx';
@@ -88,6 +88,17 @@ function Sidebar({
   const [deleteConfirmation, setDeleteConfirmation] = useState(null);
   // { projectName, sessionId, sessionTitle, provider }
   const [sessionDeleteConfirmation, setSessionDeleteConfirmation] = useState(null);
+
+  // Multi-select mode state
+  const [selectMode, setSelectMode] = useState(false);
+  // Selected projects: Set of project names
+  const [selectedProjects, setSelectedProjects] = useState(new Set());
+  // Selected sessions: Map of "projectName:sessionId" -> { projectName, sessionId, provider }
+  const [selectedSessions, setSelectedSessions] = useState(new Map());
+  // Bulk delete confirmation modal
+  const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = useState(null);
+  // Bulk delete in progress
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // TaskMaster context
   const { setCurrentProject, mcpServerStatus } = useTaskMaster();
@@ -500,6 +511,163 @@ function Sidebar({
     }
   };
 
+  // Multi-select mode functions
+  const toggleSelectMode = () => {
+    setSelectMode(prev => !prev);
+    // Clear selections when exiting select mode
+    if (selectMode) {
+      setSelectedProjects(new Set());
+      setSelectedSessions(new Map());
+    }
+  };
+
+  const toggleProjectSelection = (projectName) => {
+    setSelectedProjects(prev => {
+      const next = new Set(prev);
+      if (next.has(projectName)) {
+        next.delete(projectName);
+      } else {
+        next.add(projectName);
+      }
+      return next;
+    });
+  };
+
+  const toggleSessionSelection = (projectName, sessionId, provider) => {
+    const key = `${projectName}:${sessionId}`;
+    setSelectedSessions(prev => {
+      const next = new Map(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.set(key, { projectName, sessionId, provider });
+      }
+      return next;
+    });
+  };
+
+  const isProjectSelected = (projectName) => selectedProjects.has(projectName);
+  const isSessionSelected = (projectName, sessionId) => selectedSessions.has(`${projectName}:${sessionId}`);
+
+  const getSelectedCount = () => selectedProjects.size + selectedSessions.size;
+
+  const selectAllVisible = () => {
+    const newSelectedProjects = new Set(selectedProjects);
+    const newSelectedSessions = new Map(selectedSessions);
+
+    filteredProjects.forEach(project => {
+      newSelectedProjects.add(project.name);
+      // Also select all visible sessions in expanded projects
+      if (expandedProjects.has(project.name)) {
+        getAllSessions(project).forEach(session => {
+          // Skip cursor sessions and pending sessions
+          const provider = session.__provider || 'claude';
+          if (provider !== 'cursor' && !session.__isPending) {
+            const key = `${project.name}:${session.id}`;
+            newSelectedSessions.set(key, { projectName: project.name, sessionId: session.id, provider });
+          }
+        });
+      }
+    });
+
+    setSelectedProjects(newSelectedProjects);
+    setSelectedSessions(newSelectedSessions);
+  };
+
+  const deselectAll = () => {
+    setSelectedProjects(new Set());
+    setSelectedSessions(new Map());
+  };
+
+  const showBulkDeleteConfirmation = () => {
+    setBulkDeleteConfirmation({
+      projectCount: selectedProjects.size,
+      sessionCount: selectedSessions.size
+    });
+  };
+
+  const confirmBulkDelete = async () => {
+    if (!bulkDeleteConfirmation) return;
+
+    setIsBulkDeleting(true);
+    setBulkDeleteConfirmation(null);
+
+    const projectNames = Array.from(selectedProjects);
+    const sessions = Array.from(selectedSessions.values());
+
+    let hasErrors = false;
+
+    try {
+      // Delete sessions first (if any)
+      if (sessions.length > 0) {
+        const sessionResponse = await api.bulkDeleteSessions(sessions);
+        if (sessionResponse.ok) {
+          const result = await sessionResponse.json();
+          if (result.failed && result.failed.length > 0) {
+            hasErrors = true;
+            console.error('Some sessions failed to delete:', result.failed);
+          }
+          // Clear deleted sessions from additionalSessions state
+          result.success.forEach(({ projectName, sessionId }) => {
+            setAdditionalSessions(prev => {
+              const updated = { ...prev };
+              if (updated[projectName]) {
+                updated[projectName] = updated[projectName].filter(s => s.id !== sessionId);
+              }
+              return updated;
+            });
+            // Notify parent of session deletion
+            if (onSessionDelete) {
+              onSessionDelete(sessionId);
+            }
+          });
+        } else {
+          hasErrors = true;
+          console.error('Failed to bulk delete sessions');
+        }
+      }
+
+      // Delete projects (if any)
+      if (projectNames.length > 0) {
+        const projectResponse = await api.bulkDeleteProjects(projectNames, true);
+        if (projectResponse.ok) {
+          const result = await projectResponse.json();
+          if (result.failed && result.failed.length > 0) {
+            hasErrors = true;
+            console.error('Some projects failed to delete:', result.failed);
+          }
+          // Notify parent of project deletions
+          result.success.forEach(projectName => {
+            if (onProjectDelete) {
+              onProjectDelete(projectName);
+            }
+          });
+        } else {
+          hasErrors = true;
+          console.error('Failed to bulk delete projects');
+        }
+      }
+
+      // Show result toast
+      if (hasErrors) {
+        toast.error(t('multiSelect.bulkDeleteFailed'));
+      } else {
+        toast.success(t('multiSelect.bulkDeleteSuccess'));
+      }
+
+      // Clear selections and exit select mode
+      setSelectedProjects(new Set());
+      setSelectedSessions(new Map());
+      setSelectMode(false);
+
+    } catch (error) {
+      console.error('Error during bulk delete:', error);
+      toast.error(t('multiSelect.bulkDeleteFailed'));
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
 
   const loadMoreSessions = async (project) => {
     // Check if we can load more sessions
@@ -707,6 +875,79 @@ function Sidebar({
         document.body
       )}
 
+      {/* Bulk Delete Confirmation Modal */}
+      {bulkDeleteConfirmation && ReactDOM.createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-semibold text-foreground mb-2">
+                    {t('multiSelect.deleteMultipleTitle')}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-1">
+                    {t('multiSelect.deleteMultipleConfirm')}
+                  </p>
+                  <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <p className="text-sm text-red-700 dark:text-red-300 font-medium">
+                      {bulkDeleteConfirmation.projectCount > 0 && bulkDeleteConfirmation.sessionCount > 0 ? (
+                        t('multiSelect.deleteMultipleWarning', {
+                          projects: t('multiSelect.projectsCount', { count: bulkDeleteConfirmation.projectCount }),
+                          sessions: t('multiSelect.sessionsCount', { count: bulkDeleteConfirmation.sessionCount })
+                        })
+                      ) : bulkDeleteConfirmation.projectCount > 0 ? (
+                        t('multiSelect.deleteMultipleWarningProjectsOnly', {
+                          projects: t('multiSelect.projectsCount', { count: bulkDeleteConfirmation.projectCount })
+                        })
+                      ) : (
+                        t('multiSelect.deleteMultipleWarningSessionsOnly', {
+                          sessions: t('multiSelect.sessionsCount', { count: bulkDeleteConfirmation.sessionCount })
+                        })
+                      )}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-3">
+                    {t('deleteConfirmation.cannotUndo')}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 p-4 bg-muted/30 border-t border-border">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setBulkDeleteConfirmation(null)}
+                disabled={isBulkDeleting}
+              >
+                {t('actions.cancel')}
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                onClick={confirmBulkDelete}
+                disabled={isBulkDeleting}
+              >
+                {isBulkDeleting ? (
+                  <>
+                    <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    {t('multiSelect.deleting')}
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    {t('actions.delete')}
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       <div
         className="h-full flex flex-col bg-card md:select-none"
         style={isPWA && isMobile ? { paddingTop: '44px' } : {}}
@@ -809,11 +1050,25 @@ function Sidebar({
               </button>
               <button
                 type="button"
-                className="w-8 h-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center active:scale-95 transition-all duration-150"
-                onClick={() => setShowNewProject(true)}
+                className={cn(
+                  "w-8 h-8 rounded-md flex items-center justify-center active:scale-95 transition-all duration-150",
+                  selectMode
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background border border-border"
+                )}
+                onClick={toggleSelectMode}
               >
-                <FolderPlus className="w-4 h-4" />
+                <CheckSquare className={cn("w-4 h-4", !selectMode && "text-foreground")} />
               </button>
+              {!selectMode && (
+                <button
+                  type="button"
+                  className="w-8 h-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center active:scale-95 transition-all duration-150"
+                  onClick={() => setShowNewProject(true)}
+                >
+                  <FolderPlus className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -823,33 +1078,77 @@ function Sidebar({
       {!isLoading && !isMobile && (
         <div className="px-3 md:px-4 py-2 border-b border-border">
           <div className="flex gap-2">
-            <Button
-              variant="default"
-              size="sm"
-              className="flex-1 h-8 text-xs bg-primary hover:bg-primary/90 transition-all duration-200"
-              onClick={() => setShowNewProject(true)}
-              title={t('tooltips.createProject')}
-            >
-              <FolderPlus className="w-3.5 h-3.5 mr-1.5" />
-              {t('projects.newProject')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 px-0 hover:bg-accent transition-colors duration-200 group"
-              onClick={async () => {
-                setIsRefreshing(true);
-                try {
-                  await onRefresh();
-                } finally {
-                  setIsRefreshing(false);
-                }
-              }}
-              disabled={isRefreshing}
-              title={t('tooltips.refresh')}
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''} group-hover:rotate-180 transition-transform duration-300`} />
-            </Button>
+            {selectMode ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 h-8 text-xs"
+                  onClick={toggleSelectMode}
+                >
+                  <X className="w-3.5 h-3.5 mr-1.5" />
+                  {t('multiSelect.cancel')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2 text-xs"
+                  onClick={selectAllVisible}
+                  title={t('multiSelect.selectAll')}
+                >
+                  <CheckSquare className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2 text-xs"
+                  onClick={deselectAll}
+                  title={t('multiSelect.deselectAll')}
+                  disabled={getSelectedCount() === 0}
+                >
+                  <Square className="w-3.5 h-3.5" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="flex-1 h-8 text-xs bg-primary hover:bg-primary/90 transition-all duration-200"
+                  onClick={() => setShowNewProject(true)}
+                  title={t('tooltips.createProject')}
+                >
+                  <FolderPlus className="w-3.5 h-3.5 mr-1.5" />
+                  {t('projects.newProject')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 px-0 hover:bg-accent transition-colors duration-200"
+                  onClick={toggleSelectMode}
+                  title={t('multiSelect.select')}
+                >
+                  <CheckSquare className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 px-0 hover:bg-accent transition-colors duration-200 group"
+                  onClick={async () => {
+                    setIsRefreshing(true);
+                    try {
+                      await onRefresh();
+                    } finally {
+                      setIsRefreshing(false);
+                    }
+                  }}
+                  disabled={isRefreshing}
+                  title={t('tooltips.refresh')}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''} group-hover:rotate-180 transition-transform duration-300`} />
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -952,26 +1251,52 @@ function Sidebar({
                         className={cn(
                           "p-3 mx-3 my-1 rounded-lg bg-card border border-border/50 active:scale-[0.98] transition-all duration-150",
                           isSelected && "bg-primary/5 border-primary/20",
-                          isStarred && !isSelected && "bg-yellow-50/50 dark:bg-yellow-900/5 border-yellow-200/30 dark:border-yellow-800/30"
+                          isStarred && !isSelected && "bg-yellow-50/50 dark:bg-yellow-900/5 border-yellow-200/30 dark:border-yellow-800/30",
+                          selectMode && isProjectSelected(project.name) && "bg-primary/10 border-primary/30"
                         )}
                         onClick={() => {
-                          // On mobile, just toggle the folder - don't select the project
-                          toggleProject(project.name);
+                          if (selectMode) {
+                            toggleProjectSelection(project.name);
+                          } else {
+                            // On mobile, just toggle the folder - don't select the project
+                            toggleProject(project.name);
+                          }
                         }}
-                        onTouchEnd={handleTouchClick(() => toggleProject(project.name))}
+                        onTouchEnd={handleTouchClick(() => {
+                          if (selectMode) {
+                            toggleProjectSelection(project.name);
+                          } else {
+                            toggleProject(project.name);
+                          }
+                        })}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <div className={cn(
-                              "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
-                              isExpanded ? "bg-primary/10" : "bg-muted"
-                            )}>
-                              {isExpanded ? (
-                                <FolderOpen className="w-4 h-4 text-primary" />
-                              ) : (
-                                <Folder className="w-4 h-4 text-muted-foreground" />
-                              )}
-                            </div>
+                            {selectMode ? (
+                              <div className={cn(
+                                "w-8 h-8 rounded-lg flex items-center justify-center transition-colors border",
+                                isProjectSelected(project.name)
+                                  ? "bg-primary border-primary text-primary-foreground"
+                                  : "bg-muted border-muted-foreground/30"
+                              )}>
+                                {isProjectSelected(project.name) ? (
+                                  <Check className="w-4 h-4" />
+                                ) : (
+                                  <Square className="w-4 h-4 text-muted-foreground" />
+                                )}
+                              </div>
+                            ) : (
+                              <div className={cn(
+                                "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
+                                isExpanded ? "bg-primary/10" : "bg-muted"
+                              )}>
+                                {isExpanded ? (
+                                  <FolderOpen className="w-4 h-4 text-primary" />
+                                ) : (
+                                  <Folder className="w-4 h-4 text-muted-foreground" />
+                                )}
+                              </div>
+                            )}
                             <div className="min-w-0 flex-1">
                               {editingProject === project.name ? (
                                 <input
@@ -1119,20 +1444,39 @@ function Sidebar({
                       className={cn(
                         "hidden md:flex w-full justify-between p-2 h-auto font-normal hover:bg-accent/50",
                         isSelected && "bg-accent text-accent-foreground",
-                        isStarred && !isSelected && "bg-yellow-50/50 dark:bg-yellow-900/10 hover:bg-yellow-100/50 dark:hover:bg-yellow-900/20"
+                        isStarred && !isSelected && "bg-yellow-50/50 dark:bg-yellow-900/10 hover:bg-yellow-100/50 dark:hover:bg-yellow-900/20",
+                        selectMode && isProjectSelected(project.name) && "bg-primary/10 border border-primary/30"
                       )}
                       onClick={() => {
-                        // Desktop behavior: just toggle expand/collapse
-                        // Don't call handleProjectSelect - that clears the active session
-                        // Users should be able to browse folders without losing their chat
-                        toggleProject(project.name);
+                        if (selectMode) {
+                          toggleProjectSelection(project.name);
+                        } else {
+                          // Desktop behavior: just toggle expand/collapse
+                          // Don't call handleProjectSelect - that clears the active session
+                          // Users should be able to browse folders without losing their chat
+                          toggleProject(project.name);
+                        }
                       }}
                       onTouchEnd={handleTouchClick(() => {
-                        // Same behavior on touch - just toggle, don't clear session
-                        toggleProject(project.name);
+                        if (selectMode) {
+                          toggleProjectSelection(project.name);
+                        } else {
+                          // Same behavior on touch - just toggle, don't clear session
+                          toggleProject(project.name);
+                        }
                       })}
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
+                        {selectMode && (
+                          <div className={cn(
+                            "w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors",
+                            isProjectSelected(project.name)
+                              ? "bg-primary border-primary text-primary-foreground"
+                              : "border-muted-foreground/50"
+                          )}>
+                            {isProjectSelected(project.name) && <Check className="w-3 h-3" />}
+                          </div>
+                        )}
                         {isExpanded ? (
                           <FolderOpen className="w-4 h-4 text-primary flex-shrink-0" />
                         ) : (
@@ -1342,30 +1686,54 @@ function Sidebar({
                                   "p-2 mx-3 my-0.5 rounded-md bg-card border active:scale-[0.98] transition-all duration-150 relative",
                                   selectedSession?.id === session.id ? "bg-primary/5 border-primary/20" :
                                   isPendingSession ? "border-blue-500/30 bg-blue-50/5 dark:bg-blue-900/5" :
-                                  isActive ? "border-green-500/30 bg-green-50/5 dark:bg-green-900/5" : "border-border/30"
+                                  isActive ? "border-green-500/30 bg-green-50/5 dark:bg-green-900/5" : "border-border/30",
+                                  selectMode && isSessionSelected(project.name, session.id) && "bg-primary/10 border-primary/30"
                                 )}
                                 onClick={() => {
-                                  // Just handle session click - don't call handleProjectSelect
-                                  // as that would clear the session before setting it
-                                  handleSessionClick(session, project);
+                                  if (selectMode && !isCursorSession && !isPendingSession) {
+                                    toggleSessionSelection(project.name, session.id, session.__provider || 'claude');
+                                  } else if (!selectMode) {
+                                    // Just handle session click - don't call handleProjectSelect
+                                    // as that would clear the session before setting it
+                                    handleSessionClick(session, project);
+                                  }
                                 }}
                                 onTouchEnd={handleTouchClick(() => {
-                                  handleSessionClick(session, project);
+                                  if (selectMode && !isCursorSession && !isPendingSession) {
+                                    toggleSessionSelection(project.name, session.id, session.__provider || 'claude');
+                                  } else if (!selectMode) {
+                                    handleSessionClick(session, project);
+                                  }
                                 })}
                               >
                                 <div className="flex items-center gap-2">
-                                  <div className={cn(
-                                    "w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0",
-                                    selectedSession?.id === session.id ? "bg-primary/10" : "bg-muted/50"
-                                  )}>
-                                    {isCursorSession ? (
-                                      <CursorLogo className="w-3 h-3" />
-                                    ) : isCodexSession ? (
-                                      <CodexLogo className="w-3 h-3" />
-                                    ) : (
-                                      <ClaudeLogo className="w-3 h-3" />
-                                    )}
-                                  </div>
+                                  {selectMode && !isCursorSession && !isPendingSession ? (
+                                    <div className={cn(
+                                      "w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 border",
+                                      isSessionSelected(project.name, session.id)
+                                        ? "bg-primary border-primary text-primary-foreground"
+                                        : "bg-muted/50 border-muted-foreground/30"
+                                    )}>
+                                      {isSessionSelected(project.name, session.id) ? (
+                                        <Check className="w-3 h-3" />
+                                      ) : (
+                                        <Square className="w-3 h-3 text-muted-foreground" />
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className={cn(
+                                      "w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0",
+                                      selectedSession?.id === session.id ? "bg-primary/10" : "bg-muted/50"
+                                    )}>
+                                      {isCursorSession ? (
+                                        <CursorLogo className="w-3 h-3" />
+                                      ) : isCodexSession ? (
+                                        <CodexLogo className="w-3 h-3" />
+                                      ) : (
+                                        <ClaudeLogo className="w-3 h-3" />
+                                      )}
+                                    </div>
+                                  )}
                                   <div className="min-w-0 flex-1">
                                     <div className="text-xs font-medium truncate text-foreground">
                                       {sessionName}
@@ -1419,13 +1787,35 @@ function Sidebar({
                                 className={cn(
                                   "w-full justify-start p-2 h-auto font-normal text-left hover:bg-accent/50 transition-colors duration-200",
                                   selectedSession?.id === session.id && "bg-accent text-accent-foreground",
-                                  isPendingSession && "bg-blue-50/50 dark:bg-blue-900/10 border border-blue-500/30"
+                                  isPendingSession && "bg-blue-50/50 dark:bg-blue-900/10 border border-blue-500/30",
+                                  selectMode && isSessionSelected(project.name, session.id) && "bg-primary/10 border border-primary/30"
                                 )}
-                                onClick={() => handleSessionClick(session, project)}
-                                onTouchEnd={handleTouchClick(() => handleSessionClick(session, project))}
+                                onClick={() => {
+                                  if (selectMode && !isCursorSession && !isPendingSession) {
+                                    toggleSessionSelection(project.name, session.id, session.__provider || 'claude');
+                                  } else if (!selectMode) {
+                                    handleSessionClick(session, project);
+                                  }
+                                }}
+                                onTouchEnd={handleTouchClick(() => {
+                                  if (selectMode && !isCursorSession && !isPendingSession) {
+                                    toggleSessionSelection(project.name, session.id, session.__provider || 'claude');
+                                  } else if (!selectMode) {
+                                    handleSessionClick(session, project);
+                                  }
+                                })}
                               >
                                 <div className="flex items-start gap-2 min-w-0 w-full">
-                                  {isCursorSession ? (
+                                  {selectMode && !isCursorSession && !isPendingSession ? (
+                                    <div className={cn(
+                                      "w-3 h-3 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
+                                      isSessionSelected(project.name, session.id)
+                                        ? "bg-primary border-primary text-primary-foreground"
+                                        : "border-muted-foreground/50"
+                                    )}>
+                                      {isSessionSelected(project.name, session.id) && <Check className="w-2 h-2" />}
+                                    </div>
+                                  ) : isCursorSession ? (
                                     <CursorLogo className="w-3 h-3 mt-0.5 flex-shrink-0" />
                                   ) : isCodexSession ? (
                                     <CodexLogo className="w-3 h-3 mt-0.5 flex-shrink-0" />
@@ -1652,6 +2042,26 @@ function Sidebar({
         </div>
       )}
       
+      {/* Multi-select Action Bar - Only show when items are selected */}
+      {selectMode && getSelectedCount() > 0 && (
+        <div className="px-3 md:px-4 py-3 border-t border-border bg-card flex-shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm text-muted-foreground">
+              {t('multiSelect.selectedCount', { count: getSelectedCount() })}
+            </span>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 text-xs bg-red-600 hover:bg-red-700"
+              onClick={showBulkDeleteConfirmation}
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+              {t('multiSelect.deleteSelected')}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Settings Section */}
       <div className="md:p-2 md:border-t md:border-border flex-shrink-0">
         {/* Mobile Settings */}
@@ -1667,7 +2077,7 @@ function Sidebar({
             <span className="text-lg font-medium text-foreground">{t('actions.settings')}</span>
           </button>
         </div>
-        
+
         {/* Desktop Settings */}
         <Button
           variant="ghost"

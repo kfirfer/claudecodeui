@@ -140,6 +140,45 @@ async function deleteProjectViaUI(page, projectName) {
   await expect(projectButton).not.toBeVisible({ timeout: 10000 });
 }
 
+test.describe('Project Create and Delete', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('domcontentloaded');
+    await performLogin(page);
+  });
+
+  test('create project and delete it', async ({ page }) => {
+    test.setTimeout(TEST_TIMEOUT);
+
+    const testId = Date.now();
+    const testProjectPath = path.join(os.homedir(), `e2e-create-delete-${testId}`);
+    const projectFolderName = `e2e-create-delete-${testId}`;
+
+    // Create the test directory
+    await createTestDirectory(testProjectPath);
+
+    try {
+      // Create the project via wizard
+      const createdProjectName = await createProject(page, testProjectPath);
+      expect(createdProjectName).toBe(projectFolderName);
+
+      // Verify project appears in sidebar
+      const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
+      await expect(projectButton).toBeVisible();
+
+      // Delete the project via UI
+      await deleteProjectViaUI(page, projectFolderName);
+
+      // Verify project is no longer visible
+      await expect(projectButton).not.toBeVisible({ timeout: 10000 });
+
+    } finally {
+      // Cleanup test directory
+      await removeTestDirectory(testProjectPath);
+    }
+  });
+});
+
 test.describe('Project Operations - Individual Tests', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');

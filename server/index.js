@@ -57,7 +57,7 @@ import pty from 'node-pty';
 import fetch from 'node-fetch';
 import mime from 'mime-types';
 
-import { getProjects, getSessions, getSessionMessages, renameProject, deleteSession, deleteProject, addProjectManually, extractProjectDirectory, clearProjectDirectoryCache } from './projects.js';
+import { getProjects, getSessions, getSessionMessages, renameProject, deleteSession, deleteProject, addProjectManually, extractProjectDirectory, clearProjectDirectoryCache, bulkDeleteSessions, bulkDeleteProjects } from './projects.js';
 import { queryClaudeSDK, abortClaudeSDKSession, isClaudeSDKSessionActive, getActiveClaudeSDKSessions, resolveToolApproval } from './claude-sdk.js';
 import { spawnCursor, abortCursorSession, isCursorSessionActive, getActiveCursorSessions } from './cursor-cli.js';
 import { queryCodex, abortCodexSession, isCodexSessionActive, getActiveCodexSessions } from './openai-codex.js';
@@ -464,10 +464,44 @@ app.delete('/api/projects/:projectName', authenticateToken, async (req, res) => 
         const force = req.query.force === 'true';
         const fs = await import('fs').then(m => m.promises);
         const endpointLog = `[${new Date().toISOString()}] DELETE ENDPOINT called for: ${projectName}, force: ${force}, referer: ${req.headers.referer || 'none'}\n`;
-        await fs.appendFile(require('path').join(require('os').homedir(), '.claude', 'delete-project.log'), endpointLog, 'utf8');
+        await fs.appendFile(path.join(os.homedir(), '.claude', 'delete-project.log'), endpointLog, 'utf8');
         await deleteProject(projectName, force);
         res.json({ success: true });
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Bulk delete sessions endpoint
+app.post('/api/sessions/bulk-delete', authenticateToken, async (req, res) => {
+    try {
+        const { sessions } = req.body;
+        if (!Array.isArray(sessions) || sessions.length === 0) {
+            return res.status(400).json({ error: 'Sessions array is required' });
+        }
+        console.log(`[API] Bulk deleting ${sessions.length} sessions`);
+        const results = await bulkDeleteSessions(sessions);
+        console.log(`[API] Bulk delete completed: ${results.success.length} succeeded, ${results.failed.length} failed`);
+        res.json(results);
+    } catch (error) {
+        console.error('[API] Error bulk deleting sessions:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Bulk delete projects endpoint
+app.post('/api/projects/bulk-delete', authenticateToken, async (req, res) => {
+    try {
+        const { projectNames, force = true } = req.body;
+        if (!Array.isArray(projectNames) || projectNames.length === 0) {
+            return res.status(400).json({ error: 'Project names array is required' });
+        }
+        console.log(`[API] Bulk deleting ${projectNames.length} projects, force: ${force}`);
+        const results = await bulkDeleteProjects(projectNames, force);
+        console.log(`[API] Bulk delete completed: ${results.success.length} succeeded, ${results.failed.length} failed`);
+        res.json(results);
+    } catch (error) {
+        console.error('[API] Error bulk deleting projects:', error);
         res.status(500).json({ error: error.message });
     }
 });
