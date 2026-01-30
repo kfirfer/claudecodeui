@@ -383,9 +383,9 @@ function Sidebar({
       const response = await api.renameProject(projectName, editingName);
 
       if (response.ok) {
-        // Refresh projects to get updated data
+        // Refresh projects to get updated data - await to ensure state updates before continuing
         if (window.refreshProjects) {
-          window.refreshProjects();
+          await window.refreshProjects();
         } else {
           window.location.reload();
         }
@@ -395,7 +395,7 @@ function Sidebar({
     } catch (error) {
       console.error('Error renaming project:', error);
     }
-    
+
     setEditingProject(null);
     setEditingName('');
   };
@@ -590,10 +590,10 @@ function Sidebar({
       {showNewProject && ReactDOM.createPortal(
         <ProjectCreationWizard
           onClose={() => setShowNewProject(false)}
-          onProjectCreated={(_project) => {
-            // Refresh projects list after creation
+          onProjectCreated={async (_project) => {
+            // Refresh projects list after creation - await to ensure state updates before wizard closes
             if (window.refreshProjects) {
-              window.refreshProjects();
+              await window.refreshProjects();
             } else {
               window.location.reload();
             }

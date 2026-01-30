@@ -736,6 +736,10 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const secondMsgInChat = page.locator('.chat-message.user').filter({ hasText: secondSessionMessage });
       await expect(secondMsgInChat).toBeVisible({ timeout: 5000 });
 
+      // Wait for second session to complete before switching
+      const stopBtnForSecond = page.locator('button:has-text("Stop")').first();
+      await expect(stopBtnForSecond).toBeHidden({ timeout: 120000 });
+
       // Navigate back to first session using sidebar
       // Find the session button that contains our first message text
       const firstSessionButton = page.locator('button').filter({ hasText: /FIRST_SESSION/i }).first();

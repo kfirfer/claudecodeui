@@ -107,6 +107,9 @@ function AppContent() {
   // This signals ChatInterface to force-clear messages even if a session recently completed
   // (which would normally block clearing to prevent race conditions)
   const [forceNewSessionCounter, setForceNewSessionCounter] = useState(0);
+  // Counter to force ChatInterface to clear messages when switching sessions
+  // Incremented in handleSessionSelect to ensure messages are cleared before loading new session
+  const [forceSessionSwitchCounter, setForceSessionSwitchCounter] = useState(0);
 
   // Ref for synchronous "force new session" flag - updates IMMEDIATELY when user clicks "New Session"
   // This is necessary because React state updates are async and the test/user might send a message
@@ -360,7 +363,7 @@ function AppContent() {
       setIsLoadingProjects(true);
       const response = await api.projects();
       const data = await response.json();
-      
+
       // Always fetch Cursor sessions for each project so we can combine views
       for (let project of data) {
         try {
@@ -381,19 +384,19 @@ function AppContent() {
           project.cursorSessions = [];
         }
       }
-      
+
       // Optimize to preserve object references when data hasn't changed
       setProjects(prevProjects => {
         // If no previous projects, just set the new data
         if (prevProjects.length === 0) {
           return data;
         }
-        
+
         // Check if the projects data has actually changed
         const hasChanges = data.some((newProject, index) => {
           const prevProject = prevProjects[index];
           if (!prevProject) return true;
-          
+
           // Compare key properties that would affect UI
           return (
             newProject.name !== prevProject.name ||
@@ -404,11 +407,18 @@ function AppContent() {
             JSON.stringify(newProject.cursorSessions) !== JSON.stringify(prevProject.cursorSessions)
           );
         }) || data.length !== prevProjects.length;
-        
+
         // Only update if there are actual changes
         return hasChanges ? data : prevProjects;
       });
-      
+
+      // Allow React to process the state update before returning
+      // This gives React a chance to batch and apply the state change
+      // oxlint-disable-next-line promise/avoid-new -- Necessary to wait for React state updates
+      await new Promise(resolve => {
+        setTimeout(resolve, 50);
+      });
+
       // Don't auto-select any project - user should choose manually
     } catch (error) {
       console.error('Error fetching projects:', error);
@@ -518,6 +528,9 @@ function AppContent() {
     }
 
     console.log('[App handleSessionSelect] Setting selectedSession:', session?.id, 'projectFound:', projectFound);
+    // Force ChatInterface to clear messages BEFORE setting the new session
+    // This ensures the old session's messages are removed before the new session is loaded
+    setForceSessionSwitchCounter(prev => prev + 1);
     setSelectedSession(session);
     // Track when the session was selected - protects against stale projects_updated clearing
     sessionSelectedTimeRef.current = Date.now();
@@ -1218,6 +1231,7 @@ function AppContent() {
           sendByCtrlEnter={sendByCtrlEnter}
           externalMessageUpdate={externalMessageUpdate}
           forceNewSessionCounter={forceNewSessionCounter}
+          forceSessionSwitchCounter={forceSessionSwitchCounter}
           checkAndConsumeForceNewSession={checkAndConsumeForceNewSession}
         />
       </div>

@@ -148,7 +148,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
         await new Promise((resolve, reject) => {
           const eventSource = new EventSource(url);
 
-          eventSource.onmessage = (event) => {
+          eventSource.onmessage = async (event) => {
             try {
               const data = JSON.parse(event.data);
 
@@ -157,7 +157,8 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
               } else if (data.type === 'complete') {
                 eventSource.close();
                 if (onProjectCreated) {
-                  onProjectCreated(data.project);
+                  // Await the callback to ensure projects refresh completes before closing
+                  await onProjectCreated(data.project);
                 }
                 onClose();
                 resolve();
@@ -191,7 +192,7 @@ const ProjectCreationWizard = ({ onClose, onProjectCreated }) => {
       }
 
       if (onProjectCreated) {
-        onProjectCreated(data.project);
+        await onProjectCreated(data.project);
       }
 
       onClose();

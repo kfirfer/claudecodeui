@@ -81,6 +81,8 @@ function MainContent({
   externalMessageUpdate,
   // Force new session counter - incremented when user clicks "New Session"
   forceNewSessionCounter,
+  // Force session switch counter - incremented when user clicks a session button
+  forceSessionSwitchCounter,
   // Synchronous check for force new session flag
   checkAndConsumeForceNewSession
 }) {
@@ -534,6 +536,7 @@ function MainContent({
               sendByCtrlEnter={sendByCtrlEnter}
               externalMessageUpdate={externalMessageUpdate}
               forceNewSessionCounter={forceNewSessionCounter}
+              forceSessionSwitchCounter={forceSessionSwitchCounter}
               checkAndConsumeForceNewSession={checkAndConsumeForceNewSession}
               onShowAllTasks={tasksEnabled ? () => setActiveTab('tasks') : null}
             />
