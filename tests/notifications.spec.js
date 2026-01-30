@@ -571,9 +571,9 @@ test.describe('Notification Trigger', () => {
 
       if (!isTextareaVisible) {
         // Need to create a new session
+        // Use dispatchEvent to click - the button may be in a collapsed project section
         const newSessionButton = page.locator('button:has-text("New Session")').first();
-        await expect(newSessionButton).toBeVisible({ timeout: 10000 });
-        await newSessionButton.click();
+        await newSessionButton.dispatchEvent('click');
       }
 
       await expect(chatTextarea).toBeVisible({ timeout: 15000 });
@@ -690,9 +690,9 @@ test.describe('Notification Trigger', () => {
 
       if (!isTextareaVisible) {
         // Need to create a new session
+        // Use dispatchEvent to click - the button may be in a collapsed project section
         const newSessionButton = page.locator('button:has-text("New Session")').first();
-        await expect(newSessionButton).toBeVisible({ timeout: 10000 });
-        await newSessionButton.click();
+        await newSessionButton.dispatchEvent('click');
       }
 
       await expect(chatTextarea).toBeVisible({ timeout: 15000 });
