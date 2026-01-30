@@ -99,6 +99,7 @@ function broadcastProgress(progress) {
 async function setupProjectsWatcher() {
     const chokidar = (await import('chokidar')).default;
     const claudeProjectsPath = path.join(os.homedir(), '.claude', 'projects');
+    const claudeConfigPath = path.join(os.homedir(), '.claude', 'project-config.json');
 
     if (projectsWatcher) {
         projectsWatcher.close();
@@ -106,7 +107,8 @@ async function setupProjectsWatcher() {
 
     try {
         // Initialize chokidar watcher with optimized settings
-        projectsWatcher = chokidar.watch(claudeProjectsPath, {
+        // Watch both the projects folder AND the config file (for manually added projects)
+        projectsWatcher = chokidar.watch([claudeProjectsPath, claudeConfigPath], {
             ignored: [
                 '**/node_modules/**',
                 '**/.git/**',
@@ -460,6 +462,9 @@ app.delete('/api/projects/:projectName', authenticateToken, async (req, res) => 
     try {
         const { projectName } = req.params;
         const force = req.query.force === 'true';
+        const fs = await import('fs').then(m => m.promises);
+        const endpointLog = `[${new Date().toISOString()}] DELETE ENDPOINT called for: ${projectName}, force: ${force}, referer: ${req.headers.referer || 'none'}\n`;
+        await fs.appendFile(require('path').join(require('os').homedir(), '.claude', 'delete-project.log'), endpointLog, 'utf8');
         await deleteProject(projectName, force);
         res.json({ success: true });
     } catch (error) {

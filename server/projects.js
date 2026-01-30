@@ -202,6 +202,10 @@ function clearProjectDirectoryCache() {
   projectDirectoryCache.clear();
 }
 
+// Mutex for config file operations to prevent race conditions
+// when multiple requests try to read/modify/write the config simultaneously
+let configMutexPromise = Promise.resolve();
+
 // Load project configuration file
 async function loadProjectConfig() {
   const configPath = path.join(os.homedir(), '.claude', 'project-config.json');
@@ -218,7 +222,7 @@ async function loadProjectConfig() {
 async function saveProjectConfig(config) {
   const claudeDir = path.join(os.homedir(), '.claude');
   const configPath = path.join(claudeDir, 'project-config.json');
-  
+
   // Ensure the .claude directory exists
   try {
     await fs.mkdir(claudeDir, { recursive: true });
@@ -227,8 +231,43 @@ async function saveProjectConfig(config) {
       throw error;
     }
   }
-  
+
+  // Debug: Log config changes to file with stack trace
+  const debugLogPath = path.join(claudeDir, 'config-debug.log');
+  const timestamp = new Date().toISOString();
+  const projectNames = Object.keys(config).filter(k => k.includes('e2e-nav-persist')).join(', ');
+  const stack = new Error().stack.split('\n').slice(2, 5).join(' <- ');
+  const logEntry = `[${timestamp}] Saving config with ${Object.keys(config).length} projects. e2e-nav-persist projects: ${projectNames || 'none'}. Stack: ${stack}\n`;
+  await fs.appendFile(debugLogPath, logEntry, 'utf8');
+
   await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
+}
+
+// Atomic config update: ensures read-modify-write operations are serialized
+// This prevents race conditions when multiple requests try to update the config
+async function atomicConfigUpdate(updateFn) {
+  // Wait for any pending config operation to complete
+  await configMutexPromise;
+
+  // Create a new promise that will resolve when our operation completes
+  let resolve;
+  configMutexPromise = new Promise(r => { resolve = r; });
+
+  try {
+    // Load current config
+    const config = await loadProjectConfig();
+
+    // Apply the update function
+    const result = await updateFn(config);
+
+    // Save the updated config
+    await saveProjectConfig(config);
+
+    return result;
+  } finally {
+    // Release the lock
+    resolve();
+  }
 }
 
 // Generate better display name from path
@@ -536,6 +575,20 @@ async function getProjects(progressCallback = null) {
           cursorSessions: [],
           codexSessions: []
         };
+
+      // Try to fetch Claude sessions for manual projects
+      // This handles the case where a manually added project has Claude sessions
+      // (e.g., after the user sends messages to Claude in that project)
+      try {
+        const sessionResult = await getSessions(projectName, 5, 0);
+        project.sessions = sessionResult.sessions || [];
+        project.sessionMeta = {
+          hasMore: sessionResult.hasMore,
+          total: sessionResult.total
+        };
+      } catch (e) {
+        console.warn(`Could not load Claude sessions for manual project ${projectName}:`, e.message);
+      }
 
       // Try to fetch Cursor sessions for manual projects too
       try {
@@ -1035,6 +1088,8 @@ async function isProjectEmpty(projectName) {
 
 // Delete a project (force=true to delete even with sessions)
 async function deleteProject(projectName, force = false) {
+  const deleteLogEntry = `[${new Date().toISOString()}] deleteProject called for: ${projectName}, force: ${force}, stack: ${new Error().stack.split('\n').slice(2, 5).join(' <- ')}\n`;
+  await fs.appendFile(path.join(os.homedir(), '.claude', 'delete-project.log'), deleteLogEntry, 'utf8');
   const projectDir = path.join(os.homedir(), '.claude', 'projects', projectName);
 
   try {
@@ -1103,76 +1158,73 @@ async function addProjectManually(projectPath, displayName = null) {
 
   // Generate project name (encode path for use as directory name)
   const projectName = absolutePath.replace(/[\\/:\s~_]/g, '-');
-
-  // Check if project already exists in config
-  const config = await loadProjectConfig();
   const projectDir = path.join(os.homedir(), '.claude', 'projects', projectName);
 
-  if (config[projectName]) {
-    // Check if this is an orphaned entry (exists in config but not visible in UI)
-    // This happens when a project loses its manuallyAdded flag (e.g., after renaming)
-    // and has no directory in ~/.claude/projects/
-    let projectDirExists = false;
-    try {
-      await fs.access(projectDir);
-      projectDirExists = true;
-    } catch {
-      // Directory doesn't exist
-    }
-
-    const isOrphaned = !config[projectName].manuallyAdded && !projectDirExists;
-
-    if (isOrphaned) {
-      // Fix the orphaned entry by restoring manuallyAdded flag
-      config[projectName] = {
-        ...config[projectName],
-        manuallyAdded: true,
-        originalPath: absolutePath
-      };
-      if (displayName) {
-        config[projectName].displayName = displayName;
+  // Use atomic config update to prevent race conditions when multiple
+  // projects are being added simultaneously (e.g., in parallel E2E tests)
+  return atomicConfigUpdate(async (config) => {
+    if (config[projectName]) {
+      // Check if this is an orphaned entry (exists in config but not visible in UI)
+      // This happens when a project loses its manuallyAdded flag (e.g., after renaming)
+      // and has no directory in ~/.claude/projects/
+      let projectDirExists = false;
+      try {
+        await fs.access(projectDir);
+        projectDirExists = true;
+      } catch {
+        // Directory doesn't exist
       }
-      await saveProjectConfig(config);
 
-      return {
-        name: projectName,
-        path: absolutePath,
-        fullPath: absolutePath,
-        displayName: displayName || config[projectName].displayName || await generateDisplayName(projectName, absolutePath),
-        isManuallyAdded: true,
-        sessions: [],
-        cursorSessions: []
-      };
+      const isOrphaned = !config[projectName].manuallyAdded && !projectDirExists;
+
+      if (isOrphaned) {
+        // Fix the orphaned entry by restoring manuallyAdded flag
+        config[projectName] = {
+          ...config[projectName],
+          manuallyAdded: true,
+          originalPath: absolutePath
+        };
+        if (displayName) {
+          config[projectName].displayName = displayName;
+        }
+
+        return {
+          name: projectName,
+          path: absolutePath,
+          fullPath: absolutePath,
+          displayName: displayName || config[projectName].displayName || await generateDisplayName(projectName, absolutePath),
+          isManuallyAdded: true,
+          sessions: [],
+          cursorSessions: []
+        };
+      }
+
+      throw new Error(`Project already configured for path: ${absolutePath}`);
     }
 
-    throw new Error(`Project already configured for path: ${absolutePath}`);
-  }
+    // Allow adding projects even if the directory exists - this enables tracking
+    // existing Claude Code or Cursor projects in the UI
 
-  // Allow adding projects even if the directory exists - this enables tracking
-  // existing Claude Code or Cursor projects in the UI
+    // Add to config as manually added project
+    config[projectName] = {
+      manuallyAdded: true,
+      originalPath: absolutePath
+    };
 
-  // Add to config as manually added project
-  config[projectName] = {
-    manuallyAdded: true,
-    originalPath: absolutePath
-  };
+    if (displayName) {
+      config[projectName].displayName = displayName;
+    }
 
-  if (displayName) {
-    config[projectName].displayName = displayName;
-  }
-  
-  await saveProjectConfig(config);
-  
-  
-  return {
-    name: projectName,
-    path: absolutePath,
-    fullPath: absolutePath,
-    displayName: displayName || await generateDisplayName(projectName, absolutePath),
-    isManuallyAdded: true,
-    sessions: [],
-    cursorSessions: []
-  };
+    return {
+      name: projectName,
+      path: absolutePath,
+      fullPath: absolutePath,
+      displayName: displayName || await generateDisplayName(projectName, absolutePath),
+      isManuallyAdded: true,
+      sessions: [],
+      cursorSessions: []
+    };
+  });
 }
 
 // Fetch Cursor sessions for a given project path

@@ -590,10 +590,11 @@ function Sidebar({
       {showNewProject && ReactDOM.createPortal(
         <ProjectCreationWizard
           onClose={() => setShowNewProject(false)}
-          onProjectCreated={async (_project) => {
-            // Refresh projects list after creation - await to ensure state updates before wizard closes
+          onProjectCreated={(_project) => {
+            // Refresh projects list after creation in the background
+            // Don't await - let the wizard close immediately for better UX
             if (window.refreshProjects) {
-              await window.refreshProjects();
+              window.refreshProjects();
             } else {
               window.location.reload();
             }

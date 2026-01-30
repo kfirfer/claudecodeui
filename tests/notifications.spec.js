@@ -590,8 +590,8 @@ test.describe('Notification Trigger', () => {
         await chatTextarea.press('Control+Enter');
       }
 
-      // Wait for Claude's response to appear in the chat
-      const claudeResponse = page.locator('text=Hello E2E Test');
+      // Wait for Claude's response to appear in the chat (assistant message containing the test text)
+      const claudeResponse = page.locator('.chat-message.assistant').getByText('Hello E2E Test');
       await expect(claudeResponse).toBeVisible({ timeout: 120000 });
 
       // Verify notification system was invoked (either sent or attempted)

@@ -2085,6 +2085,10 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   // Track whether we have active messages from current session that should NOT be cleared
   // This prevents race conditions from clearing messages during/after session processing
   const hasActiveSessionMessagesRef = useRef(false);
+  // Track whether messages have been loaded for the current session
+  // This handles the case where currentSessionId is initialized to selectedSession.id
+  // but messages haven't been loaded yet (URL navigation / page refresh)
+  const messagesLoadedForSessionRef = useRef(null);
   // Track forceNewSessionCounter to detect explicit "New Session" clicks from user
   // When this changes, we bypass hasAnyRecentCompletion() guard to ensure messages are cleared
   const prevForceNewSessionCounterRef = useRef(forceNewSessionCounter);
@@ -3346,13 +3350,30 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     // Load session messages when session changes
     const loadMessages = async () => {
       if (selectedSession && selectedProject) {
+        // Skip loading messages for pending sessions - they don't have data on the server yet
+        // Pending sessions have __isPending: true and IDs starting with "new-session-"
+        if (selectedSession.__isPending) {
+          // CRITICAL: Reset currentSessionId for pending sessions so that when
+          // the session-created event arrives with the real session ID, the handler
+          // can run. Without this, currentSessionId still has the previous session's ID,
+          // causing confirmPendingSession to never be called for new sessions.
+          if (currentSessionId !== null) {
+            setCurrentSessionId(null);
+          }
+          return;
+        }
+
         const provider = localStorage.getItem('selected-provider') || 'claude';
 
         // Mark that we're loading a session to prevent multiple scroll triggers
         isLoadingSessionRef.current = true;
 
         // Only reset state if the session ID actually changed (not initial load)
-        const sessionChanged = currentSessionId !== null && currentSessionId !== selectedSession.id;
+        // Use messagesLoadedForSessionRef instead of currentSessionId state because:
+        // 1. currentSessionId state updates are async and may be stale in this closure
+        // 2. messagesLoadedForSessionRef tracks which session's messages are actually loaded
+        // This ensures we always detect session changes correctly even during rapid navigation
+        const sessionChanged = messagesLoadedForSessionRef.current !== null && messagesLoadedForSessionRef.current !== selectedSession.id;
 
         if (sessionChanged) {
           // User explicitly navigating to a different session - always clear old messages
@@ -3412,10 +3433,12 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
           // Only load messages from SQLite when:
           // 1. User explicitly navigated to a different session (sessionChanged), OR
-          // 2. It's an initial load (currentSessionId === null && !isSystemSessionChange && !hasActiveSessionMessagesRef)
+          // 2. It's an initial load (currentSessionId === null && !isSystemSessionChange && !hasActiveSessionMessagesRef), OR
+          // 3. Messages haven't been loaded for this session yet (handles URL navigation)
           // Note: When sessionChanged is true, we always load because we've already cleared messages above.
           // The hasActiveSessionMessagesRef check is only for initial loads to prevent replacing WebSocket messages.
-          const shouldLoadFromSqlite = sessionChanged || (!isSystemSessionChange && !hasActiveSessionMessagesRef.current && currentSessionId === null);
+          const messagesNotLoadedForSession = messagesLoadedForSessionRef.current !== selectedSession.id && !hasActiveSessionMessagesRef.current;
+          const shouldLoadFromSqlite = sessionChanged || (!isSystemSessionChange && !hasActiveSessionMessagesRef.current && currentSessionId === null) || messagesNotLoadedForSession;
 
           if (shouldLoadFromSqlite) {
             // Load historical messages for Cursor session from SQLite
@@ -3423,6 +3446,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             const converted = await loadCursorSessionMessages(projectPath, selectedSession.id);
             // Reset the session switch flag BEFORE setting new messages
             sessionSwitchInProgressRef.current = false;
+            // Mark that messages have been loaded for this session
+            messagesLoadedForSessionRef.current = selectedSession.id;
             setSessionMessages([]);
             setChatMessages(converted);
           } else if (isSystemSessionChange) {
@@ -3440,10 +3465,13 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
           // Only load messages from API when:
           // 1. User explicitly navigated to a different session (sessionChanged), OR
-          // 2. It's an initial load (currentSessionId === null && !isSystemSessionChange && !hasActiveSessionMessagesRef)
+          // 2. It's an initial load (currentSessionId === null && !isSystemSessionChange && !hasActiveSessionMessagesRef), OR
+          // 3. Messages haven't been loaded for this session yet (handles URL navigation where currentSessionId
+          //    is initialized to selectedSession.id but messages haven't been fetched)
           // Note: When sessionChanged is true, we always load because we've already cleared messages above.
           // The hasActiveSessionMessagesRef check is only for initial loads to prevent replacing WebSocket messages.
-          const shouldLoadFromApi = sessionChanged || (!isSystemSessionChange && !hasActiveSessionMessagesRef.current && currentSessionId === null);
+          const messagesNotLoadedForSession = messagesLoadedForSessionRef.current !== selectedSession.id && !hasActiveSessionMessagesRef.current;
+          const shouldLoadFromApi = sessionChanged || (!isSystemSessionChange && !hasActiveSessionMessagesRef.current && currentSessionId === null) || messagesNotLoadedForSession;
 
           if (shouldLoadFromApi) {
             const messages = await loadSessionMessages(selectedProject.name, selectedSession.id, false, selectedSession.__provider || 'claude');
@@ -3453,6 +3481,8 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             // Track which session these messages belong to BEFORE setting state
             // This allows the sync effect to verify it's using the right session's data
             sessionMessagesSessionIdRef.current = selectedSession.id;
+            // Mark that messages have been loaded for this session
+            messagesLoadedForSessionRef.current = selectedSession.id;
             // Set the new messages
             setSessionMessages(messages);
             setChatMessages(converted);
@@ -3505,11 +3535,16 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           setTotalMessages(0);
           setTokenBudget(null);
         }
+        // Always reset session switch flag for new session view
+        // (regardless of whether we reset state - the switch itself is complete)
+        sessionSwitchInProgressRef.current = false;
       }
 
-      // Ensure session switch flag is reset at the end of loadMessages
-      // This catches any edge cases where the flag wasn't reset in the code paths above
-      sessionSwitchInProgressRef.current = false;
+      // NOTE: Each code path above handles its own flag reset with appropriate timing:
+      // - Cursor: resets synchronously after setChatMessages
+      // - Claude: uses setTimeout(0) to reset after next render cycle
+      // - No messages: resets synchronously
+      // - New session view: resets synchronously (always, to avoid stuck flag)
 
       // Mark loading as complete after messages are set
       // Use setTimeout to ensure state updates and DOM rendering are complete
@@ -3902,18 +3937,36 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       }
 
       switch (latestMessage.type) {
-        case 'session-created':
+        case 'session-created': {
           // New session created by Claude CLI - we receive the real session ID here
           // Store it temporarily until conversation completes (prevents premature session association)
-          if (latestMessage.sessionId && !currentSessionId) {
+          // The condition handles multiple scenarios:
+          // 1. !currentSessionId - normal case where no session was active
+          // 2. selectedSession?.__isPending - when a pending session is selected
+          // 3. pendingViewSessionRef.current exists with null sessionId - user started a new session
+          //    and handleSubmit set up the pending view but we haven't received the real ID yet.
+          //    This is the most reliable indicator because it's set synchronously in handleSubmit.
+          const isPendingNewSession = pendingViewSessionRef.current &&
+                                      pendingViewSessionRef.current.sessionId === null;
+          const isNewSessionContext = !currentSessionId ||
+                                      selectedSession?.__isPending ||
+                                      isPendingNewSession;
+          if (latestMessage.sessionId && isNewSessionContext) {
             sessionStorage.setItem('pendingSessionId', latestMessage.sessionId);
             if (pendingViewSessionRef.current && !pendingViewSessionRef.current.sessionId) {
               pendingViewSessionRef.current.sessionId = latestMessage.sessionId;
             }
-            
+
             // Mark as system change to prevent clearing messages when session ID updates
             setIsSystemSessionChange(true);
-            
+
+            // CRITICAL: Mark this session as having loaded messages via WebSocket.
+            // This is essential for sessionChanged detection in loadMessages effect.
+            // Without this, when navigating away from a WebSocket-created session,
+            // sessionChanged would be false because messagesLoadedForSessionRef.current
+            // would still be null (only set in API load path).
+            messagesLoadedForSessionRef.current = latestMessage.sessionId;
+
             // Session Protection: Replace temporary "new-session-*" identifier with real session ID
             // This maintains protection continuity - no gap between temp ID and real ID
             // The temporary session is removed and real session is marked as active
@@ -3936,6 +3989,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             )));
           }
           break;
+        }
 
         case 'token-budget':
           // Use token budget from WebSocket for active sessions

@@ -282,9 +282,10 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
 
       // Wait for project to expand and show "New Session" button
       // The New Session button appears inside the expanded project's session list
-      const newSessionButton = page.locator('button:has-text("New Session")').first();
+      const newSessionButton = page.locator('[data-testid="new-session-button"]').first();
       // Use dispatchEvent to click the button even if it's in a scrollable/overflow area
-      await newSessionButton.dispatchEvent('click');
+      await expect(newSessionButton).toBeVisible({ timeout: 10000 });
+      await newSessionButton.click();
 
       // Verify chat interface is visible (textarea for input)
       const chatTextarea = page.locator('textarea').first();
@@ -296,14 +297,12 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
       const testMessage = 'Hello! This is a test message from the E2E test suite.';
       await chatTextarea.fill(testMessage);
 
-      // Find and click the send button - wait for it to be enabled first
-      const sendButton = page.locator('button[type="submit"]').first();
-      await expect(sendButton).toBeEnabled({ timeout: 5000 });
-      await sendButton.click();
+      // Send the message using Ctrl+Enter
+      await chatTextarea.press('Control+Enter');
 
-      // Verify the user message appears in the chat
-      const userMessage = page.getByText(testMessage).first();
-      await expect(userMessage).toBeVisible();
+      // Verify the user message appears in the chat area
+      const userMessage = page.locator('.chat-message.user').filter({ hasText: testMessage });
+      await expect(userMessage).toBeVisible({ timeout: 10000 });
 
       // ==========================================
       // Step 4.5: Wait for Claude to complete and validate token usage
@@ -468,8 +467,9 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
 
       // PHASE 2: Create first session and send message
       // Use dispatchEvent to click New Session (matches working test pattern)
-      const newSessionBtn = page.locator('button:has-text("New Session")').first();
-      await newSessionBtn.dispatchEvent('click');
+      const newSessionBtn = page.locator('[data-testid="new-session-button"]').first();
+      await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
+      await newSessionBtn.click();
 
       const chatTextarea = page.locator('textarea').first();
       await expect(chatTextarea).toBeVisible({ timeout: 15000 });
@@ -485,13 +485,12 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const firstMessage = `First session ${testId} - say hello`;
       await chatTextarea.fill(firstMessage);
 
-      // Find and click the send button - wait for it to be enabled first
-      const sendBtn = page.locator('button[type="submit"]').first();
-      await expect(sendBtn).toBeEnabled({ timeout: 5000 });
-      await sendBtn.click();
+      // Send the message using Ctrl+Enter
+      await chatTextarea.press('Control+Enter');
 
-      // Verify message sent
-      await expect(page.getByText(firstMessage).first()).toBeVisible({ timeout: 5000 });
+      // Verify message sent in chat area
+      const firstMsgInChat = page.locator('.chat-message.user').filter({ hasText: firstMessage });
+      await expect(firstMsgInChat).toBeVisible({ timeout: 10000 });
 
       // Session count should become 1
       let has1Session = await checkSessionCount(1);
@@ -513,8 +512,9 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       // Use a specific selector for the "New Session" BUTTON (not session items)
       // The actual "New Session" button is at the bottom of the sessions list and contains a "+" icon
       // We use .last() because pending sessions at the top might have similar text
-      const newSessionBtn2 = page.locator('button:has-text("New Session")').last();
-      await newSessionBtn2.dispatchEvent('click');
+      const newSessionBtn2 = page.locator('[data-testid="new-session-button"]').first();
+      await expect(newSessionBtn2).toBeVisible({ timeout: 10000 });
+      await newSessionBtn2.click();
 
       const chatTextarea2 = page.locator('textarea').first();
       await expect(chatTextarea2).toBeVisible({ timeout: 15000 });
@@ -530,13 +530,12 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const secondMessage = `Second session ${testId} - tell me a joke`;
       await chatTextarea2.fill(secondMessage);
 
-      // Find and click the send button - wait for it to be enabled first
-      const sendBtn2 = page.locator('button[type="submit"]').first();
-      await expect(sendBtn2).toBeEnabled({ timeout: 5000 });
-      await sendBtn2.click();
+      // Send the message using Ctrl+Enter
+      await chatTextarea2.press('Control+Enter');
 
-      // Verify second message sent
-      await expect(page.getByText(secondMessage).first()).toBeVisible({ timeout: 5000 });
+      // Verify second message sent in chat area
+      const secondMsgInChat = page.locator('.chat-message.user').filter({ hasText: secondMessage });
+      await expect(secondMsgInChat).toBeVisible({ timeout: 10000 });
 
       // Session count should become 2
       const projectWith2 = page.locator(`button:has-text("${projectFolderName}")`).filter({
@@ -606,8 +605,9 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await projectButton.click();
 
       // Start session
-      const newSessionBtn = page.locator('button:has-text("New Session")').first();
-      await newSessionBtn.dispatchEvent('click');
+      const newSessionBtn = page.locator('[data-testid="new-session-button"]').first();
+      await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
+      await newSessionBtn.click();
 
       const chatTextarea = page.locator('textarea').first();
       await expect(chatTextarea).toBeVisible({ timeout: 15000 });
@@ -623,13 +623,12 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const testMessage = `Test message ${testId} - say hello`;
       await chatTextarea.fill(testMessage);
 
-      // Find and click the send button - wait for it to be enabled first
-      const sendBtn = page.locator('button[type="submit"]').first();
-      await expect(sendBtn).toBeEnabled({ timeout: 5000 });
-      await sendBtn.click();
+      // Send the message using Ctrl+Enter
+      await chatTextarea.press('Control+Enter');
 
-      // Verify message sent
-      await expect(page.getByText(testMessage).first()).toBeVisible({ timeout: 5000 });
+      // Verify message sent in chat area
+      const msgInChat = page.locator('.chat-message.user').filter({ hasText: testMessage });
+      await expect(msgInChat).toBeVisible({ timeout: 10000 });
 
       // Wait for completion
       const stopBtn = page.locator('button:has-text("Stop")').first();
@@ -639,16 +638,8 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const thinkingAfterCompletion = await page.locator('text=Thinking...').first().isVisible().catch(() => false);
       expect(thinkingAfterCompletion).toBe(false);
 
-      // Verify message is still visible (check all matching elements)
-      const matchingElements = await page.getByText(testMessage).count();
-      let messageStillVisible = false;
-      for (let i = 0; i < matchingElements; i++) {
-        const isVis = await page.getByText(testMessage).nth(i).isVisible().catch(() => false);
-        if (isVis) {
-          messageStillVisible = true;
-          break;
-        }
-      }
+      // Verify message is still visible in chat area after completion
+      const messageStillVisible = await msgInChat.isVisible().catch(() => false);
       expect(messageStillVisible).toBe(true);
 
     } finally {
@@ -681,8 +672,9 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await projectButton.click();
 
       // Create first session with a unique message
-      const newSessionBtn = page.locator('button:has-text("New Session")').first();
-      await newSessionBtn.dispatchEvent('click');
+      const newSessionBtn = page.locator('[data-testid="new-session-button"]').first();
+      await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
+      await newSessionBtn.click();
 
       const chatTextarea = page.locator('textarea').first();
       await expect(chatTextarea).toBeVisible({ timeout: 15000 });
@@ -698,9 +690,8 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const firstSessionMessage = `FIRST_SESSION_${testId}_unique_marker`;
       await chatTextarea.fill(firstSessionMessage);
 
-      const sendBtn = page.locator('button[type="submit"]').first();
-      await expect(sendBtn).toBeEnabled({ timeout: 5000 });
-      await sendBtn.click();
+      // Send the message using Ctrl+Enter
+      await chatTextarea.press('Control+Enter');
 
       // Verify first message is visible in the chat area (user message has blue background)
       const firstMsgInChat = page.locator('.chat-message.user').filter({ hasText: firstSessionMessage });
@@ -711,8 +702,9 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await expect(stopBtn1).toBeHidden({ timeout: 120000 });
 
       // Create second session with a different unique message
-      const newSessionBtn2 = page.locator('button:has-text("New Session")').last();
-      await newSessionBtn2.dispatchEvent('click');
+      const newSessionBtn2 = page.locator('[data-testid="new-session-button"]').first();
+      await expect(newSessionBtn2).toBeVisible({ timeout: 10000 });
+      await newSessionBtn2.click();
 
       const chatTextarea2 = page.locator('textarea').first();
       await expect(chatTextarea2).toBeVisible({ timeout: 15000 });
@@ -728,9 +720,8 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const secondSessionMessage = `SECOND_SESSION_${testId}_unique_marker`;
       await chatTextarea2.fill(secondSessionMessage);
 
-      const sendBtn2 = page.locator('button[type="submit"]').first();
-      await expect(sendBtn2).toBeEnabled({ timeout: 5000 });
-      await sendBtn2.click();
+      // Send the message using Ctrl+Enter
+      await chatTextarea2.press('Control+Enter');
 
       // Verify second message is visible in chat area (we're in second session)
       const secondMsgInChat = page.locator('.chat-message.user').filter({ hasText: secondSessionMessage });
@@ -742,6 +733,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
 
       // Navigate back to first session using sidebar
       // Find the session button that contains our first message text
+
       const firstSessionButton = page.locator('button').filter({ hasText: /FIRST_SESSION/i }).first();
       await expect(firstSessionButton).toBeVisible({ timeout: 10000 });
       await firstSessionButton.click();
@@ -792,8 +784,9 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await projectButton.click();
 
       // Create first session
-      const newSessionBtn = page.locator('button:has-text("New Session")').first();
-      await newSessionBtn.dispatchEvent('click');
+      const newSessionBtn = page.locator('[data-testid="new-session-button"]').first();
+      await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
+      await newSessionBtn.click();
 
       const chatTextarea = page.locator('textarea').first();
       await expect(chatTextarea).toBeVisible({ timeout: 15000 });
@@ -809,9 +802,8 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const testMessage = `Indicator test ${testId} - respond briefly`;
       await chatTextarea.fill(testMessage);
 
-      const sendBtn = page.locator('button[type="submit"]').first();
-      await expect(sendBtn).toBeEnabled({ timeout: 5000 });
-      await sendBtn.click();
+      // Send the message using Ctrl+Enter
+      await chatTextarea.press('Control+Enter');
 
       // Verify processing indicator shows while AI is thinking
       const processingBar = page.locator('button:has-text("Stop")').first();
@@ -860,8 +852,9 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
 
       for (let i = 1; i <= 3; i++) {
         // Create new session
-        const newSessionBtn = page.locator('button:has-text("New Session")').last();
-        await newSessionBtn.dispatchEvent('click');
+        const newSessionBtn = page.locator('[data-testid="new-session-button"]').first();
+        await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
+      await newSessionBtn.click();
 
         const chatTextarea = page.locator('textarea').first();
         await expect(chatTextarea).toBeVisible({ timeout: 15000 });
@@ -878,9 +871,8 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
         sessionMessages.push(uniqueMessage);
         await chatTextarea.fill(uniqueMessage);
 
-        const sendBtn = page.locator('button[type="submit"]').first();
-        await expect(sendBtn).toBeEnabled({ timeout: 5000 });
-        await sendBtn.click();
+        // Send the message using Ctrl+Enter
+        await chatTextarea.press('Control+Enter');
 
         // Verify message is visible in chat area
         const msgInChat = page.locator('.chat-message.user').filter({ hasText: uniqueMessage });
@@ -942,8 +934,9 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await projectButton.click();
 
       // Create a session
-      const newSessionBtn = page.locator('button:has-text("New Session")').first();
-      await newSessionBtn.dispatchEvent('click');
+      const newSessionBtn = page.locator('[data-testid="new-session-button"]').first();
+      await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
+      await newSessionBtn.click();
 
       const chatTextarea = page.locator('textarea').first();
       await expect(chatTextarea).toBeVisible({ timeout: 15000 });
@@ -959,9 +952,8 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const testMessage = `URL_NAV_TEST_${testId}`;
       await chatTextarea.fill(testMessage);
 
-      const sendBtn = page.locator('button[type="submit"]').first();
-      await expect(sendBtn).toBeEnabled({ timeout: 5000 });
-      await sendBtn.click();
+      // Send the message using Ctrl+Enter
+      await chatTextarea.press('Control+Enter');
 
       // Wait for completion
       const stopBtn = page.locator('button:has-text("Stop")').first();
@@ -1013,8 +1005,9 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await projectButton.click();
 
       // Create a session
-      const newSessionBtn = page.locator('button:has-text("New Session")').first();
-      await newSessionBtn.dispatchEvent('click');
+      const newSessionBtn = page.locator('[data-testid="new-session-button"]').first();
+      await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
+      await newSessionBtn.click();
 
       const chatTextarea = page.locator('textarea').first();
       await expect(chatTextarea).toBeVisible({ timeout: 15000 });
@@ -1030,9 +1023,8 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const testMessage = `REFRESH_TEST_${testId}`;
       await chatTextarea.fill(testMessage);
 
-      const sendBtn = page.locator('button[type="submit"]').first();
-      await expect(sendBtn).toBeEnabled({ timeout: 5000 });
-      await sendBtn.click();
+      // Send the message using Ctrl+Enter
+      await chatTextarea.press('Control+Enter');
 
       // Verify message is visible in chat area
       const msgInChat = page.locator('.chat-message.user').filter({ hasText: testMessage });

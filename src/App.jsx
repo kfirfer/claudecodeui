@@ -187,6 +187,14 @@ function AppContent() {
       return true;
     }
 
+    // If selectedSession is a pending session (new-session-* ID), ALWAYS allow updates
+    // This is critical because pending sessions need to be cleaned up when the real session appears
+    // in the projects data. Without allowing updates, the real session never appears in projects,
+    // and the pending session cleanup never happens.
+    if (selectedSession.__isPending || selectedSession.id?.startsWith('new-session-')) {
+      return true;
+    }
+
     // Find the selected project in both current and updated data
     const currentSelectedProject = currentProjects?.find(p => p.name === selectedProject.name);
     const updatedSelectedProject = updatedProjects?.find(p => p.name === selectedProject.name);
@@ -207,7 +215,7 @@ function AppContent() {
 
     // Check if the selected session's content has changed (modification vs addition)
     // Compare key fields that would affect the loaded chat interface
-    const sessionUnchanged = 
+    const sessionUnchanged =
       currentSelectedSession.id === updatedSelectedSession.id &&
       currentSelectedSession.title === updatedSelectedSession.title &&
       currentSelectedSession.created_at === updatedSelectedSession.created_at &&
@@ -291,8 +299,25 @@ function AppContent() {
         }
         
         // Update projects state with the new data from WebSocket
+        // IMPORTANT: Merge rather than replace to preserve projects/sessions that might be missing
+        // from the update due to timing issues (file system scan racing with file creation)
         const updatedProjects = latestMessage.projects;
-        setProjects(updatedProjects);
+        setProjects(prevProjects => {
+          // Create a map of updated projects for quick lookup
+          const updatedMap = new Map(updatedProjects.map(p => [p.name, p]));
+
+          // Start with the updated projects
+          const mergedProjects = [...updatedProjects];
+
+          // Add any projects from prev that aren't in updated (preserves recently created projects)
+          for (const prevProject of prevProjects) {
+            if (!updatedMap.has(prevProject.name)) {
+              mergedProjects.push(prevProject);
+            }
+          }
+
+          return mergedProjects;
+        });
 
         // Note: pendingSession is cleared when 'session-created' event is received
         // in ChatInterface, not here. This ensures the pending session remains visible
@@ -307,43 +332,14 @@ function AppContent() {
               setSelectedProject(updatedSelectedProject);
             }
 
-            if (selectedSession) {
-              const allSessions = [
-                ...(updatedSelectedProject.sessions || []),
-                ...(updatedSelectedProject.codexSessions || []),
-                ...(updatedSelectedProject.cursorSessions || [])
-              ];
-              const updatedSelectedSession = allSessions.find(s => s.id === selectedSession.id);
-              if (!updatedSelectedSession) {
-                // Check if this session was recently completed (within 10 seconds)
-                // If so, don't clear it - the disk scan might be behind
-                const completedTime = recentlyCompletedSessionsRef.current.get(selectedSession.id);
-                const isRecentlyCompleted = completedTime && (Date.now() - completedTime < 10000);
-
-                // Also don't clear if ANY session is currently active
-                // When user navigates between sessions during processing, the projects_updated
-                // data might be stale and not include the session they navigated to
-                const hasAnyActiveSession = activeSessions.size > 0;
-
-                // Also don't clear if the session was recently selected (within 5 seconds)
-                // This protects against stale projects_updated data when user navigates between sessions
-                const isRecentlySelected = (Date.now() - sessionSelectedTimeRef.current) < 5000;
-
-                console.log('[App projects_updated] Session not found in updated data:', {
-                  sessionId: selectedSession.id,
-                  completedTime,
-                  isRecentlyCompleted,
-                  hasAnyActiveSession,
-                  isRecentlySelected,
-                  willClear: !isRecentlyCompleted && !hasAnyActiveSession && !isRecentlySelected
-                });
-
-                if (!isRecentlyCompleted && !hasAnyActiveSession && !isRecentlySelected) {
-                  console.log('[App projects_updated] CLEARING selectedSession');
-                  setSelectedSession(null);
-                }
-              }
-            }
+            // Note: We intentionally do NOT clear selectedSession when it's not found in the updated data.
+            // The projects_updated data might be incomplete due to:
+            // - File system scan timing (files still being written)
+            // - Race conditions when multiple clients trigger updates
+            // - Incomplete scans during high I/O
+            // Instead, we trust that the session exists if it was previously selected.
+            // The user can manually refresh if the session was truly deleted.
+            // This prevents disruptive automatic clearing during normal operation.
           }
         }
       }
@@ -385,31 +381,76 @@ function AppContent() {
         }
       }
 
-      // Optimize to preserve object references when data hasn't changed
+      // IMPORTANT: Merge rather than replace to preserve projects and sessions that might be missing
+      // from the API response due to timing issues (parallel tests creating projects simultaneously,
+      // or config file writes that haven't been fully persisted yet)
       setProjects(prevProjects => {
         // If no previous projects, just set the new data
         if (prevProjects.length === 0) {
           return data;
         }
 
-        // Check if the projects data has actually changed
-        const hasChanges = data.some((newProject, index) => {
-          const prevProject = prevProjects[index];
-          if (!prevProject) return true;
+        // Create maps for quick lookup
+        const fetchedMap = new Map(data.map(p => [p.name, p]));
+        const prevMap = new Map(prevProjects.map(p => [p.name, p]));
 
-          // Compare key properties that would affect UI
-          return (
-            newProject.name !== prevProject.name ||
-            newProject.displayName !== prevProject.displayName ||
-            newProject.fullPath !== prevProject.fullPath ||
-            JSON.stringify(newProject.sessionMeta) !== JSON.stringify(prevProject.sessionMeta) ||
-            JSON.stringify(newProject.sessions) !== JSON.stringify(prevProject.sessions) ||
-            JSON.stringify(newProject.cursorSessions) !== JSON.stringify(prevProject.cursorSessions)
-          );
-        }) || data.length !== prevProjects.length;
+        // Helper to merge sessions arrays, preserving sessions from prev that aren't in fetched
+        const mergeSessions = (fetchedSessions = [], prevSessions = []) => {
+          if (prevSessions.length === 0) return fetchedSessions;
+          if (fetchedSessions.length === 0) return prevSessions;
 
-        // Only update if there are actual changes
-        return hasChanges ? data : prevProjects;
+          const fetchedIds = new Set(fetchedSessions.map(s => s.id));
+          const merged = [...fetchedSessions];
+          for (const prevSession of prevSessions) {
+            if (!fetchedIds.has(prevSession.id)) {
+              merged.push(prevSession);
+            }
+          }
+          return merged;
+        };
+
+        // Merge projects: use fetched data but preserve sessions from prev
+        const mergedProjects = data.map(fetchedProject => {
+          const prevProject = prevMap.get(fetchedProject.name);
+          if (!prevProject) {
+            return fetchedProject;
+          }
+          // Merge sessions from both sources
+          return {
+            ...fetchedProject,
+            sessions: mergeSessions(fetchedProject.sessions, prevProject.sessions),
+            cursorSessions: mergeSessions(fetchedProject.cursorSessions, prevProject.cursorSessions),
+            codexSessions: mergeSessions(fetchedProject.codexSessions, prevProject.codexSessions)
+          };
+        });
+
+        // Add any projects from prev that aren't in fetched (preserves recently created projects)
+        for (const prevProject of prevProjects) {
+          if (!fetchedMap.has(prevProject.name)) {
+            mergedProjects.push(prevProject);
+          }
+        }
+
+        // Check if the result is different from previous state
+        if (mergedProjects.length === prevProjects.length) {
+          const hasChanges = mergedProjects.some(newProject => {
+            const prevProject = prevMap.get(newProject.name);
+            if (!prevProject) return true;
+            // Compare key properties that would affect UI
+            return (
+              newProject.displayName !== prevProject.displayName ||
+              newProject.fullPath !== prevProject.fullPath ||
+              JSON.stringify(newProject.sessionMeta) !== JSON.stringify(prevProject.sessionMeta) ||
+              JSON.stringify(newProject.sessions) !== JSON.stringify(prevProject.sessions) ||
+              JSON.stringify(newProject.cursorSessions) !== JSON.stringify(prevProject.cursorSessions)
+            );
+          });
+          if (!hasChanges) {
+            return prevProjects;
+          }
+        }
+
+        return mergedProjects;
       });
 
       // Allow React to process the state update before returning
@@ -436,6 +477,9 @@ function AppContent() {
     setShowSettings(true);
   }, []);
 
+  // Track retry attempts for URL-based session loading
+  const sessionLoadRetryRef = useRef({ sessionId: null, attempts: 0 });
+
   // Handle URL-based session loading
   useEffect(() => {
     if (sessionId && projects.length > 0) {
@@ -451,6 +495,8 @@ function AppContent() {
           if (shouldSwitchTab) {
             setActiveTab('chat');
           }
+          // Reset retry counter on success
+          sessionLoadRetryRef.current = { sessionId: null, attempts: 0 };
           return;
         }
         // Also check Cursor sessions
@@ -461,37 +507,38 @@ function AppContent() {
           if (shouldSwitchTab) {
             setActiveTab('chat');
           }
+          // Reset retry counter on success
+          sessionLoadRetryRef.current = { sessionId: null, attempts: 0 };
           return;
         }
       }
 
-      // If session not found, it might be a newly created session
-      // Just navigate to it and it will be found when the sidebar refreshes
-      // Don't redirect to home, let the session load naturally
+      // If session not found, it might be a newly created session that hasn't been indexed yet
+      // Retry fetching projects a few times to allow the backend to catch up
+      if (sessionLoadRetryRef.current.sessionId !== sessionId) {
+        // New session ID, reset retry counter
+        sessionLoadRetryRef.current = { sessionId, attempts: 0 };
+      }
+
+      if (sessionLoadRetryRef.current.attempts < 3) {
+        sessionLoadRetryRef.current.attempts += 1;
+        console.log(`[App] Session ${sessionId} not found, retrying fetchProjects (attempt ${sessionLoadRetryRef.current.attempts}/3)`);
+        // Retry after a short delay to allow backend to index the session
+        setTimeout(() => {
+          fetchProjects();
+        }, 500);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedSession is intentionally omitted: this effect handles URL-based session loading and should only run on URL changes (sessionId) or project data updates, not when selectedSession changes
   }, [sessionId, projects, navigate]);
 
   const handleSessionSelect = (session) => {
-    console.log('[App handleSessionSelect] Called with session:', {
-      id: session?.id,
-      __projectName: session?.__projectName,
-      title: session?.title || session?.summary,
-      currentSelectedProject: selectedProject?.name
-    });
     // Find and set the project first - this ensures ChatInterface has correct context
     // The session object includes __projectName from handleSessionClick in Sidebar
     const sessionProjectName = session.__projectName;
     let projectFound = false;
     if (sessionProjectName) {
       const project = projects.find(p => p.name === sessionProjectName);
-      console.log('[App handleSessionSelect] Project lookup result:', {
-        sessionProjectName,
-        projectFound: !!project,
-        projectName: project?.name,
-        projectsCount: projects.length,
-        projectNames: projects.map(p => p.name).join(', ')
-      });
       if (project) {
         setSelectedProject(project);
         projectFound = true;
@@ -501,25 +548,19 @@ function AppContent() {
         for (const p of projects) {
           const allSessions = [...(p.sessions || []), ...(p.codexSessions || []), ...(p.cursorSessions || [])];
           if (allSessions.some(s => s.id === session.id)) {
-            console.log('[App handleSessionSelect] Found session in project:', p.name);
             setSelectedProject(p);
             projectFound = true;
             break;
           }
         }
-        if (!projectFound) {
-          console.log('[App handleSessionSelect] Could not find project for session, keeping current selectedProject');
-          // If we can't find the project, don't change selectedProject
-          // This prevents "Choose Your Project" from showing
-        }
+        // If we can't find the project, don't change selectedProject
+        // This prevents "Choose Your Project" from showing
       }
     } else {
-      console.log('[App handleSessionSelect] No __projectName on session, searching all projects');
       // No project name on session - search all projects for this session
       for (const p of projects) {
         const allSessions = [...(p.sessions || []), ...(p.codexSessions || []), ...(p.cursorSessions || [])];
         if (allSessions.some(s => s.id === session.id)) {
-          console.log('[App handleSessionSelect] Found session in project:', p.name);
           setSelectedProject(p);
           projectFound = true;
           break;
@@ -527,7 +568,6 @@ function AppContent() {
       }
     }
 
-    console.log('[App handleSessionSelect] Setting selectedSession:', session?.id, 'projectFound:', projectFound);
     // Force ChatInterface to clear messages BEFORE setting the new session
     // This ensures the old session's messages are removed before the new session is loaded
     setForceSessionSwitchCounter(prev => prev + 1);
