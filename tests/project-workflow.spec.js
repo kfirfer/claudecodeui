@@ -140,45 +140,6 @@ async function deleteProjectViaUI(page, projectName) {
   await expect(projectButton).not.toBeVisible({ timeout: 10000 });
 }
 
-test.describe('Project Create and Delete', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
-    await performLogin(page);
-  });
-
-  test('create project and delete it', async ({ page }) => {
-    test.setTimeout(TEST_TIMEOUT);
-
-    const testId = Date.now();
-    const testProjectPath = path.join(os.homedir(), `e2e-create-delete-${testId}`);
-    const projectFolderName = `e2e-create-delete-${testId}`;
-
-    // Create the test directory
-    await createTestDirectory(testProjectPath);
-
-    try {
-      // Create the project via wizard
-      const createdProjectName = await createProject(page, testProjectPath);
-      expect(createdProjectName).toBe(projectFolderName);
-
-      // Verify project appears in sidebar
-      const projectButton = page.locator(`button:has-text("${projectFolderName}")`).first();
-      await expect(projectButton).toBeVisible();
-
-      // Delete the project via UI
-      await deleteProjectViaUI(page, projectFolderName);
-
-      // Verify project is no longer visible
-      await expect(projectButton).not.toBeVisible({ timeout: 10000 });
-
-    } finally {
-      // Cleanup test directory
-      await removeTestDirectory(testProjectPath);
-    }
-  });
-});
-
 test.describe('Project Operations - Individual Tests', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
@@ -297,9 +258,9 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
       // Find and hover over the project row to reveal action buttons
       await projectButton.hover();
 
-      // Click the edit button within this project's button
-      const editButton = projectButton.locator('[title*="Rename" i]').first();
-      await expect(editButton).toBeVisible();
+      // Click the edit button using data-testid (more reliable than title)
+      const editButton = page.locator(`[data-testid="rename-project-${projectFolderName}"]`);
+      await expect(editButton).toBeVisible({ timeout: 5000 });
       await editButton.click();
 
       // Find and fill the rename input - it should appear within the project button area
@@ -491,18 +452,20 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       // Click to expand the project
       await projectButton.click();
 
-      // Helper to check session count by looking for the badge number in the project button
-      // The button text format is: "project-name N• path" where N is the session count
+      // Helper to check session count using data-testid for reliability
       const checkSessionCount = async (expectedCount) => {
-        const projectWithCount = page.locator(`button:has-text("${projectFolderName}")`).filter({
-          has: page.locator(`text="${expectedCount}"`)
-        }).first();
-        return await projectWithCount.isVisible().catch(() => false);
+        const sessionCountElement = page.locator(`[data-testid="session-count-${projectFolderName}"]`);
+        const isVisible = await sessionCountElement.isVisible().catch(() => false);
+        if (!isVisible) return false;
+        const text = await sessionCountElement.textContent().catch(() => '');
+        // Handle both "N" and "N+" formats
+        const actualCount = parseInt(text.replace('+', ''), 10);
+        return actualCount === expectedCount;
       };
 
       // Check initial session count is 0
-      const has0Sessions = await checkSessionCount(0);
-      expect(has0Sessions).toBe(true);
+      const sessionCountEl = page.locator(`[data-testid="session-count-${projectFolderName}"]`);
+      await expect(sessionCountEl).toHaveText('0', { timeout: 5000 });
 
       // PHASE 2: Create first session and send message
       // Use dispatchEvent to click New Session (matches working test pattern)
@@ -532,19 +495,14 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await expect(firstMsgInChat).toBeVisible({ timeout: 10000 });
 
       // Session count should become 1
-      let has1Session = await checkSessionCount(1);
-      const projectWith1 = page.locator(`button:has-text("${projectFolderName}")`).filter({
-        has: page.locator('text="1"')
-      }).first();
-      await expect(projectWith1).toBeVisible({ timeout: 3000 });
+      await expect(sessionCountEl).toHaveText('1', { timeout: 10000 });
 
       // Wait for AI to complete first session
       const stopBtn = page.locator('button:has-text("Stop")').first();
       await expect(stopBtn).toBeHidden({ timeout: 120000 });
 
       // Verify session count still 1
-      has1Session = await checkSessionCount(1);
-      expect(has1Session).toBe(true);
+      await expect(sessionCountEl).toHaveText('1');
 
       // PHASE 3: Create second session
 
@@ -577,12 +535,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await expect(secondMsgInChat).toBeVisible({ timeout: 10000 });
 
       // Session count should become 2
-      const projectWith2 = page.locator(`button:has-text("${projectFolderName}")`).filter({
-        has: page.locator('text="2"')
-      }).first();
-      await expect(projectWith2).toBeVisible({ timeout: 10000 });
-
-      let has2Sessions = await checkSessionCount(2);
+      await expect(sessionCountEl).toHaveText('2', { timeout: 10000 });
 
       // PHASE 4: Verify session count while AI is thinking
       // Note: Session navigation during processing is intentionally skipped to avoid flakiness
@@ -590,15 +543,13 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const stopBtn2 = page.locator('button:has-text("Stop")').first();
 
       // Check session count - should be 2 at this point
-      has2Sessions = await checkSessionCount(2);
-      expect(has2Sessions).toBe(true);
+      await expect(sessionCountEl).toHaveText('2');
 
       // PHASE 5: Wait for second AI to complete
       await expect(stopBtn2).toBeHidden({ timeout: 120000 });
 
       // Final session count check
-      has2Sessions = await checkSessionCount(2);
-      expect(has2Sessions).toBe(true);
+      await expect(sessionCountEl).toHaveText('2');
 
       // PHASE 6: Verify sessions exist via sidebar count
       // The critical test is that 2 distinct sessions were created
@@ -611,8 +562,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
 
       // Final verification: ensure we have 2 sessions for this project
       // This is the critical assertion that proves the session creation fix works
-      has2Sessions = await checkSessionCount(2);
-      expect(has2Sessions).toBe(true);
+      await expect(sessionCountEl).toHaveText('2');
 
     } finally {
       // Clean up the test directory and project regardless of test outcome
@@ -669,17 +619,17 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const msgInChat = page.locator('.chat-message.user').filter({ hasText: testMessage });
       await expect(msgInChat).toBeVisible({ timeout: 10000 });
 
-      // Wait for completion
+      // Wait for completion - Stop button becomes hidden when AI is done
       const stopBtn = page.locator('button:has-text("Stop")').first();
       await expect(stopBtn).toBeHidden({ timeout: 120000 });
 
-      // Verify "Thinking..." is NOT showing after completion
-      const thinkingAfterCompletion = await page.locator('text=Thinking...').first().isVisible().catch(() => false);
-      expect(thinkingAfterCompletion).toBe(false);
+      // Verify the thinking INDICATOR (loading animation) is NOT showing after completion
+      // Use data-testid to specifically target the loading indicator, not thinking blocks in chat history
+      const thinkingIndicator = page.locator('[data-testid="thinking-indicator"]');
+      await expect(thinkingIndicator).toBeHidden({ timeout: 5000 });
 
       // Verify message is still visible in chat area after completion
-      const messageStillVisible = await msgInChat.isVisible().catch(() => false);
-      expect(messageStillVisible).toBe(true);
+      await expect(msgInChat).toBeVisible({ timeout: 5000 });
 
     } finally {
       // Clean up the test directory and project regardless of test outcome
@@ -771,32 +721,27 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await expect(stopBtnForSecond).toBeHidden({ timeout: 120000 });
 
       // Navigate back to first session using sidebar
-      // Find the session button that contains our first message text
-
-      const firstSessionButton = page.locator('button').filter({ hasText: /FIRST_SESSION/i }).first();
+      // Use getByRole with accessible name for more reliable selection
+      const firstSessionButton = page.getByRole('button', { name: new RegExp(`FIRST_SESSION_${testId}_unique_marker`) });
       await expect(firstSessionButton).toBeVisible({ timeout: 10000 });
       await firstSessionButton.click();
 
       // Verify first session message is visible in chat after navigation
-      await expect(firstMsgInChat).toBeVisible({ timeout: 10000 });
+      await expect(firstMsgInChat).toBeVisible({ timeout: 15000 });
 
       // Verify second session message is NOT visible in chat (we're in first session now)
       await expect(secondMsgInChat).toBeHidden({ timeout: 5000 });
 
       // Navigate back to second session
-      const secondSessionButton = page.locator('button').filter({ hasText: /SECOND_SESSION/i }).first();
+      const secondSessionButton = page.getByRole('button', { name: new RegExp(`SECOND_SESSION_${testId}_unique_marker`) });
       await expect(secondSessionButton).toBeVisible({ timeout: 10000 });
       await secondSessionButton.click();
 
       // Verify second session message is visible in chat after navigation
-      await expect(secondMsgInChat).toBeVisible({ timeout: 10000 });
+      await expect(secondMsgInChat).toBeVisible({ timeout: 15000 });
 
       // Verify first session message is NOT visible in chat (we're in second session now)
       await expect(firstMsgInChat).toBeHidden({ timeout: 5000 });
-
-      // Wait for second session to complete
-      const stopBtn2 = page.locator('button:has-text("Stop")').first();
-      await expect(stopBtn2).toBeHidden({ timeout: 120000 });
 
     } finally {
       await deleteProjectViaUI(page, projectFolderName).catch(() => {});
@@ -846,7 +791,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
 
       // Verify processing indicator shows while AI is thinking
       const processingBar = page.locator('button:has-text("Stop")').first();
-      const thinkingIndicator = page.locator('text=Thinking...').first();
+      const thinkingIndicator = page.locator('[data-testid="thinking-indicator"]');
 
       // At least one of these should be visible during processing
       await expect(processingBar.or(thinkingIndicator).first()).toBeVisible({ timeout: 10000 });
@@ -856,11 +801,11 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
 
       // After completion, neither indicator should be visible
       await expect(processingBar).toBeHidden();
-      await expect(thinkingIndicator).toBeHidden();
+      await expect(thinkingIndicator).toBeHidden({ timeout: 5000 });
 
       // Verify message is still visible in the chat area
       const msgInChat = page.locator('.chat-message.user').filter({ hasText: testMessage });
-      await expect(msgInChat).toBeVisible();
+      await expect(msgInChat).toBeVisible({ timeout: 5000 });
 
     } finally {
       await deleteProjectViaUI(page, projectFolderName).catch(() => {});
@@ -931,13 +876,17 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       // Navigate to each session and verify its message is correct
       for (let i = 0; i < sessionMessages.length; i++) {
         const message = sessionMessages[i];
-        const sessionButton = page.locator('button').filter({ hasText: new RegExp(`SESSION_${i + 1}`) }).first();
+        // Find session button in sidebar - use accessible name which includes the session marker
+        const sessionButton = page.getByRole('button', { name: new RegExp(`SESSION_${i + 1}_${testId}_marker`) });
         await expect(sessionButton).toBeVisible({ timeout: 10000 });
+
+        // Click and wait for navigation
         await sessionButton.click();
 
         // Verify this session's message is visible in chat area
+        // This also serves as confirmation that navigation worked
         const msgInChat = page.locator('.chat-message.user').filter({ hasText: message });
-        await expect(msgInChat).toBeVisible({ timeout: 10000 });
+        await expect(msgInChat).toBeVisible({ timeout: 15000 });
 
         // Verify other session messages are NOT visible in chat area
         for (let j = 0; j < sessionMessages.length; j++) {

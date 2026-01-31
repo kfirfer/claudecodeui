@@ -39,7 +39,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'PORT=3008 DATABASE_PATH=./server/database/test-auth.db npm run dev',
+    command: 'PORT=3008 DATABASE_PATH=./server/database/test-auth.db VITE_DISABLE_VERSION_CHECK=true npm run dev',
     url: 'http://localhost:3008/health',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,

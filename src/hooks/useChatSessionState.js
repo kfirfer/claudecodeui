@@ -38,6 +38,8 @@ const initialState = {
   claudeStatus: null,
   processingSessionId: null,
   completedAt: null,
+  // Track which session completed for per-session guards
+  completedSessionId: null,
   lastStateChangeAt: null
 };
 
@@ -50,10 +52,12 @@ function sessionReducer(state, action) {
 
   switch (action.type) {
     case SESSION_ACTIONS.START_PROCESSING: {
-      // Guard: Don't start if recently completed (within 1 second)
-      // This prevents stale status messages from re-enabling loading
-      if (state.completedAt && (now - state.completedAt < 1000)) {
-        console.log('[SessionState] Ignoring START_PROCESSING - recently completed');
+      // Guard: Don't start if the SAME session recently completed (within 5 seconds)
+      // This prevents stale status messages from re-enabling loading after completion
+      // But allows NEW sessions to start processing immediately
+      const isSameSession = action.sessionId && action.sessionId === state.completedSessionId;
+      if (isSameSession && state.completedAt && (now - state.completedAt < 5000)) {
+        console.log('[SessionState] Ignoring START_PROCESSING - same session recently completed:', action.sessionId);
         return state;
       }
 
@@ -91,7 +95,7 @@ function sessionReducer(state, action) {
     }
 
     case SESSION_ACTIONS.SESSION_COMPLETED: {
-      // Record completion timestamp to prevent race conditions
+      // Record completion timestamp and session ID to prevent race conditions
       return {
         ...state,
         isLoading: false,
@@ -99,6 +103,7 @@ function sessionReducer(state, action) {
         claudeStatus: null,
         processingSessionId: null,
         completedAt: now,
+        completedSessionId: action.sessionId || null,
         lastStateChangeAt: now
       };
     }
@@ -111,12 +116,14 @@ function sessionReducer(state, action) {
         canAbortSession: false,
         claudeStatus: null,
         completedAt: now,
+        completedSessionId: action.sessionId || null,
         lastStateChangeAt: now
       };
     }
 
     case SESSION_ACTIONS.UPDATE_STATUS: {
-      // Guard: Don't update status if recently completed
+      // Guard: Don't update status if recently completed (within 1 second)
+      // updateStatus doesn't have session context, so we use a shorter guard window
       if (state.completedAt && (now - state.completedAt < 1000)) {
         console.log('[SessionState] Ignoring UPDATE_STATUS - recently completed');
         return state;
@@ -147,9 +154,10 @@ function sessionReducer(state, action) {
     }
 
     case SESSION_ACTIONS.RESTORE_PROCESSING: {
-      // Guard: Don't restore if recently completed (within 1 second)
-      if (state.completedAt && (now - state.completedAt < 1000)) {
-        console.log('[SessionState] Ignoring RESTORE_PROCESSING - recently completed');
+      // Guard: Don't restore if the SAME session recently completed (within 5 seconds)
+      const isSameSession = action.sessionId && action.sessionId === state.completedSessionId;
+      if (isSameSession && state.completedAt && (now - state.completedAt < 5000)) {
+        console.log('[SessionState] Ignoring RESTORE_PROCESSING - same session recently completed:', action.sessionId);
         return state;
       }
 
@@ -189,7 +197,8 @@ function sessionReducer(state, action) {
 
     // Legacy setters for backward compatibility
     case SESSION_ACTIONS.SET_IS_LOADING: {
-      // Guard: Don't set loading to true if recently completed
+      // Guard: Don't set loading to true if recently completed (within 1 second)
+      // This is a legacy API without session context, so we use a shorter guard window
       if (action.value && state.completedAt && (now - state.completedAt < 1000)) {
         console.log('[SessionState] Ignoring SET_IS_LOADING(true) - recently completed');
         return state;
@@ -210,7 +219,8 @@ function sessionReducer(state, action) {
     }
 
     case SESSION_ACTIONS.SET_CLAUDE_STATUS: {
-      // Guard: Don't update status if recently completed
+      // Guard: Don't update status if recently completed (within 1 second)
+      // This is a legacy API without session context, so we use a shorter guard window
       if (action.value && state.completedAt && (now - state.completedAt < 1000)) {
         console.log('[SessionState] Ignoring SET_CLAUDE_STATUS - recently completed');
         return state;
@@ -240,6 +250,22 @@ export function useChatSessionState() {
 
   // Action creators with useCallback for stable references
   const startProcessing = useCallback((sessionId, status = null) => {
+    // Guard: Check per-session completion timestamps to prevent re-enabling loading
+    // for recently completed sessions (uses ref for per-session tracking)
+    if (sessionId) {
+      const completedAt = completionTimestamps.current.get(sessionId);
+      if (completedAt && (Date.now() - completedAt < 5000)) {
+        console.log('[SessionState] startProcessing blocked - session recently completed:', sessionId);
+        return;
+      }
+    }
+    // Also check anonymous completions (for new sessions without ID yet)
+    const anonCompletedAt = completionTimestamps.current.get('__anonymous__');
+    if (anonCompletedAt && (Date.now() - anonCompletedAt < 5000)) {
+      console.log('[SessionState] startProcessing blocked - anonymous session recently completed');
+      return;
+    }
+
     dispatch({
       type: SESSION_ACTIONS.START_PROCESSING,
       sessionId,
@@ -256,9 +282,13 @@ export function useChatSessionState() {
 
   const sessionCompleted = useCallback((sessionId) => {
     // Record completion timestamp for this session
-    // Use a fallback key if no sessionId to still protect against race conditions
-    const timestampKey = sessionId || '__anonymous__';
-    completionTimestamps.current.set(timestampKey, Date.now());
+    const now = Date.now();
+    // Always set the anonymous key to prevent any startProcessing calls within 5 seconds
+    completionTimestamps.current.set('__anonymous__', now);
+    // Also set the session-specific key if we have a session ID
+    if (sessionId) {
+      completionTimestamps.current.set(sessionId, now);
+    }
 
     // Clean up old timestamps (older than 30 seconds)
     const cutoff = Date.now() - 30000;
@@ -275,8 +305,11 @@ export function useChatSessionState() {
   }, []);
 
   const sessionError = useCallback((sessionId) => {
+    const now = Date.now();
+    // Always set the anonymous key to prevent any startProcessing calls within 5 seconds
+    completionTimestamps.current.set('__anonymous__', now);
     if (sessionId) {
-      completionTimestamps.current.set(sessionId, Date.now());
+      completionTimestamps.current.set(sessionId, now);
     }
 
     dispatch({

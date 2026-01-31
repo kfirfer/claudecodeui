@@ -2058,6 +2058,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   // Track the session that this view expects when starting a brand‑new chat
   // (prevents background sessions from streaming into a different view).
   const pendingViewSessionRef = useRef(null);
+  // Track whether the selected session is pending (has __isPending flag)
+  // This is used as a ref to avoid stale closure issues in the WebSocket effect
+  const isPendingSessionRef = useRef(selectedSession?.__isPending || false);
   const commandQueryTimerRef = useRef(null);
   // Stuck detection: track last message time and show recovery option
   const lastMessageTimeRef = useRef(Date.now());
@@ -2162,6 +2165,12 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     });
     activeSessionIdRef.current = newActiveSessionId;
   }, [selectedSession?.id, currentSessionId]);
+
+  // Keep isPendingSessionRef in sync to avoid stale closure issues
+  // This ref is used by the WebSocket message handler to check if we're in a new session context
+  useLayoutEffect(() => {
+    isPendingSessionRef.current = selectedSession?.__isPending || false;
+  }, [selectedSession?.__isPending]);
 
   // Force session switch: Clear messages when the parent triggers a session switch
   // This is incremented by App.jsx when handleSessionSelect is called, ensuring
@@ -3685,13 +3694,15 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   useEffect(() => {
     if (currentSessionId && processingSessions) {
       const shouldBeProcessing = processingSessions.has(currentSessionId);
-      if (shouldBeProcessing && !isLoading) {
+      // Guard: Don't restore if session recently completed (additional check on top of restoreProcessing guard)
+      const wasRecentlyCompleted = hasRecentlyCompleted(currentSessionId);
+      if (shouldBeProcessing && !isLoading && !wasRecentlyCompleted) {
         // restoreProcessing has built-in guards - won't restore if recently completed
         restoreProcessing(currentSessionId);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- isLoading is checked inside but intentionally excluded to prevent loops
-  }, [currentSessionId, processingSessions]);
+  }, [currentSessionId, processingSessions, hasRecentlyCompleted]);
 
   // Debounced WebSocket disconnect ref for cleanup
   const disconnectTimeoutRef = useRef(null);
@@ -3836,13 +3847,22 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       // Use the ref for session filtering to avoid stale closure issues
       // The ref is updated synchronously when selectedSession or currentSessionId changes
       const activeViewSessionId = activeSessionIdRef.current || pendingViewSessionRef.current?.sessionId || null;
+      // Check if we're in a pending new session state (waiting for real session ID)
+      const isWaitingForNewSessionId = isPendingSessionRef.current ||
+        (pendingViewSessionRef.current && !pendingViewSessionRef.current.sessionId);
       console.log('[WebSocket] Message filtering:', {
         messageSessionId: latestMessage.sessionId,
         activeViewSessionId,
         refValue: activeSessionIdRef.current,
-        messageType: latestMessage.type
+        messageType: latestMessage.type,
+        isWaitingForNewSessionId
       });
-      const isSystemInitForView = systemInitSessionId && (!activeViewSessionId || systemInitSessionId === activeViewSessionId);
+      // Accept system/init for current view OR if we're waiting for a new session ID
+      const isSystemInitForView = systemInitSessionId && (
+        !activeViewSessionId ||
+        systemInitSessionId === activeViewSessionId ||
+        isWaitingForNewSessionId
+      );
       const shouldBypassSessionFilter = isGlobalMessage || isSystemInitForView;
       const isUnscopedError = !latestMessage.sessionId &&
         pendingViewSessionRef.current &&
@@ -3942,15 +3962,26 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           // Store it temporarily until conversation completes (prevents premature session association)
           // The condition handles multiple scenarios:
           // 1. !currentSessionId - normal case where no session was active
-          // 2. selectedSession?.__isPending - when a pending session is selected
+          // 2. isPendingSessionRef.current - when a pending session is selected (uses ref to avoid stale closure)
           // 3. pendingViewSessionRef.current exists with null sessionId - user started a new session
           //    and handleSubmit set up the pending view but we haven't received the real ID yet.
           //    This is the most reliable indicator because it's set synchronously in handleSubmit.
           const isPendingNewSession = pendingViewSessionRef.current &&
                                       pendingViewSessionRef.current.sessionId === null;
           const isNewSessionContext = !currentSessionId ||
-                                      selectedSession?.__isPending ||
+                                      isPendingSessionRef.current ||
                                       isPendingNewSession;
+          console.log('[session-created] Checking navigation conditions:', {
+            sessionId: latestMessage.sessionId,
+            currentSessionId,
+            isPendingSessionRef: isPendingSessionRef.current,
+            isPendingNewSession,
+            isNewSessionContext,
+            pendingViewSessionRef: pendingViewSessionRef.current ? {
+              sessionId: pendingViewSessionRef.current.sessionId,
+              provider: pendingViewSessionRef.current.provider
+            } : null
+          });
           if (latestMessage.sessionId && isNewSessionContext) {
             sessionStorage.setItem('pendingSessionId', latestMessage.sessionId);
             if (pendingViewSessionRef.current && !pendingViewSessionRef.current.sessionId) {
@@ -3987,6 +4018,17 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             setPendingPermissionRequests(prev => prev.map(req => (
               req.sessionId ? req : { ...req, sessionId: latestMessage.sessionId }
             )));
+
+            // Navigate to the new session URL so the browser URL reflects the session
+            // This enables URL-based navigation and bookmarking
+            if (onNavigateToSession) {
+              console.log('[session-created] Calling onNavigateToSession with:', latestMessage.sessionId);
+              onNavigateToSession(latestMessage.sessionId);
+            } else {
+              console.warn('[session-created] onNavigateToSession is not defined!');
+            }
+          } else {
+            console.log('[session-created] Skipping navigation - conditions not met');
           }
           break;
         }
@@ -4648,7 +4690,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             (selectedSession && statusSessionId === selectedSession.id)
           );
 
-          if (statusData && isCurrentSession) {
+          // Guard: Don't process status for recently completed sessions
+          // This prevents race conditions where claude-status arrives after claude-complete
+          if (statusData && isCurrentSession && !hasRecentlyCompleted(statusSessionId)) {
             // Parse the status message to extract relevant information
             let statusInfo = {
               text: 'Working...',
@@ -5940,9 +5984,10 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         
         {/* Only show "Thinking..." if:
             1. isLoading is true AND
-            2. Either we're on the processing session OR we're in new session view with a pending session
-            This prevents "Thinking..." from showing on standby sessions when navigating */}
-        {isLoading && (
+            2. processingSessionId is set (not null) AND
+            3. Either we're on the processing session OR we're in new session view with a pending session
+            This prevents "Thinking..." from showing after completion when both IDs are null */}
+        {isLoading && processingSessionId && (
           processingSessionId === currentSessionId ||
           processingSessionId === pendingViewSessionRef.current?.sessionId ||
           (!currentSessionId && pendingViewSessionRef.current)
@@ -5963,7 +6008,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                 {/* Abort button removed - functionality not yet implemented at backend */}
               </div>
               <div className="w-full text-sm text-gray-500 dark:text-gray-400 pl-3 sm:pl-0">
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-1" data-testid="thinking-indicator">
                   <div className="animate-pulse">●</div>
                   <div className="animate-pulse" style={{ animationDelay: '0.2s' }}>●</div>
                   <div className="animate-pulse" style={{ animationDelay: '0.4s' }}>●</div>

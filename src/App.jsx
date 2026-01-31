@@ -131,6 +131,11 @@ function AppContent() {
   // projects_updated arrives before the session is indexed on disk
   const recentlyCompletedSessionsRef = useRef(new Map());
 
+  // Ref to track recently deleted project names with timestamps
+  // This prevents projects_updated from re-adding deleted projects due to race conditions
+  // where the WebSocket update contains stale data from before the deletion
+  const recentlyDeletedProjectsRef = useRef(new Map());
+
   // Detect if running as PWA
   const [isPWA, setIsPWA] = useState(false);
   
@@ -302,17 +307,43 @@ function AppContent() {
         // IMPORTANT: Merge rather than replace to preserve projects/sessions that might be missing
         // from the update due to timing issues (file system scan racing with file creation)
         const updatedProjects = latestMessage.projects;
-        setProjects(prevProjects => {
-          // Create a map of updated projects for quick lookup
-          const updatedMap = new Map(updatedProjects.map(p => [p.name, p]));
 
-          // Start with the updated projects
-          const mergedProjects = [...updatedProjects];
+        setProjects(prevProjects => {
+          // Read timestamp INSIDE the callback to get the most current value
+          const now = Date.now();
+
+          console.log('[DEBUG projects_updated] Received projects count:', updatedProjects.length);
+          console.log('[DEBUG projects_updated] Current recentlyDeletedProjectsRef:', [...recentlyDeletedProjectsRef.current.entries()]);
+
+          // Filter out recently deleted projects to prevent race conditions
+          // where WebSocket sends stale data from before the deletion completed
+          const filteredUpdatedProjects = updatedProjects.filter(p => {
+            const deletedAt = recentlyDeletedProjectsRef.current.get(p.name);
+            const shouldKeep = !deletedAt || (now - deletedAt > 30000);
+            if (deletedAt) {
+              console.log('[DEBUG projects_updated] Project', p.name, 'was deleted at', deletedAt, 'now is', now, 'diff:', now - deletedAt, 'shouldKeep:', shouldKeep);
+            }
+            // Exclude projects that were deleted within the last 10 seconds
+            return shouldKeep;
+          });
+
+          console.log('[DEBUG projects_updated] After filtering, count:', filteredUpdatedProjects.length);
+
+          // Create a map of updated projects for quick lookup
+          const updatedMap = new Map(filteredUpdatedProjects.map(p => [p.name, p]));
+
+          // Start with the filtered updated projects
+          const mergedProjects = [...filteredUpdatedProjects];
 
           // Add any projects from prev that aren't in updated (preserves recently created projects)
+          // but exclude recently deleted projects
           for (const prevProject of prevProjects) {
             if (!updatedMap.has(prevProject.name)) {
-              mergedProjects.push(prevProject);
+              const deletedAt = recentlyDeletedProjectsRef.current.get(prevProject.name);
+              // Only keep local projects that weren't recently deleted
+              if (!deletedAt || (now - deletedAt > 30000)) {
+                mergedProjects.push(prevProject);
+              }
             }
           }
 
@@ -385,13 +416,21 @@ function AppContent() {
       // from the API response due to timing issues (parallel tests creating projects simultaneously,
       // or config file writes that haven't been fully persisted yet)
       setProjects(prevProjects => {
-        // If no previous projects, just set the new data
+        const now = Date.now();
+
+        // Filter out recently deleted projects from API data to prevent them from reappearing
+        const filteredData = data.filter(p => {
+          const deletedAt = recentlyDeletedProjectsRef.current.get(p.name);
+          return !deletedAt || (now - deletedAt > 30000);
+        });
+
+        // If no previous projects, just set the filtered data
         if (prevProjects.length === 0) {
-          return data;
+          return filteredData;
         }
 
-        // Create maps for quick lookup
-        const fetchedMap = new Map(data.map(p => [p.name, p]));
+        // Create maps for quick lookup (using filtered data)
+        const fetchedMap = new Map(filteredData.map(p => [p.name, p]));
         const prevMap = new Map(prevProjects.map(p => [p.name, p]));
 
         // Helper to merge sessions arrays, preserving sessions from prev that aren't in fetched
@@ -410,7 +449,7 @@ function AppContent() {
         };
 
         // Merge projects: use fetched data but preserve sessions from prev
-        const mergedProjects = data.map(fetchedProject => {
+        const mergedProjects = filteredData.map(fetchedProject => {
           const prevProject = prevMap.get(fetchedProject.name);
           if (!prevProject) {
             return fetchedProject;
@@ -425,9 +464,14 @@ function AppContent() {
         });
 
         // Add any projects from prev that aren't in fetched (preserves recently created projects)
+        // but exclude recently deleted projects
         for (const prevProject of prevProjects) {
           if (!fetchedMap.has(prevProject.name)) {
-            mergedProjects.push(prevProject);
+            const deletedAt = recentlyDeletedProjectsRef.current.get(prevProject.name);
+            // Only keep local projects that weren't recently deleted
+            if (!deletedAt || (now - deletedAt > 30000)) {
+              mergedProjects.push(prevProject);
+            }
           }
         }
 
@@ -533,15 +577,14 @@ function AppContent() {
   }, [sessionId, projects, navigate]);
 
   const handleSessionSelect = (session) => {
+    console.log('[DEBUG handleSessionSelect] CALLED with session:', { id: session?.id, summary: session?.summary, __projectName: session?.__projectName });
     // Find and set the project first - this ensures ChatInterface has correct context
     // The session object includes __projectName from handleSessionClick in Sidebar
     const sessionProjectName = session.__projectName;
-    let projectFound = false;
     if (sessionProjectName) {
       const project = projects.find(p => p.name === sessionProjectName);
       if (project) {
         setSelectedProject(project);
-        projectFound = true;
       } else {
         // Project not found in state - might be a timing issue
         // Search for the session in all projects to find the correct one
@@ -549,7 +592,6 @@ function AppContent() {
           const allSessions = [...(p.sessions || []), ...(p.codexSessions || []), ...(p.cursorSessions || [])];
           if (allSessions.some(s => s.id === session.id)) {
             setSelectedProject(p);
-            projectFound = true;
             break;
           }
         }
@@ -562,7 +604,6 @@ function AppContent() {
         const allSessions = [...(p.sessions || []), ...(p.codexSessions || []), ...(p.cursorSessions || [])];
         if (allSessions.some(s => s.id === session.id)) {
           setSelectedProject(p);
-          projectFound = true;
           break;
         }
       }
@@ -571,7 +612,9 @@ function AppContent() {
     // Force ChatInterface to clear messages BEFORE setting the new session
     // This ensures the old session's messages are removed before the new session is loaded
     setForceSessionSwitchCounter(prev => prev + 1);
+    console.log('[DEBUG handleSessionSelect] BEFORE setSelectedSession, session:', { id: session?.id, summary: session?.summary });
     setSelectedSession(session);
+    console.log('[DEBUG handleSessionSelect] AFTER setSelectedSession called');
     // Track when the session was selected - protects against stale projects_updated clearing
     sessionSelectedTimeRef.current = Date.now();
     // Only switch to chat tab when user explicitly selects a session
@@ -667,29 +710,20 @@ function AppContent() {
     try {
       const response = await api.projects();
       const freshProjects = await response.json();
-      
-      // Optimize to preserve object references and minimize re-renders
-      setProjects(prevProjects => {
-        // Check if projects data has actually changed
-        const hasChanges = freshProjects.some((newProject, index) => {
-          const prevProject = prevProjects[index];
-          if (!prevProject) return true;
-          
-          return (
-            newProject.name !== prevProject.name ||
-            newProject.displayName !== prevProject.displayName ||
-            newProject.fullPath !== prevProject.fullPath ||
-            JSON.stringify(newProject.sessionMeta) !== JSON.stringify(prevProject.sessionMeta) ||
-            JSON.stringify(newProject.sessions) !== JSON.stringify(prevProject.sessions)
-          );
-        }) || freshProjects.length !== prevProjects.length;
-        
-        return hasChanges ? freshProjects : prevProjects;
+
+      // Filter out recently deleted projects to prevent them from reappearing
+      const now = Date.now();
+      const filteredFreshProjects = freshProjects.filter(p => {
+        const deletedAt = recentlyDeletedProjectsRef.current.get(p.name);
+        return !deletedAt || (now - deletedAt > 30000);
       });
+
+      // Always use fresh data to ensure UI is in sync with server
+      setProjects(filteredFreshProjects);
       
       // If we have a selected project, make sure it's still selected after refresh
       if (selectedProject) {
-        const refreshedProject = freshProjects.find(p => p.name === selectedProject.name);
+        const refreshedProject = filteredFreshProjects.find(p => p.name === selectedProject.name);
         if (refreshedProject) {
           // Only update selected project if it actually changed
           if (JSON.stringify(refreshedProject) !== JSON.stringify(selectedProject)) {
@@ -711,17 +745,30 @@ function AppContent() {
   };
 
   const handleProjectDelete = (projectName) => {
+    console.log('[DEBUG handleProjectDelete] Called with projectName:', projectName);
+    console.log('[DEBUG handleProjectDelete] Current ref entries:', [...recentlyDeletedProjectsRef.current.entries()]);
+
+    // Track this project as recently deleted to prevent race conditions
+    // where projects_updated re-adds it with stale data
+    recentlyDeletedProjectsRef.current.set(projectName, Date.now());
+    console.log('[DEBUG handleProjectDelete] Set ref for:', projectName, 'at', Date.now());
+
+    // Clean up old entries after 30 seconds (extended to handle slow WebSocket updates)
+    setTimeout(() => {
+      recentlyDeletedProjectsRef.current.delete(projectName);
+    }, 30000);
+
     // If the deleted project was currently selected, clear it
     if (selectedProject?.name === projectName) {
       setSelectedProject(null);
       setSelectedSession(null);
       navigate('/');
     }
-    
+
     // Update projects state locally instead of full refresh
-    setProjects(prevProjects => 
-      prevProjects.filter(project => project.name !== projectName)
-    );
+    setProjects(prevProjects => {
+      return prevProjects.filter(project => project.name !== projectName);
+    });
   };
 
   // Update project metadata (e.g., hasMore flag for session pagination)
@@ -904,6 +951,20 @@ function AppContent() {
     const [updateOutput, setUpdateOutput] = useState('');
     const [_updateError, setUpdateError] = useState('');
 
+    // Handle Escape key to close modal
+    useEffect(() => {
+      if (!showVersionModal) return;
+
+      const handleKeyDown = (e) => {
+        if (e.key === 'Escape') {
+          setShowVersionModal(false);
+        }
+      };
+
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [showVersionModal]);
+
     if (!showVersionModal) return null;
 
     // Clean up changelog by removing GitHub-specific metadata
@@ -955,13 +1016,14 @@ function AppContent() {
     };
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 z-50 flex items-center justify-center" data-testid="version-upgrade-modal">
         {/* Backdrop */}
         <button
           type="button"
           className="fixed inset-0 bg-black/50 backdrop-blur-sm"
           onClick={() => setShowVersionModal(false)}
           aria-label={t('versionUpdate.ariaLabels.closeModal')}
+          data-testid="version-upgrade-modal-backdrop"
         />
 
         {/* Modal */}

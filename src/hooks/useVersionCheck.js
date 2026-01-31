@@ -8,6 +8,11 @@ export const useVersionCheck = (owner, repo) => {
   const [releaseInfo, setReleaseInfo] = useState(null);
 
   useEffect(() => {
+    // Skip version check during E2E tests to prevent modal from blocking test interactions
+    if (import.meta.env.VITE_DISABLE_VERSION_CHECK === 'true') {
+      return;
+    }
+
     const checkVersion = async () => {
       try {
         const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`);
