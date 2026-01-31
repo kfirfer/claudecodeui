@@ -724,7 +724,17 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       // Use getByRole with accessible name for more reliable selection
       const firstSessionButton = page.getByRole('button', { name: new RegExp(`FIRST_SESSION_${testId}_unique_marker`) });
       await expect(firstSessionButton).toBeVisible({ timeout: 10000 });
+
+      // Get the URL before click to verify navigation
+      const urlBeforeFirstClick = page.url();
+      console.log('[TEST] URL before first session click:', urlBeforeFirstClick);
+
       await firstSessionButton.click();
+
+      // Wait for URL to change to confirm navigation happened
+      await page.waitForURL(/\/session\//, { timeout: 10000 });
+      const urlAfterFirstClick = page.url();
+      console.log('[TEST] URL after first session click:', urlAfterFirstClick);
 
       // Verify first session message is visible in chat after navigation
       await expect(firstMsgInChat).toBeVisible({ timeout: 15000 });
