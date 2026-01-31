@@ -27,6 +27,20 @@ async function performLogin(page) {
 }
 
 /**
+ * Helper function to locate user messages in the chat area.
+ * Uses the blue background class which is more reliable than .chat-message.user
+ * after messages are loaded from API vs created live via WebSocket.
+ * @param {import('@playwright/test').Page} page - Playwright page object
+ * @param {string} messageText - Text content to filter by
+ * @returns {import('@playwright/test').Locator}
+ */
+function getUserMessageLocator(page, messageText) {
+  // User messages have blue background (bg-blue-600) which is consistent
+  // across both WebSocket-created and API-loaded messages
+  return page.locator('.bg-blue-600').filter({ hasText: messageText });
+}
+
+/**
  * Helper function to create a test directory
  * @param {string} dirPath - Path to create
  */
@@ -301,7 +315,7 @@ test.describe('Project Workflow - Complete Lifecycle', () => {
       await chatTextarea.press('Control+Enter');
 
       // Verify the user message appears in the chat area
-      const userMessage = page.locator('.chat-message.user').filter({ hasText: testMessage });
+      const userMessage = getUserMessageLocator(page, testMessage);
       await expect(userMessage).toBeVisible({ timeout: 10000 });
 
       // ==========================================
@@ -492,7 +506,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await chatTextarea.press('Control+Enter');
 
       // Verify message sent in chat area
-      const firstMsgInChat = page.locator('.chat-message.user').filter({ hasText: firstMessage });
+      const firstMsgInChat = getUserMessageLocator(page, firstMessage);
       await expect(firstMsgInChat).toBeVisible({ timeout: 10000 });
 
       // Session count should become 1
@@ -532,7 +546,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await chatTextarea2.press('Control+Enter');
 
       // Verify second message sent in chat area
-      const secondMsgInChat = page.locator('.chat-message.user').filter({ hasText: secondMessage });
+      const secondMsgInChat = getUserMessageLocator(page, secondMessage);
       await expect(secondMsgInChat).toBeVisible({ timeout: 10000 });
 
       // Session count should become 2
@@ -618,7 +632,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await chatTextarea.press('Control+Enter');
 
       // Verify message sent in chat area
-      const msgInChat = page.locator('.chat-message.user').filter({ hasText: testMessage });
+      const msgInChat = getUserMessageLocator(page, testMessage);
       await expect(msgInChat).toBeVisible({ timeout: 10000 });
 
       // Wait for completion - Stop button becomes hidden when AI is done
@@ -696,7 +710,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await chatTextarea.press('Control+Enter');
 
       // Verify first message is visible in the chat area (user message has blue background)
-      const firstMsgInChat = page.locator('.chat-message.user').filter({ hasText: firstSessionMessage });
+      const firstMsgInChat = getUserMessageLocator(page, firstSessionMessage);
       await expect(firstMsgInChat).toBeVisible({ timeout: 5000 });
 
       // Wait for first session to complete before creating second session
@@ -726,7 +740,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await chatTextarea2.press('Control+Enter');
 
       // Verify second message is visible in chat area (we're in second session)
-      const secondMsgInChat = page.locator('.chat-message.user').filter({ hasText: secondSessionMessage });
+      const secondMsgInChat = getUserMessageLocator(page, secondSessionMessage);
       await expect(secondMsgInChat).toBeVisible({ timeout: 5000 });
 
       // Wait for second session to complete before switching
@@ -744,11 +758,20 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
 
       // Verify it's a session button (should have data-testid="session-button-<id>")
       expect(firstSessionDataTestId).toMatch(/^session-button-/);
+      const firstSessionId = firstSessionDataTestId.replace('session-button-', '');
 
       await firstSessionBtn.click();
 
-      // Wait for URL to change to confirm navigation happened
-      await page.waitForURL(/\/session\//, { timeout: 10000 });
+      // Wait for URL to change to the FIRST session specifically
+      await page.waitForURL(new RegExp(`/session/${firstSessionId}`), { timeout: 10000 });
+
+      // Wait for session loading to complete
+      const loadingIndicator = page.locator('text=Loading session messages...');
+      await expect(loadingIndicator).toBeHidden({ timeout: 15000 });
+
+      // Wait for the session header to show the correct session name
+      const firstSessionHeader = page.locator(`h2:has-text("FIRST_SESSION_${testId}_unique_marker")`);
+      await expect(firstSessionHeader).toBeVisible({ timeout: 10000 });
 
       // Verify first session message is visible in chat after navigation
       await expect(firstMsgInChat).toBeVisible({ timeout: 15000 });
@@ -760,10 +783,22 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       const secondSessionButton = page.getByRole('button', { name: new RegExp(`SECOND_SESSION_${testId}_unique_marker`) });
       await expect(secondSessionButton).toBeVisible({ timeout: 10000 });
 
+      // Get the second session's data-testid to extract its session ID
+      const secondSessionDataTestId = await secondSessionButton.getAttribute('data-testid');
+      expect(secondSessionDataTestId).toMatch(/^session-button-/);
+      const secondSessionId = secondSessionDataTestId.replace('session-button-', '');
+
       await secondSessionButton.click();
 
-      // Wait for URL to change to confirm navigation happened
-      await page.waitForURL(/\/session\//, { timeout: 10000 });
+      // Wait for URL to change to the SECOND session specifically
+      await page.waitForURL(new RegExp(`/session/${secondSessionId}`), { timeout: 10000 });
+
+      // Wait for session loading to complete
+      await expect(loadingIndicator).toBeHidden({ timeout: 15000 });
+
+      // Wait for the session header to show the correct session name
+      const secondSessionHeader = page.locator(`h2:has-text("SECOND_SESSION_${testId}_unique_marker")`);
+      await expect(secondSessionHeader).toBeVisible({ timeout: 10000 });
 
       // Verify second session message is visible in chat after navigation
       await expect(secondMsgInChat).toBeVisible({ timeout: 15000 });
@@ -833,7 +868,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await expect(thinkingIndicator).toBeHidden({ timeout: 5000 });
 
       // Verify message is still visible in the chat area
-      const msgInChat = page.locator('.chat-message.user').filter({ hasText: testMessage });
+      const msgInChat = getUserMessageLocator(page, testMessage);
       await expect(msgInChat).toBeVisible({ timeout: 5000 });
 
     } finally {
@@ -889,7 +924,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
         await chatTextarea.press('Control+Enter');
 
         // Verify message is visible in chat area
-        const msgInChat = page.locator('.chat-message.user').filter({ hasText: uniqueMessage });
+        const msgInChat = getUserMessageLocator(page, uniqueMessage);
         await expect(msgInChat).toBeVisible({ timeout: 5000 });
 
         // Wait for AI to complete before creating next session
@@ -910,18 +945,32 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
         const sessionButton = page.getByRole('button', { name: new RegExp(`SESSION_${i + 1}_${testId}_marker`) });
         await expect(sessionButton).toBeVisible({ timeout: 10000 });
 
-        // Click and wait for navigation
+        // Get the session's data-testid to extract its session ID for URL verification
+        const sessionDataTestId = await sessionButton.getAttribute('data-testid');
+        expect(sessionDataTestId).toMatch(/^session-button-/);
+        const sessionId = sessionDataTestId.replace('session-button-', '');
+
+        // Click and wait for URL to change to this specific session
         await sessionButton.click();
+        await page.waitForURL(new RegExp(`/session/${sessionId}`), { timeout: 10000 });
+
+        // Wait for session loading to complete (loading indicator should disappear)
+        const loadingIndicator = page.locator('text=Loading session messages...');
+        await expect(loadingIndicator).toBeHidden({ timeout: 15000 });
+
+        // Wait for the session header to show the correct session name
+        const sessionHeader = page.locator(`h2:has-text("SESSION_${i + 1}_${testId}_marker")`);
+        await expect(sessionHeader).toBeVisible({ timeout: 10000 });
 
         // Verify this session's message is visible in chat area
         // This also serves as confirmation that navigation worked
-        const msgInChat = page.locator('.chat-message.user').filter({ hasText: message });
+        const msgInChat = getUserMessageLocator(page, message);
         await expect(msgInChat).toBeVisible({ timeout: 15000 });
 
         // Verify other session messages are NOT visible in chat area
         for (let j = 0; j < sessionMessages.length; j++) {
           if (j !== i) {
-            const otherMsgInChat = page.locator('.chat-message.user').filter({ hasText: sessionMessages[j] });
+            const otherMsgInChat = getUserMessageLocator(page, sessionMessages[j]);
             await expect(otherMsgInChat).toBeHidden({ timeout: 5000 });
           }
         }
@@ -989,7 +1038,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await page.waitForLoadState('networkidle');
 
       // Verify chat message is no longer visible (we're on home page)
-      const msgInChat = page.locator('.chat-message.user').filter({ hasText: testMessage });
+      const msgInChat = getUserMessageLocator(page, testMessage);
       await expect(msgInChat).toBeHidden({ timeout: 5000 });
 
       // Navigate back using the captured URL
@@ -1047,7 +1096,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await chatTextarea.press('Control+Enter');
 
       // Verify message is visible in chat area
-      const msgInChat = page.locator('.chat-message.user').filter({ hasText: testMessage });
+      const msgInChat = getUserMessageLocator(page, testMessage);
       await expect(msgInChat).toBeVisible({ timeout: 5000 });
 
       // Wait for completion
