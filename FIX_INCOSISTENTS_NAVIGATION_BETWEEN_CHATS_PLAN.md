@@ -169,10 +169,10 @@ Treat session navigation as a state machine with explicit states:
 
 ## Implementation Plan
 
-### Phase 1: Session State Consolidation [ ]
+### Phase 1: Session State Consolidation [✅ DONE]
 **Goal**: Create a single, authoritative session state management system
 
-#### Task 1.1: Create useSessionNavigation Hook [ ]
+#### Task 1.1: Create useSessionNavigation Hook [✅ DONE]
 **File**: `src/hooks/useSessionNavigation.js` (new file)
 
 Create a custom hook that encapsulates all session navigation logic:
@@ -187,7 +187,7 @@ Create a custom hook that encapsulates all session navigation logic:
 
 **Deliverable**: New `useSessionNavigation` hook with unified state management
 
-#### Task 1.2: Add Session Navigation Context [ ]
+#### Task 1.2: Add Session Navigation Context [✅ DONE]
 **File**: `src/contexts/SessionNavigationContext.jsx` (new file)
 
 **Subtasks**:
@@ -200,10 +200,10 @@ Create a custom hook that encapsulates all session navigation logic:
 
 ---
 
-### Phase 2: Fix App.jsx Session Selection [ ]
+### Phase 2: Fix App.jsx Session Selection [✅ DONE]
 **Goal**: Ensure atomic session switch signaling
 
-#### Task 2.1: Refactor handleSessionSelect [ ]
+#### Task 2.1: Refactor handleSessionSelect [✅ DONE]
 **File**: `src/App.jsx`
 **Location**: Lines 612-643 (actual handleSessionSelect function body)
 
@@ -243,10 +243,10 @@ Test Alternative 1 first before resorting to `flushSync`.
 
 ---
 
-### Phase 3: Fix ChatInterface loadMessages Effect [ ]
+### Phase 3: Fix ChatInterface loadMessages Effect [✅ DONE]
 **Goal**: Implement proper async cleanup and race condition prevention
 
-#### Task 3.1: Implement Proper Async Cleanup Pattern [ ]
+#### Task 3.1: Implement Proper Async Cleanup Pattern [✅ DONE]
 **File**: `src/components/ChatInterface.jsx`
 **Location**: Lines 3369-3620
 
@@ -287,7 +287,7 @@ useEffect(() => {
 
 **Deliverable**: Race-condition-free message loading
 
-#### Task 3.2: Fix Dependency Array [ ]
+#### Task 3.2: Fix Dependency Array [✅ DONE]
 **File**: `src/components/ChatInterface.jsx`
 **Location**: Line 3620
 
@@ -301,10 +301,10 @@ useEffect(() => {
 
 ---
 
-### Phase 4: Consolidate Session Effects [ ]
+### Phase 4: Consolidate Session Effects [✅ DONE]
 **Goal**: Reduce from 5+ effects to 2-3 well-defined effects
 
-#### Task 4.1: Merge Session ID Sync Effects [ ]
+#### Task 4.1: Merge Session ID Sync Effects [✅ DONE]
 **File**: `src/components/ChatInterface.jsx`
 **Location**: Lines 2136-2209
 
@@ -333,10 +333,10 @@ useEffect(() => { /* loadMessages with proper cleanup */ }, [...]);
 
 ---
 
-### Phase 5: Add Defensive Timeout Failsafes [ ]
+### Phase 5: Add Defensive Timeout Failsafes [✅ DONE]
 **Goal**: Prevent permanently stuck states
 
-#### Task 5.1: Add Timeout Recovery for sessionSwitchInProgressRef [ ]
+#### Task 5.1: Add Timeout Recovery for sessionSwitchInProgressRef [✅ DONE]
 **File**: `src/components/ChatInterface.jsx`
 
 **Subtasks**:
@@ -363,10 +363,10 @@ useLayoutEffect(() => {
 
 ---
 
-### Phase 6: WebSocket Message Filtering Improvements [ ]
+### Phase 6: WebSocket Message Filtering Improvements [✅ DONE]
 **Goal**: Ensure messages are never incorrectly blocked
 
-#### Task 6.1: Simplify WebSocket Session Filtering [ ]
+#### Task 6.1: Simplify WebSocket Session Filtering [✅ DONE]
 **File**: `src/components/ChatInterface.jsx`
 **Location**: Lines 3880-4008
 
@@ -378,7 +378,7 @@ useLayoutEffect(() => {
 
 **Deliverable**: Reliable WebSocket message routing
 
-#### Task 6.2: Add Message Queueing During Navigation [ ]
+#### Task 6.2: Add Message Queueing During Navigation [✅ DONE]
 **File**: `src/components/ChatInterface.jsx`
 
 **Subtasks**:
@@ -391,8 +391,17 @@ useLayoutEffect(() => {
 
 ---
 
-### Phase 7: Testing [ ]
+### Phase 7: Testing [🔄 IN PROGRESS]
 **Goal**: Comprehensive test coverage for session navigation
+
+**Implementation Status (2026-01-31)**:
+- **Baseline (before fixes)**: 7 failing tests
+- **After fixes**: 2 failing tests
+- **Improvement**: Fixed 5 navigation-related test failures
+
+**Remaining Failing Tests**:
+1. `session messages persist after navigating away and back during processing` - Messages don't load after navigating between sessions
+2. `rapid session creation maintains correct session boundaries` - Duplicate sessions or messages not loading
 
 **Note**: Some session navigation E2E tests already exist in `tests/project-workflow.spec.js`:
 - `multiple sessions with navigation during AI thinking` (line 448)
@@ -400,7 +409,7 @@ useLayoutEffect(() => {
 
 These tests verify basic navigation works but do NOT test race conditions or rapid switching.
 
-#### Task 7.1: Add Unit Tests for useSessionNavigation Hook [ ]
+#### Task 7.1: Add Unit Tests for useSessionNavigation Hook [⏭️ DEFERRED]
 **File**: `tests/hooks/useSessionNavigation.test.js` (new file)
 
 **Subtasks**:

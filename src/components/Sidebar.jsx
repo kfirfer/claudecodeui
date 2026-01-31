@@ -360,12 +360,18 @@ function Sidebar({
         const confirmedSessionExists = pendingSession.confirmedSessionId &&
           sessionMap.has(pendingSession.confirmedSessionId);
 
-        if (!confirmedSessionExists) {
+        // Also check if a session with the same name already exists (handles race condition where
+        // projects_updated arrives before session-created, so confirmedSessionId isn't set yet)
+        const sessionName = pendingSession.firstMessage || 'New conversation...';
+        const matchingSessionByName = Array.from(sessionMap.values()).some(
+          s => s.name === sessionName || s.summary === sessionName
+        );
+
+        if (!confirmedSessionExists && !matchingSessionByName) {
           // Use confirmedSessionId if available, otherwise fall back to original temp ID
           // This ensures the session button navigates to the real session even before
           // projects_updated arrives with the full session data
           const effectiveSessionId = pendingSession.confirmedSessionId || pendingSession.id;
-          const sessionName = pendingSession.firstMessage || 'New conversation...';
           const pendingSessionObj = {
             id: effectiveSessionId,
             name: sessionName,

@@ -33,6 +33,7 @@ import { TaskMasterProvider } from './contexts/TaskMasterContext';
 import { TasksSettingsProvider } from './contexts/TasksSettingsContext';
 import { WebSocketProvider, useWebSocketContext } from './contexts/WebSocketContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { SessionNavigationProvider } from './contexts/SessionNavigationContext';
 import { ToastProvider } from './components/ui/toast';
 import { ConfirmProvider } from './components/ui/confirm-dialog';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -107,9 +108,11 @@ function AppContent() {
   // This signals ChatInterface to force-clear messages even if a session recently completed
   // (which would normally block clearing to prevent race conditions)
   const [forceNewSessionCounter, setForceNewSessionCounter] = useState(0);
-  // Counter to force ChatInterface to clear messages when switching sessions
+  // Counter object to force ChatInterface to clear messages when switching sessions
   // Incremented in handleSessionSelect to ensure messages are cleared before loading new session
-  const [forceSessionSwitchCounter, setForceSessionSwitchCounter] = useState(0);
+  // Contains both count (for change detection) and targetSessionId (the session we're switching to)
+  // This prevents race conditions where selectedSession.id might be stale when the effect runs
+  const [forceSessionSwitchCounter, setForceSessionSwitchCounter] = useState({ count: 0, targetSessionId: null });
 
   // Ref for synchronous "force new session" flag - updates IMMEDIATELY when user clicks "New Session"
   // This is necessary because React state updates are async and the test/user might send a message
@@ -532,7 +535,11 @@ function AppContent() {
           if (isChangingSession) {
             // Increment forceSessionSwitchCounter to ensure ChatInterface clears old messages
             // This handles the case where navigation happens via URL without going through handleSessionSelect
-            setForceSessionSwitchCounter(prev => prev + 1);
+            // Pass targetSessionId directly to prevent race conditions
+            setForceSessionSwitchCounter(prev => ({
+              count: prev.count + 1,
+              targetSessionId: session.id
+            }));
             setSelectedSession({ ...session, __provider: 'claude' });
             setActiveTab('chat');
           }
@@ -547,7 +554,11 @@ function AppContent() {
           // Only set selected session if it's actually different
           if (isChangingSession) {
             // Increment forceSessionSwitchCounter to ensure ChatInterface clears old messages
-            setForceSessionSwitchCounter(prev => prev + 1);
+            // Pass targetSessionId directly to prevent race conditions
+            setForceSessionSwitchCounter(prev => ({
+              count: prev.count + 1,
+              targetSessionId: cSession.id
+            }));
             setSelectedSession({ ...cSession, __provider: 'cursor' });
             setActiveTab('chat');
           }
@@ -611,7 +622,12 @@ function AppContent() {
 
     // Force ChatInterface to clear messages BEFORE setting the new session
     // This ensures the old session's messages are removed before the new session is loaded
-    setForceSessionSwitchCounter(prev => prev + 1);
+    // Pass targetSessionId directly in the counter object to prevent race conditions
+    // where selectedSession.id might be stale when the ChatInterface effect runs
+    setForceSessionSwitchCounter(prev => ({
+      count: prev.count + 1,
+      targetSessionId: session.id
+    }));
     setSelectedSession(session);
     // Track when the session was selected - protects against stale projects_updated clearing
     sessionSelectedTimeRef.current = Date.now();
@@ -1383,14 +1399,16 @@ function App() {
                 <NotificationProvider>
                   <TasksSettingsProvider>
                     <TaskMasterProvider>
-                    <ProtectedRoute>
+                      <SessionNavigationProvider>
+                        <ProtectedRoute>
                       <Router basename={window.__ROUTER_BASENAME__ || ''} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                         <Routes>
                           <Route path="/" element={<AppContent />} />
                           <Route path="/session/:sessionId" element={<AppContent />} />
                         </Routes>
                       </Router>
-                    </ProtectedRoute>
+                        </ProtectedRoute>
+                      </SessionNavigationProvider>
                     </TaskMasterProvider>
                   </TasksSettingsProvider>
                 </NotificationProvider>

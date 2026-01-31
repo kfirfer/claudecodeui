@@ -59,6 +59,9 @@ npm run type-check     # Run TypeScript compiler (tsc --noEmit)
     - `ThemeContext.jsx` - Dark/light mode
     - `TaskMasterContext.jsx` - TaskMaster AI integration
     - `TasksSettingsContext.jsx` - Task-related settings
+    - `SessionNavigationContext.jsx` - Session navigation state machine
+- **Hooks** (in `src/hooks/`):
+    - `useSessionNavigation.js` - Session navigation state management
 - **Key components** (in `src/components/`):
     - `ChatInterface.jsx` - Main chat UI
     - `Sidebar.jsx` - Project/session navigation
@@ -92,7 +95,21 @@ The app tracks "active sessions" to prevent automatic project updates from clear
 
 ### Session State Management Architecture
 
-The session navigation system in `ChatInterface.jsx` uses multiple refs and effects to manage session state. Understanding this architecture is critical for maintaining the component.
+The session navigation system uses a combination of hooks, context, and refs to manage session state reliably.
+
+#### Navigation State Machine
+
+The `useSessionNavigation` hook (`src/hooks/useSessionNavigation.js`) provides a state machine for navigation:
+
+| State | Description |
+|-------|-------------|
+| `idle` | No navigation in progress |
+| `switching` | Session switch initiated, clearing old data |
+| `loading` | API call in progress |
+| `ready` | Messages loaded successfully |
+| `error` | Navigation failed |
+
+The `SessionNavigationContext` (`src/contexts/SessionNavigationContext.jsx`) exposes this state to all components.
 
 #### Key Refs for Session Tracking
 
@@ -101,14 +118,10 @@ The session navigation system in `ChatInterface.jsx` uses multiple refs and effe
 | `activeSessionIdRef` | Current session ID for WebSocket message filtering |
 | `messagesLoadedForSessionRef` | Tracks which session's messages are currently loaded |
 | `loadingTargetSessionRef` | Target session during async API calls (prevents stale data) |
-| `sessionMessagesSessionIdRef` | Associates raw session messages with their session |
 | `sessionSwitchInProgressRef` | Flag to block message processing during session switch |
 | `apiCallInProgressRef` | Guards against duplicate API calls for same session |
-| `hasActiveSessionMessagesRef` | Indicates messages received from WebSocket (not API) |
-| `isPendingSessionRef` | Tracks if selected session is pending (temp ID) |
-| `pendingViewSessionRef` | Stores pending session view state during creation |
-| `prevForceSessionSwitchRef` | Detects changes in force switch counter |
-| `prevSessionIdRef` | Detects actual session ID changes |
+| `navigationMessageQueueRef` | Queues WebSocket messages during navigation |
+| `navigationTimeoutRef` | 10-second timeout failsafe for stuck navigation |
 
 #### Session Lifecycle
 
@@ -116,37 +129,40 @@ The session navigation system in `ChatInterface.jsx` uses multiple refs and effe
     - User submits message → `handleSubmit` generates temp ID (`new-session-*`)
     - Temp session added to `pendingSessions` array
     - WebSocket `session-created` arrives → `confirmPendingSession` links temp→real ID
-    - Session transitions from pending to confirmed
+    - Sidebar hides pending session when real session appears (matched by name)
 
 2. **Session Navigation**:
     - User clicks session in Sidebar → `handleSessionSelect` in App.jsx
-    - `forceSessionSwitchCounter` increments → triggers `useLayoutEffect` in ChatInterface
-    - Messages cleared synchronously, refs reset
-    - `loadMessages` effect runs async → fetches messages from API
-    - `loadingTargetSessionRef` prevents stale data if user switches again
+    - `forceSessionSwitchCounter` object updated: `{ count: N, targetSessionId: ID }`
+    - `useLayoutEffect` runs synchronously → clears messages, resets refs
+    - `loadMessages` effect runs async with React `ignore` flag pattern
+    - Messages from WebSocket are queued during navigation, processed after load
 
 3. **Message Flow**:
     - Incoming WebSocket messages filtered by `activeSessionIdRef`
-    - `sessionSwitchInProgressRef` blocks messages during switch
-    - After API load completes, refs updated atomically before setting state
+    - During navigation, messages are queued in `navigationMessageQueueRef`
+    - After navigation completes, queue is processed or discarded if session mismatch
 
-#### Known Race Conditions and Mitigations
+#### Race Condition Mitigations
 
-1. **Stale Closure in Async Effects**: The `loadMessages` effect captures session ID in `targetSessionId`, then checks `loadingTargetSessionRef` after API call to discard stale results.
+1. **React State Batching**: `forceSessionSwitchCounter` is an object `{ count, targetSessionId }` so the target session ID is available even when React batches state updates.
 
-2. **Layout Effect vs WebSocket Timing**: `useLayoutEffect` updates `activeSessionIdRef` synchronously before render to ensure WebSocket handler sees correct session.
+2. **Async Effect Cleanup**: The `loadMessages` effect uses React's recommended `ignore` flag pattern to properly handle cleanup when the effect re-runs.
 
-3. **Pending Session Resolution**: `handleSessionClick` in Sidebar looks up `confirmedSessionId` from `pendingSessions` to resolve temp IDs that may not be updated in rendered button.
+3. **Timeout Failsafe**: A 10-second timeout automatically resets `sessionSwitchInProgressRef` if navigation gets stuck.
 
-4. **Duplicate API Calls**: `apiCallInProgressRef` guards against effect running multiple times due to dependency batching.
+4. **Message Queueing**: WebSocket messages are queued during navigation instead of being dropped, preventing message loss.
+
+5. **Duplicate Session Prevention**: Sidebar matches pending sessions by name to prevent showing both pending and confirmed sessions.
 
 #### Debugging Session Issues
 
 When debugging session navigation issues:
 1. Check `messagesLoadedForSessionRef` matches expected session
 2. Verify `activeSessionIdRef` is correct in WebSocket handler
-3. Ensure `sessionSwitchInProgressRef` is reset after loading completes
-4. For pending sessions, verify `confirmPendingSession` was called with correct IDs
+3. Look for "[WebSocket] Navigation complete" or "[WebSocket] Discarding message queue" in console
+4. Check if timeout failsafe triggered: "[Session] Navigation timeout"
+5. For pending sessions, verify `confirmPendingSession` was called with correct IDs
 
 ### WebSocket Message Types
 - `claude-command` / `cursor-command` / `codex-command` - User prompts
