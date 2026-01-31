@@ -30,6 +30,30 @@ export function getTestCredentials() {
 }
 
 /**
+ * Dismiss the version upgrade modal if it's visible
+ * This modal can appear when there's a new version available and can block other interactions
+ * @param {import('@playwright/test').Page} page - Playwright page object
+ */
+export async function dismissVersionModal(page) {
+  const versionModal = page.locator('[data-testid="version-upgrade-modal"]');
+  const isModalVisible = await versionModal.isVisible().catch(() => false);
+  if (isModalVisible) {
+    // Click the "Later" button to dismiss the modal instead of the backdrop
+    // The backdrop click can be intercepted by the modal content
+    const laterButton = page.getByRole('button', { name: /later/i });
+    const hasLaterButton = await laterButton.isVisible().catch(() => false);
+    if (hasLaterButton) {
+      await laterButton.click();
+    } else {
+      // Fallback: press Escape key to close the modal
+      await page.keyboard.press('Escape');
+    }
+    // Wait for modal to close
+    await expect(versionModal).not.toBeVisible({ timeout: 5000 }).catch(() => {});
+  }
+}
+
+/**
  * Authenticate the user - handles login, account creation, and onboarding
  *
  * This function detects the current form state and performs the appropriate action:
@@ -69,14 +93,16 @@ export async function authenticate(page, options = {}) {
     usernameInput.waitFor({ state: 'visible', timeout }).then(() => 'auth_form'),
   ]).catch(() => 'unknown');
 
-  // Already logged in - nothing to do
+  // Already logged in - dismiss any modal and return
   if (stateDetected === 'logged_in') {
+    await dismissVersionModal(page);
     return;
   }
 
   // Onboarding wizard - complete it
   if (stateDetected === 'onboarding') {
     await completeOnboarding(page, nextButton, finishButton, newProjectButton);
+    await dismissVersionModal(page);
     return;
   }
 
@@ -161,6 +187,9 @@ export async function authenticate(page, options = {}) {
   } else {
     await expect(newProjectButton).toBeVisible({ timeout });
   }
+
+  // Dismiss version upgrade modal if visible (can block interactions)
+  await dismissVersionModal(page);
 }
 
 /**

@@ -312,22 +312,13 @@ function AppContent() {
           // Read timestamp INSIDE the callback to get the most current value
           const now = Date.now();
 
-          console.log('[DEBUG projects_updated] Received projects count:', updatedProjects.length);
-          console.log('[DEBUG projects_updated] Current recentlyDeletedProjectsRef:', [...recentlyDeletedProjectsRef.current.entries()]);
-
           // Filter out recently deleted projects to prevent race conditions
           // where WebSocket sends stale data from before the deletion completed
           const filteredUpdatedProjects = updatedProjects.filter(p => {
             const deletedAt = recentlyDeletedProjectsRef.current.get(p.name);
-            const shouldKeep = !deletedAt || (now - deletedAt > 30000);
-            if (deletedAt) {
-              console.log('[DEBUG projects_updated] Project', p.name, 'was deleted at', deletedAt, 'now is', now, 'diff:', now - deletedAt, 'shouldKeep:', shouldKeep);
-            }
-            // Exclude projects that were deleted within the last 10 seconds
-            return shouldKeep;
+            // Exclude projects that were deleted within the last 30 seconds
+            return !deletedAt || (now - deletedAt > 30000);
           });
-
-          console.log('[DEBUG projects_updated] After filtering, count:', filteredUpdatedProjects.length);
 
           // Create a map of updated projects for quick lookup
           const updatedMap = new Map(filteredUpdatedProjects.map(p => [p.name, p]));
@@ -385,9 +376,12 @@ function AppContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- projects is intentionally omitted: this effect handles project updates from WebSocket messages and uses the current projects state for comparison, but should not re-run when projects changes
   }, [messages, selectedProject, selectedSession, activeSessions]);
 
-  const fetchProjects = async () => {
+  const fetchProjects = async (showLoadingUI = true) => {
     try {
-      setIsLoadingProjects(true);
+      // Only show loading UI on initial fetch, not on background refreshes/retries
+      if (showLoadingUI) {
+        setIsLoadingProjects(true);
+      }
       const response = await api.projects();
       const data = await response.json();
 
@@ -527,16 +521,19 @@ function AppContent() {
   // Handle URL-based session loading
   useEffect(() => {
     if (sessionId && projects.length > 0) {
-      // Only switch tabs on initial load, not on every project update
-      const shouldSwitchTab = !selectedSession || selectedSession.id !== sessionId;
+      // Only switch tabs/clear messages on initial load or when actually changing to a different session
+      const isChangingSession = !selectedSession || selectedSession.id !== sessionId;
       // Find the session across all projects
       for (const project of projects) {
         let session = project.sessions?.find(s => s.id === sessionId);
         if (session) {
           setSelectedProject(project);
-          setSelectedSession({ ...session, __provider: 'claude' });
-          // Only switch to chat tab if we're loading a different session
-          if (shouldSwitchTab) {
+          // Only set selected session if it's actually different
+          if (isChangingSession) {
+            // Increment forceSessionSwitchCounter to ensure ChatInterface clears old messages
+            // This handles the case where navigation happens via URL without going through handleSessionSelect
+            setForceSessionSwitchCounter(prev => prev + 1);
+            setSelectedSession({ ...session, __provider: 'claude' });
             setActiveTab('chat');
           }
           // Reset retry counter on success
@@ -547,8 +544,11 @@ function AppContent() {
         const cSession = project.cursorSessions?.find(s => s.id === sessionId);
         if (cSession) {
           setSelectedProject(project);
-          setSelectedSession({ ...cSession, __provider: 'cursor' });
-          if (shouldSwitchTab) {
+          // Only set selected session if it's actually different
+          if (isChangingSession) {
+            // Increment forceSessionSwitchCounter to ensure ChatInterface clears old messages
+            setForceSessionSwitchCounter(prev => prev + 1);
+            setSelectedSession({ ...cSession, __provider: 'cursor' });
             setActiveTab('chat');
           }
           // Reset retry counter on success
@@ -568,8 +568,9 @@ function AppContent() {
         sessionLoadRetryRef.current.attempts += 1;
         console.log(`[App] Session ${sessionId} not found, retrying fetchProjects (attempt ${sessionLoadRetryRef.current.attempts}/3)`);
         // Retry after a short delay to allow backend to index the session
+        // Don't show loading UI during retries to prevent flickering
         setTimeout(() => {
-          fetchProjects();
+          fetchProjects(false);
         }, 500);
       }
     }
@@ -577,7 +578,6 @@ function AppContent() {
   }, [sessionId, projects, navigate]);
 
   const handleSessionSelect = (session) => {
-    console.log('[DEBUG handleSessionSelect] CALLED with session:', { id: session?.id, summary: session?.summary, __projectName: session?.__projectName });
     // Find and set the project first - this ensures ChatInterface has correct context
     // The session object includes __projectName from handleSessionClick in Sidebar
     const sessionProjectName = session.__projectName;
@@ -612,9 +612,7 @@ function AppContent() {
     // Force ChatInterface to clear messages BEFORE setting the new session
     // This ensures the old session's messages are removed before the new session is loaded
     setForceSessionSwitchCounter(prev => prev + 1);
-    console.log('[DEBUG handleSessionSelect] BEFORE setSelectedSession, session:', { id: session?.id, summary: session?.summary });
     setSelectedSession(session);
-    console.log('[DEBUG handleSessionSelect] AFTER setSelectedSession called');
     // Track when the session was selected - protects against stale projects_updated clearing
     sessionSelectedTimeRef.current = Date.now();
     // Only switch to chat tab when user explicitly selects a session
@@ -745,13 +743,9 @@ function AppContent() {
   };
 
   const handleProjectDelete = (projectName) => {
-    console.log('[DEBUG handleProjectDelete] Called with projectName:', projectName);
-    console.log('[DEBUG handleProjectDelete] Current ref entries:', [...recentlyDeletedProjectsRef.current.entries()]);
-
     // Track this project as recently deleted to prevent race conditions
     // where projects_updated re-adds it with stale data
     recentlyDeletedProjectsRef.current.set(projectName, Date.now());
-    console.log('[DEBUG handleProjectDelete] Set ref for:', projectName, 'at', Date.now());
 
     // Clean up old entries after 30 seconds (extended to handle slow WebSocket updates)
     setTimeout(() => {
@@ -892,7 +886,6 @@ function AppContent() {
   // The Sidebar will then hide the pending session only when the real session appears in the data.
   // This prevents the race condition where the pending session is cleared before projects_updated arrives.
   const confirmPendingSession = useCallback((realSessionId) => {
-    console.log('[App] confirmPendingSession called with realSessionId:', realSessionId);
     setPendingSessions(prev => {
       if (prev.length === 0) return prev;
       // Find the most recent unconfirmed pending session and mark it with the real ID
@@ -909,7 +902,6 @@ function AppContent() {
 
   // clearPendingSession: Directly clears all pending sessions (used as a fallback)
   const clearPendingSession = useCallback(() => {
-    console.log('[App] clearPendingSession called - clearing all pending sessions');
     setPendingSessions([]);
   }, []);
 

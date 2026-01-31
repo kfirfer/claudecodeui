@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { authenticate } from './fixtures/auth.js';
+import { authenticate, dismissVersionModal } from './fixtures/auth.js';
 
 /**
  * E2E Test: Project Workflow Tests
@@ -469,6 +469,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
 
       // PHASE 2: Create first session and send message
       // Use dispatchEvent to click New Session (matches working test pattern)
+      await dismissVersionModal(page);
       const newSessionBtn = page.locator('[data-testid="new-session-button"]').first();
       await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
       await newSessionBtn.click();
@@ -594,6 +595,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await projectButton.click();
 
       // Start session
+      await dismissVersionModal(page);
       const newSessionBtn = page.locator('[data-testid="new-session-button"]').first();
       await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
       await newSessionBtn.click();
@@ -645,6 +647,16 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
   test('session messages persist after navigating away and back during processing', async ({ page }) => {
     test.setTimeout(180000);
 
+    // Capture console logs from the browser to see debug output
+    const consoleLogs = [];
+    page.on('console', msg => {
+      const text = msg.text();
+      if (text.includes('[DEBUG') || text.includes('loadMessages') || text.includes('handleSessionSelect') || text.includes('getAllSessions') || text.includes('session-created') || text.includes('confirmPendingSession') || text.includes('pendingSession') || text.includes('onNewSessionCreating') || text.includes('[App]') || text.includes('[WebSocket]') || text.includes('ZZZ') || text.includes('LAYOUT') || text.includes('[ChatInterface]') || text.includes('[Sidebar]') || text.includes('Desktop session')) {
+        consoleLogs.push(`[${msg.type()}] ${text}`);
+        console.log(`[BROWSER] ${text}`);
+      }
+    });
+
     const testId = Date.now();
     const testProjectPath = path.join(os.homedir(), `e2e-nav-persist-${testId}`);
     const projectFolderName = `e2e-nav-persist-${testId}`;
@@ -661,6 +673,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await projectButton.click();
 
       // Create first session with a unique message
+      await dismissVersionModal(page);
       const newSessionBtn = page.locator('[data-testid="new-session-button"]').first();
       await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
       await newSessionBtn.click();
@@ -721,20 +734,21 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await expect(stopBtnForSecond).toBeHidden({ timeout: 120000 });
 
       // Navigate back to first session using sidebar
-      // Use getByRole with accessible name for more reliable selection
-      const firstSessionButton = page.getByRole('button', { name: new RegExp(`FIRST_SESSION_${testId}_unique_marker`) });
-      await expect(firstSessionButton).toBeVisible({ timeout: 10000 });
+      // Use data-testid for more reliable selection since session buttons have unique IDs
+      // First, find the session ID for FIRST_SESSION by looking at sidebar buttons
+      const firstSessionBtn = page.locator(`button:has-text("FIRST_SESSION_${testId}_unique_marker")`).first();
+      await expect(firstSessionBtn).toBeVisible({ timeout: 10000 });
 
-      // Get the URL before click to verify navigation
-      const urlBeforeFirstClick = page.url();
-      console.log('[TEST] URL before first session click:', urlBeforeFirstClick);
+      // Get the button's data-testid to extract the session ID
+      const firstSessionDataTestId = await firstSessionBtn.getAttribute('data-testid');
 
-      await firstSessionButton.click();
+      // Verify it's a session button (should have data-testid="session-button-<id>")
+      expect(firstSessionDataTestId).toMatch(/^session-button-/);
+
+      await firstSessionBtn.click();
 
       // Wait for URL to change to confirm navigation happened
       await page.waitForURL(/\/session\//, { timeout: 10000 });
-      const urlAfterFirstClick = page.url();
-      console.log('[TEST] URL after first session click:', urlAfterFirstClick);
 
       // Verify first session message is visible in chat after navigation
       await expect(firstMsgInChat).toBeVisible({ timeout: 15000 });
@@ -745,7 +759,11 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       // Navigate back to second session
       const secondSessionButton = page.getByRole('button', { name: new RegExp(`SECOND_SESSION_${testId}_unique_marker`) });
       await expect(secondSessionButton).toBeVisible({ timeout: 10000 });
+
       await secondSessionButton.click();
+
+      // Wait for URL to change to confirm navigation happened
+      await page.waitForURL(/\/session\//, { timeout: 10000 });
 
       // Verify second session message is visible in chat after navigation
       await expect(secondMsgInChat).toBeVisible({ timeout: 15000 });
@@ -778,6 +796,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await projectButton.click();
 
       // Create first session
+      await dismissVersionModal(page);
       const newSessionBtn = page.locator('[data-testid="new-session-button"]').first();
       await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
       await newSessionBtn.click();
@@ -846,9 +865,10 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
 
       for (let i = 1; i <= 3; i++) {
         // Create new session
+        await dismissVersionModal(page);
         const newSessionBtn = page.locator('[data-testid="new-session-button"]').first();
         await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
-      await newSessionBtn.click();
+        await newSessionBtn.click();
 
         const chatTextarea = page.locator('textarea').first();
         await expect(chatTextarea).toBeVisible({ timeout: 15000 });
@@ -932,6 +952,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await projectButton.click();
 
       // Create a session
+      await dismissVersionModal(page);
       const newSessionBtn = page.locator('[data-testid="new-session-button"]').first();
       await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
       await newSessionBtn.click();
@@ -1003,6 +1024,7 @@ test.describe('Session Visibility - Comprehensive Tests', () => {
       await projectButton.click();
 
       // Create a session
+      await dismissVersionModal(page);
       const newSessionBtn = page.locator('[data-testid="new-session-button"]').first();
       await expect(newSessionBtn).toBeVisible({ timeout: 10000 });
       await newSessionBtn.click();

@@ -936,13 +936,14 @@ async function getSessionMessages(projectName, sessionId, limit = null, offset =
     // agent-*.jsonl files contain session start data at this point. This needs to be revisited
     // periodically to make sure only accurate data is there and no new functionality is added there
     const jsonlFiles = files.filter(file => file.endsWith('.jsonl') && !file.startsWith('agent-'));
-    
+
     if (jsonlFiles.length === 0) {
       return { messages: [], total: 0, hasMore: false };
     }
-    
+
     const messages = [];
-    
+    const sessionIdsFound = new Set();
+
     // Process all JSONL files to find messages for this session
     for (const file of jsonlFiles) {
       const jsonlFile = path.join(projectDir, file);
@@ -951,11 +952,14 @@ async function getSessionMessages(projectName, sessionId, limit = null, offset =
         input: fileStream,
         crlfDelay: Infinity
       });
-      
+
       for await (const line of rl) {
         if (line.trim()) {
           try {
             const entry = JSON.parse(line);
+            if (entry.sessionId) {
+              sessionIdsFound.add(entry.sessionId);
+            }
             if (entry.sessionId === sessionId) {
               messages.push(entry);
             }
@@ -965,7 +969,7 @@ async function getSessionMessages(projectName, sessionId, limit = null, offset =
         }
       }
     }
-    
+
     // Sort messages by timestamp
     const sortedMessages = messages.sort((a, b) => 
       new Date(a.timestamp || 0) - new Date(b.timestamp || 0)

@@ -1997,21 +1997,6 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   } = useChatSessionState();
   const [currentSessionId, setCurrentSessionId] = useState(selectedSession?.id || null);
   const [isInputFocused, setIsInputFocused] = useState(false);
-
-  // DEBUG: Track all chatMessages changes
-  useEffect(() => {
-    console.log('[DEBUG chatMessages changed]', {
-      length: chatMessages.length,
-      samples: chatMessages.slice(0, 5).map(m => ({
-        type: m.type,
-        content: (m.content || '').substring(0, 60),
-        timestamp: m.timestamp
-      })),
-      selectedSessionId: selectedSession?.id,
-      currentSessionId,
-      timestamp: Date.now()
-    });
-  }, [chatMessages, selectedSession?.id, currentSessionId]);
   const [sessionMessages, setSessionMessages] = useState([]);
   const [isLoadingSessionMessages, setIsLoadingSessionMessages] = useState(false);
   const [isLoadingMoreMessages, setIsLoadingMoreMessages] = useState(false);
@@ -2092,6 +2077,13 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   // This handles the case where currentSessionId is initialized to selectedSession.id
   // but messages haven't been loaded yet (URL navigation / page refresh)
   const messagesLoadedForSessionRef = useRef(null);
+  // Track the target session ID for the current loadMessages operation
+  // This prevents stale async operations from setting messages for the wrong session
+  // when user rapidly switches between sessions during an async API call
+  const loadingTargetSessionRef = useRef(null);
+  // Track if an API call is currently in progress for a session
+  // This prevents duplicate API calls when the effect runs multiple times
+  const apiCallInProgressRef = useRef(null);
   // Track forceNewSessionCounter to detect explicit "New Session" clicks from user
   // When this changes, we bypass hasAnyRecentCompletion() guard to ensure messages are cleared
   const prevForceNewSessionCounterRef = useRef(forceNewSessionCounter);
@@ -2156,14 +2148,27 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   // The WebSocket effect captures closure values when it first runs, so we need
   // a ref that's always current to properly filter messages by session
   useLayoutEffect(() => {
-    const newActiveSessionId = selectedSession?.id || currentSessionId || pendingViewSessionRef.current?.sessionId || null;
-    console.log('[ChatInterface] Updating activeSessionIdRef:', {
-      old: activeSessionIdRef.current,
-      new: newActiveSessionId,
-      selectedSessionId: selectedSession?.id,
-      currentSessionId
-    });
-    activeSessionIdRef.current = newActiveSessionId;
+    // When waiting for a new session ID (pendingViewSessionRef has sessionId=null),
+    // don't use stale currentSessionId as fallback. This ensures new session messages
+    // can be received even before React's async state update clears currentSessionId.
+    const isWaitingForNewSessionId = pendingViewSessionRef.current &&
+      pendingViewSessionRef.current.sessionId === null;
+    const newActiveSessionId = isWaitingForNewSessionId
+      ? null  // Allow new session messages through
+      : (selectedSession?.id || currentSessionId || pendingViewSessionRef.current?.sessionId || null);
+
+    // CRITICAL: Don't overwrite a valid real session ID with a pending temp ID
+    // This can happen when session-created arrives and updates activeSessionIdRef to the real ID,
+    // but selectedSession state hasn't been updated yet (still has temp ID).
+    // In this case, keep the real ID to ensure WebSocket messages are received correctly.
+    const currentActiveId = activeSessionIdRef.current;
+    const currentIsRealId = currentActiveId && !currentActiveId.startsWith('new-session-');
+    const newIsTempId = newActiveSessionId?.startsWith('new-session-');
+    const shouldPreserveRealId = currentIsRealId && newIsTempId;
+
+    if (!shouldPreserveRealId) {
+      activeSessionIdRef.current = newActiveSessionId;
+    }
   }, [selectedSession?.id, currentSessionId]);
 
   // Keep isPendingSessionRef in sync to avoid stale closure issues
@@ -2179,12 +2184,6 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   // and BEFORE the browser paints - this prevents race conditions with WebSocket effects
   useLayoutEffect(() => {
     if (forceSessionSwitchCounter !== prevForceSessionSwitchRef.current) {
-      console.log('[ChatInterface] Force clearing messages for session switch', {
-        prevCounter: prevForceSessionSwitchRef.current,
-        newCounter: forceSessionSwitchCounter,
-        selectedSessionId: selectedSession?.id,
-        selectedProjectName: selectedProject?.name
-      });
       // Set flag BEFORE clearing to prevent other effects from re-adding old messages
       sessionSwitchInProgressRef.current = true;
       // Update activeSessionIdRef synchronously to ensure WebSocket filtering works immediately
@@ -2192,6 +2191,13 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       activeSessionIdRef.current = selectedSession?.id || null;
       // Clear the session ID ref to prevent sync effect from using stale data
       sessionMessagesSessionIdRef.current = null;
+      // CRITICAL: Clear messagesLoadedForSessionRef so the loadMessages effect will reload
+      // messages from the API when navigating to any session (including one we've visited before)
+      messagesLoadedForSessionRef.current = null;
+      // Clear apiCallInProgressRef to allow new API calls for the new session
+      apiCallInProgressRef.current = null;
+      // Also clear hasActiveSessionMessagesRef to allow message loading
+      hasActiveSessionMessagesRef.current = false;
       setChatMessages([]);
       setSessionMessages([]);
       // Also clear localStorage to prevent stale messages from being restored
@@ -2223,19 +2229,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     const isNavigatingToFirstSession = !prevSessionId && newSessionId && !isSystemSessionChange;
     const shouldClear = sessionActuallyChanged || isNavigatingToFirstSession;
 
-    console.log('[ChatInterface] Session change effect:', {
-      prevSessionId,
-      newSessionId,
-      isSystemSessionChange,
-      sessionActuallyChanged,
-      isNavigatingToFirstSession,
-      shouldClear,
-      chatMessagesCount: chatMessages.length,
-      timestamp: Date.now()
-    });
-
     if (shouldClear) {
-      console.log('[ChatInterface] CLEARING messages due to session change - before clear chatMessages:', JSON.stringify(chatMessages.map(m => m.content?.substring(0, 50))));
       setChatMessages([]);
       setSessionMessages([]);
       hasActiveSessionMessagesRef.current = false;
@@ -2692,13 +2686,18 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   }, []);
 
   // Load session messages from API with pagination
-  const loadSessionMessages = useCallback(async (projectName, sessionId, loadMore = false, provider = 'claude') => {
+  // Includes retry logic for initial loads to handle JSONL file timing issues
+  // (Claude SDK writes session data asynchronously, so the file might not be ready immediately)
+  const loadSessionMessages = useCallback(async (projectName, sessionId, loadMore = false, provider = 'claude', retryCount = 0) => {
     if (!projectName || !sessionId) return [];
 
     const isInitialLoad = !loadMore;
-    if (isInitialLoad) {
+    const maxRetries = 3;
+    const retryDelayMs = 500;
+
+    if (isInitialLoad && retryCount === 0) {
       setIsLoadingSessionMessages(true);
-    } else {
+    } else if (!isInitialLoad) {
       setIsLoadingMoreMessages(true);
     }
 
@@ -2715,27 +2714,39 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         setTokenBudget(data.tokenUsage);
       }
 
+      let messages;
       // Handle paginated response
       if (data.hasMore !== undefined) {
         setHasMoreMessages(data.hasMore);
         setTotalMessages(data.total);
         setMessagesOffset(currentOffset + (data.messages?.length || 0));
-        return data.messages || [];
+        messages = data.messages || [];
       } else {
         // Backward compatibility for non-paginated response
-        const messages = data.messages || [];
+        messages = data.messages || [];
         setHasMoreMessages(false);
         setTotalMessages(messages.length);
-        return messages;
       }
+
+      // If initial load returned empty and we haven't exhausted retries,
+      // retry after a delay (handles JSONL file timing issues)
+      if (isInitialLoad && messages.length === 0 && retryCount < maxRetries) {
+        await new Promise(resolve => { setTimeout(resolve, retryDelayMs); });
+        return loadSessionMessages(projectName, sessionId, loadMore, provider, retryCount + 1);
+      }
+
+      return messages;
     } catch (error) {
       console.error('Error loading session messages:', error);
       return [];
     } finally {
-      if (isInitialLoad) {
-        setIsLoadingSessionMessages(false);
-      } else {
-        setIsLoadingMoreMessages(false);
+      // Only reset loading state on the outermost call (not during retries)
+      if (retryCount === 0) {
+        if (isInitialLoad) {
+          setIsLoadingSessionMessages(false);
+        } else {
+          setIsLoadingMoreMessages(false);
+        }
       }
     }
   }, [messagesOffset]);
@@ -3374,6 +3385,19 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
         const provider = localStorage.getItem('selected-provider') || 'claude';
 
+        // CRITICAL: Track the target session for this async operation
+        // This prevents stale closures from setting messages for the wrong session
+        // when user rapidly switches between sessions during the async API call
+        const targetSessionId = selectedSession.id;
+
+        // Guard against duplicate API calls for the same session
+        // This can happen when the effect runs multiple times due to dependency batching
+        if (apiCallInProgressRef.current === targetSessionId) {
+          return;
+        }
+
+        loadingTargetSessionRef.current = targetSessionId;
+
         // Mark that we're loading a session to prevent multiple scroll triggers
         isLoadingSessionRef.current = true;
 
@@ -3453,6 +3477,13 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             // Load historical messages for Cursor session from SQLite
             const projectPath = selectedProject.fullPath || selectedProject.path;
             const converted = await loadCursorSessionMessages(projectPath, selectedSession.id);
+
+            // CRITICAL: Check if user switched to a different session during the async load
+            // If so, discard these messages to prevent setting stale data
+            if (loadingTargetSessionRef.current !== targetSessionId) {
+              return;
+            }
+
             // Reset the session switch flag BEFORE setting new messages
             sessionSwitchInProgressRef.current = false;
             // Mark that messages have been loaded for this session
@@ -3483,7 +3514,29 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           const shouldLoadFromApi = sessionChanged || (!isSystemSessionChange && !hasActiveSessionMessagesRef.current && currentSessionId === null) || messagesNotLoadedForSession;
 
           if (shouldLoadFromApi) {
-            const messages = await loadSessionMessages(selectedProject.name, selectedSession.id, false, selectedSession.__provider || 'claude');
+            // Mark that an API call is in progress for this session
+            apiCallInProgressRef.current = targetSessionId;
+            let messages;
+            try {
+              messages = await loadSessionMessages(selectedProject.name, selectedSession.id, false, selectedSession.__provider || 'claude');
+            } catch {
+              // Clear the API call in progress flag on error
+              if (apiCallInProgressRef.current === targetSessionId) {
+                apiCallInProgressRef.current = null;
+              }
+              return;
+            }
+
+            // CRITICAL: Check if user switched to a different session during the async API call
+            // If so, discard these messages to prevent setting stale data
+            if (loadingTargetSessionRef.current !== targetSessionId) {
+              // Clear the API call in progress flag since we're discarding this result
+              if (apiCallInProgressRef.current === targetSessionId) {
+                apiCallInProgressRef.current = null;
+              }
+              return;
+            }
+
             // Convert and set BOTH sessionMessages and chatMessages atomically
             // This prevents race conditions where the sync effect might run with stale data
             const converted = convertSessionMessages(messages);
@@ -3492,14 +3545,14 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             sessionMessagesSessionIdRef.current = selectedSession.id;
             // Mark that messages have been loaded for this session
             messagesLoadedForSessionRef.current = selectedSession.id;
+            // Clear the API call in progress flag since we're done
+            apiCallInProgressRef.current = null;
             // Set the new messages
             setSessionMessages(messages);
             setChatMessages(converted);
-            // Reset the session switch flag AFTER the state updates are committed
-            // Use setTimeout(0) to ensure the flag is reset after the next render cycle
-            setTimeout(() => {
-              sessionSwitchInProgressRef.current = false;
-            }, 0);
+            // Reset the session switch flag synchronously
+            // This allows subsequent effects (like convertedMessages sync) to run properly
+            sessionSwitchInProgressRef.current = false;
             // Scroll will be handled by the main scroll useEffect after messages are rendered
           } else if (isSystemSessionChange) {
             // Reset the flag after handling system session change
@@ -3564,7 +3617,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
     loadMessages();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- currentSessionId, loadSessionMessages, sendMessage, ws are used inside but intentionally excluded to prevent re-running on their changes
-  }, [selectedSession, selectedProject, loadCursorSessionMessages, scrollToBottom, isSystemSessionChange, resetStreamingState, hasAnyRecentCompletion, resetForSessionSwitch, forceNewSessionCounter]);
+  }, [selectedSession, selectedProject, loadCursorSessionMessages, scrollToBottom, isSystemSessionChange, resetStreamingState, hasAnyRecentCompletion, resetForSessionSwitch, forceNewSessionCounter, forceSessionSwitchCounter]);
 
   // External Message Update Handler: Reload messages when external CLI modifies current session
   // This triggers when App.jsx detects a JSONL file change for the currently-viewed session
@@ -3607,9 +3660,19 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   }, [externalMessageUpdate, selectedSession, selectedProject, loadCursorSessionMessages, isNearBottom, autoScrollToBottom, scrollToBottom]);
 
   // When the user navigates to a specific session, clear any pending "new session" marker.
+  // BUT: Don't clear if we're waiting for a session-created event (sessionId is null).
+  // This handles the case where the user starts a new session and pendingViewSessionRef is set
+  // with sessionId=null, but selectedSession changes before session-created arrives.
   useEffect(() => {
     if (selectedSession?.id) {
-      pendingViewSessionRef.current = null;
+      // Only clear if we're NOT waiting for a new session ID
+      // If pendingViewSessionRef.current exists AND sessionId is explicitly null,
+      // we're still waiting for session-created event
+      const isWaitingForNewSessionId = pendingViewSessionRef.current &&
+        pendingViewSessionRef.current.sessionId === null;
+      if (!isWaitingForNewSessionId) {
+        pendingViewSessionRef.current = null;
+      }
     }
   }, [selectedSession?.id]);
 
@@ -3618,26 +3681,13 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   // NOT when selectedSession changes (that's handled by loadMessages)
   useEffect(() => {
     const sessionIdMismatch = selectedSession?.id && sessionMessagesSessionIdRef.current !== selectedSession.id;
-    console.log('[ChatInterface] convertedMessages effect:', {
-      sessionMessagesLength: sessionMessages.length,
-      convertedMessagesLength: convertedMessages.length,
-      willSetChatMessages: sessionMessages.length > 0 && !sessionSwitchInProgressRef.current && !sessionIdMismatch,
-      sessionSwitchInProgress: sessionSwitchInProgressRef.current,
-      sessionIdMismatch,
-      selectedSessionId: selectedSession?.id,
-      sessionMessagesSessionId: sessionMessagesSessionIdRef.current,
-      convertedMessagesSample: convertedMessages.slice(0, 3).map(m => m.content?.substring(0, 50)),
-      timestamp: Date.now()
-    });
     // Skip if a session switch is in progress - the clearing effect should take priority
     if (sessionSwitchInProgressRef.current) {
-      console.log('[ChatInterface] Skipping convertedMessages sync - session switch in progress');
       return;
     }
     // Skip if sessionMessages belong to a different session than what we're viewing
     // This prevents stale messages from being synced during session switches
     if (sessionIdMismatch) {
-      console.log('[ChatInterface] Skipping convertedMessages sync - session ID mismatch');
       return;
     }
     if (sessionMessages.length > 0) {
@@ -3946,8 +3996,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
       // Block messages during session switch to prevent old session's messages from bleeding through
       // This is critical for preventing race conditions during rapid session switching
-      // We still allow lifecycle messages (complete/error) to pass through for proper state cleanup
-      if (sessionSwitchInProgressRef.current && !lifecycleMessageTypes.has(latestMessage.type)) {
+      // We still allow lifecycle messages (complete/error) and global messages to pass through
+      // Global messages like session-created are critical for state updates (e.g., confirmPendingSession)
+      if (sessionSwitchInProgressRef.current && !lifecycleMessageTypes.has(latestMessage.type) && !isGlobalMessage) {
         console.log('[WebSocket] Blocking message during session switch:', {
           messageType: latestMessage.type,
           messageSessionId: latestMessage.sessionId,
@@ -3991,12 +4042,13 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             // Mark as system change to prevent clearing messages when session ID updates
             setIsSystemSessionChange(true);
 
-            // CRITICAL: Mark this session as having loaded messages via WebSocket.
-            // This is essential for sessionChanged detection in loadMessages effect.
-            // Without this, when navigating away from a WebSocket-created session,
-            // sessionChanged would be false because messagesLoadedForSessionRef.current
-            // would still be null (only set in API load path).
-            messagesLoadedForSessionRef.current = latestMessage.sessionId;
+            // NOTE: We intentionally do NOT set messagesLoadedForSessionRef here.
+            // That ref should only be set when messages are loaded from the API.
+            // WebSocket messages are live-streamed into chatMessages directly,
+            // so the ref should be set when the session navigation completes and
+            // the loadMessages effect runs (or when messages are loaded from API on return visit).
+            // Setting it here caused a bug where navigating away and back wouldn't reload messages
+            // because the ref was stale from the initial WebSocket session creation.
 
             // Session Protection: Replace temporary "new-session-*" identifier with real session ID
             // This maintains protection continuity - no gap between temp ID and real ID
@@ -4009,7 +4061,24 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             // The Sidebar will hide the pending session only when the real session appears in data
             // This prevents the race condition where pending is cleared before projects_updated arrives
             if (confirmPendingSession) {
+              console.log('[session-created] Calling confirmPendingSession with:', latestMessage.sessionId);
               confirmPendingSession(latestMessage.sessionId);
+            }
+
+            // CRITICAL: Update activeSessionIdRef immediately to the real session ID
+            // This ensures WebSocket messages for the new session are not filtered out
+            // while waiting for the URL effect to find the session in projects
+            // However, only do this if we're in a "new session" context (activeSessionIdRef is null or temp ID)
+            // to avoid overwriting a valid session ID from a previously completed session
+            const currentActiveId = activeSessionIdRef.current;
+            const shouldUpdateActiveRef = !currentActiveId ||
+              currentActiveId.startsWith('new-session-') ||
+              currentActiveId === pendingViewSessionRef.current?.sessionId;
+            if (shouldUpdateActiveRef) {
+              activeSessionIdRef.current = latestMessage.sessionId;
+              console.log('[session-created] Updated activeSessionIdRef to:', latestMessage.sessionId);
+            } else {
+              console.log('[session-created] Skipping activeSessionIdRef update - already have valid session:', currentActiveId);
             }
 
             // Attach the real session ID to any pending permission requests so they
@@ -5193,28 +5262,21 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       // accept streaming updates for this run.
       pendingViewSessionRef.current = { sessionId: null, startedAt: Date.now() };
 
+      // CRITICAL: Also update activeSessionIdRef immediately to ensure the new session's
+      // session-created event can be received. Without this, the stale currentSessionId
+      // (from the previous session) causes activeSessionIdRef to filter out messages.
+      activeSessionIdRef.current = null;
+
       // Create a pending session in the sidebar immediately so users see the new chat
       // before the backend creates the real session file
       if (onNewSessionCreating && selectedProject) {
-        console.log('[ChatInterface] Calling onNewSessionCreating with:', {
-          projectName: selectedProject.name,
-          firstMessage: input.trim().slice(0, 100),
-          provider
-        });
         onNewSessionCreating({
           tempId: `new-session-${Date.now()}`,
           projectName: selectedProject.name,
           firstMessage: input.trim().slice(0, 100),
           provider: provider
         });
-      } else {
-        console.log('[ChatInterface] onNewSessionCreating NOT called:', {
-          hasCallback: !!onNewSessionCreating,
-          hasProject: !!selectedProject
-        });
       }
-    } else {
-      console.log('[ChatInterface] isNewSession is false, selectedSession?.id:', selectedSession?.id);
     }
     if (onSessionActive) {
       onSessionActive(sessionToActivate);

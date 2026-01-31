@@ -173,6 +173,33 @@ function Sidebar({
     }
   }, [selectedSession, selectedProject]);
 
+  // RACE CONDITION FIX: When a pending session gets its confirmedSessionId,
+  // re-trigger navigation if that pending session is currently selected.
+  // This handles the case where the user clicked on a pending session before
+  // session-created WebSocket event arrived with the real session ID.
+  useEffect(() => {
+    if (!selectedSession?.id?.startsWith('new-session-')) {
+      return; // Not viewing a pending session
+    }
+
+    // Check if this pending session now has a confirmed ID
+    const pendingSession = pendingSessions.find(p => p.id === selectedSession.id);
+    if (pendingSession?.confirmedSessionId) {
+      console.log('[Sidebar] Pending session now has confirmed ID, re-navigating:', {
+        tempId: selectedSession.id,
+        confirmedId: pendingSession.confirmedSessionId
+      });
+
+      // Create effective session with the confirmed ID and re-trigger navigation
+      const effectiveSession = {
+        ...selectedSession,
+        id: pendingSession.confirmedSessionId,
+        __isPending: false
+      };
+      onSessionSelect({ ...effectiveSession, __projectName: selectedProject?.name });
+    }
+  }, [pendingSessions, selectedSession, selectedProject, onSessionSelect]);
+
   // Mark sessions as loaded when projects come in
   useEffect(() => {
     if (projects.length > 0 && !isLoading) {
@@ -249,12 +276,24 @@ function Sidebar({
 
   // Wrapper to attach project context when session is clicked
   const handleSessionClick = (session, project) => {
-    console.log('[Sidebar handleSessionClick] Session clicked:', {
-      sessionId: session?.id,
-      sessionSummary: session?.summary,
-      projectName: project?.name
-    });
-    onSessionSelect({ ...session, __projectName: project.name });
+    // Fix for stale closure issue: If session.id is a temp "new-session-*" ID,
+    // check pendingSessions for the confirmedSessionId to use instead.
+    // This handles the race condition where the button was rendered before
+    // confirmPendingSession updated the state.
+    let effectiveSession = session;
+    if (session?.id?.startsWith('new-session-')) {
+      // Look up the pending session to see if it has a confirmedSessionId
+      const pendingSession = pendingSessions.find(p => p.id === session.id);
+      if (pendingSession?.confirmedSessionId) {
+        // Use the confirmed session ID instead of the temp ID
+        effectiveSession = {
+          ...session,
+          id: pendingSession.confirmedSessionId,
+          __isPending: false
+        };
+      }
+    }
+    onSessionSelect({ ...effectiveSession, __projectName: project.name });
     // Update TaskMaster context with the selected project
     setCurrentProject(project);
   };
@@ -322,16 +361,24 @@ function Sidebar({
           sessionMap.has(pendingSession.confirmedSessionId);
 
         if (!confirmedSessionExists) {
+          // Use confirmedSessionId if available, otherwise fall back to original temp ID
+          // This ensures the session button navigates to the real session even before
+          // projects_updated arrives with the full session data
+          const effectiveSessionId = pendingSession.confirmedSessionId || pendingSession.id;
+          const sessionName = pendingSession.firstMessage || 'New conversation...';
           const pendingSessionObj = {
-            id: pendingSession.id,
-            name: pendingSession.firstMessage || 'New conversation...',
+            id: effectiveSessionId,
+            name: sessionName,
+            // Also set summary to match name for consistency with MainContent header display
+            summary: sessionName,
             lastActivity: pendingSession.timestamp,
             __provider: pendingSession.provider || 'claude',
-            __isPending: true
+            // Only mark as pending if not yet confirmed (still using temp ID)
+            __isPending: !pendingSession.confirmedSessionId
           };
-          // Don't add if a real session with this temp ID already exists
-          if (!sessionMap.has(pendingSession.id)) {
-            sessionMap.set(pendingSession.id, pendingSessionObj);
+          // Don't add if a session with this ID already exists
+          if (!sessionMap.has(effectiveSessionId)) {
+            sessionMap.set(effectiveSessionId, pendingSessionObj);
           }
         }
       }
@@ -484,8 +531,6 @@ function Sidebar({
     const { project, sessionCount } = deleteConfirmation;
     const isEmpty = sessionCount === 0;
 
-    console.log('[DEBUG confirmDeleteProject] Starting delete for:', project.name, 'displayName:', project.displayName);
-
     setDeleteConfirmation(null);
     setDeletingProjects(prev => new Set([...prev, project.name]));
 
@@ -493,14 +538,11 @@ function Sidebar({
     // This prevents race conditions where projects_updated WebSocket arrives
     // during the API call and re-adds the project with stale data
     if (onProjectDelete) {
-      console.log('[DEBUG confirmDeleteProject] Calling onProjectDelete with:', project.name);
       onProjectDelete(project.name);
     }
 
     try {
-      console.log('[DEBUG confirmDeleteProject] Calling API deleteProject for:', project.name);
       const response = await api.deleteProject(project.name, !isEmpty);
-      console.log('[DEBUG confirmDeleteProject] API response ok:', response.ok);
 
       if (!response.ok) {
         const error = await response.json();
@@ -1804,7 +1846,8 @@ function Sidebar({
                                   isPendingSession && "bg-blue-50/50 dark:bg-blue-900/10 border border-blue-500/30",
                                   selectMode && isSessionSelected(project.name, session.id) && "bg-primary/10 border border-primary/30"
                                 )}
-                                onClick={() => {
+                                onClick={(e) => {
+                                  console.log('[Sidebar] Desktop session button onClick:', { sessionId: session.id, selectMode, isCursorSession, isPendingSession, eventType: e.type, isTrusted: e.isTrusted });
                                   if (selectMode && !isCursorSession && !isPendingSession) {
                                     toggleSessionSelection(project.name, session.id, session.__provider || 'claude');
                                   } else if (!selectMode) {
