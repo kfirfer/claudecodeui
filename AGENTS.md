@@ -90,6 +90,64 @@ Environment variables (`.env`):
 ### Session Protection System
 The app tracks "active sessions" to prevent automatic project updates from clearing chat messages during conversations. See `App.jsx` for implementation using `activeSessions` state and the `markSessionAsActive`/`markSessionAsInactive` callbacks.
 
+### Session State Management Architecture
+
+The session navigation system in `ChatInterface.jsx` uses multiple refs and effects to manage session state. Understanding this architecture is critical for maintaining the component.
+
+#### Key Refs for Session Tracking
+
+| Ref | Purpose |
+|-----|---------|
+| `activeSessionIdRef` | Current session ID for WebSocket message filtering |
+| `messagesLoadedForSessionRef` | Tracks which session's messages are currently loaded |
+| `loadingTargetSessionRef` | Target session during async API calls (prevents stale data) |
+| `sessionMessagesSessionIdRef` | Associates raw session messages with their session |
+| `sessionSwitchInProgressRef` | Flag to block message processing during session switch |
+| `apiCallInProgressRef` | Guards against duplicate API calls for same session |
+| `hasActiveSessionMessagesRef` | Indicates messages received from WebSocket (not API) |
+| `isPendingSessionRef` | Tracks if selected session is pending (temp ID) |
+| `pendingViewSessionRef` | Stores pending session view state during creation |
+| `prevForceSessionSwitchRef` | Detects changes in force switch counter |
+| `prevSessionIdRef` | Detects actual session ID changes |
+
+#### Session Lifecycle
+
+1. **New Session Creation**:
+    - User submits message → `handleSubmit` generates temp ID (`new-session-*`)
+    - Temp session added to `pendingSessions` array
+    - WebSocket `session-created` arrives → `confirmPendingSession` links temp→real ID
+    - Session transitions from pending to confirmed
+
+2. **Session Navigation**:
+    - User clicks session in Sidebar → `handleSessionSelect` in App.jsx
+    - `forceSessionSwitchCounter` increments → triggers `useLayoutEffect` in ChatInterface
+    - Messages cleared synchronously, refs reset
+    - `loadMessages` effect runs async → fetches messages from API
+    - `loadingTargetSessionRef` prevents stale data if user switches again
+
+3. **Message Flow**:
+    - Incoming WebSocket messages filtered by `activeSessionIdRef`
+    - `sessionSwitchInProgressRef` blocks messages during switch
+    - After API load completes, refs updated atomically before setting state
+
+#### Known Race Conditions and Mitigations
+
+1. **Stale Closure in Async Effects**: The `loadMessages` effect captures session ID in `targetSessionId`, then checks `loadingTargetSessionRef` after API call to discard stale results.
+
+2. **Layout Effect vs WebSocket Timing**: `useLayoutEffect` updates `activeSessionIdRef` synchronously before render to ensure WebSocket handler sees correct session.
+
+3. **Pending Session Resolution**: `handleSessionClick` in Sidebar looks up `confirmedSessionId` from `pendingSessions` to resolve temp IDs that may not be updated in rendered button.
+
+4. **Duplicate API Calls**: `apiCallInProgressRef` guards against effect running multiple times due to dependency batching.
+
+#### Debugging Session Issues
+
+When debugging session navigation issues:
+1. Check `messagesLoadedForSessionRef` matches expected session
+2. Verify `activeSessionIdRef` is correct in WebSocket handler
+3. Ensure `sessionSwitchInProgressRef` is reset after loading completes
+4. For pending sessions, verify `confirmPendingSession` was called with correct IDs
+
 ### WebSocket Message Types
 - `claude-command` / `cursor-command` / `codex-command` - User prompts
 - `claude-response` - Streaming AI responses
